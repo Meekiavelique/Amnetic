@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "amnetic",
+  "version": "${version}",
+  "name": "Amnetic",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/amnetic/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "com.meekdev.amnetic.client.AmneticDataGenerator"
+    ],
+    "client": [
+      "com.meekdev.amnetic.client.AmneticClient"
+    ],
+    "main": [
+      "com.meekdev.amnetic.Amnetic"
+    ]
+  },
+  "mixins": [
+    "amnetic.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
