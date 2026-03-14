@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.meekdev.amnetic.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "GameRendererMixin",
+    "accessor.GlGpuBufferAccessor",
+    "accessor.PostEffectPassAccessor",
+    "accessor.PostEffectProcessorAccessor",
+    "accessor.ShaderLoaderAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}
