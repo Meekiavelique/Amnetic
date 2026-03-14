@@ -46,6 +46,7 @@ public final class PostEffectEntry {
 
     private PostEffectPipeline cachedBasePipeline;
     private PostEffectProcessor ownedProcessor;
+    private final UniformBufferWriter uniformBufferWriter = new UniformBufferWriter();
     private List<Identifier> lastTextureSnapshot;
 
     PostEffectEntry(Identifier id) {
@@ -222,7 +223,7 @@ public final class PostEffectEntry {
         }
 
         Map<String, List<UniformValue>> effectiveUniforms = buildEffectiveUniforms();
-        UniformBufferWriter.update(ownedProcessor, effectiveUniforms);
+        uniformBufferWriter.update(ownedProcessor, effectiveUniforms);
 
         return ownedProcessor;
     }
@@ -279,6 +280,7 @@ public final class PostEffectEntry {
 
     public void close() {
         closeOwned();
+        uniformBufferWriter.close();
         cachedBasePipeline = null;
     }
 
