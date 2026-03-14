@@ -49,6 +49,9 @@ Full reference are in the [wiki](../../wiki):
 
 ---
 
+## IA USAGE
+The only things i used ia for in this project is to correct my spelling and coherence in the wiki
+
 ## License
 
 See [LICENSE.txt](LICENSE.txt).
