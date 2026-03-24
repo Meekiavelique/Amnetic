@@ -18,15 +18,15 @@ public abstract class GameRendererMixin {
     @Shadow @Final private Pool pool;
 
     @Inject(
-            method = "render",
+            method = "renderWorld",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/render/GameRenderer;renderWorld(Lnet/minecraft/client/render/RenderTickCounter;)V",
-                    shift = At.Shift.AFTER
+                    target = "Lcom/mojang/blaze3d/systems/CommandEncoder;clearDepthTexture(Lcom/mojang/blaze3d/textures/GpuTexture;D)V",
+                    shift = At.Shift.BEFORE
             ),
             require = 0
     )
-    private void amnetic$onPostWorldRender(RenderTickCounter ticker, boolean renderLevel, CallbackInfo ci) {
+    private void amnetic$onPostWorldRender(RenderTickCounter ticker, CallbackInfo ci) {
         PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_WORLD, ticker.getTickProgress(true), pool);
     }
 
