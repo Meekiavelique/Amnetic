@@ -138,8 +138,10 @@ handle.enable();
 handle.setCondition(() -> player.isUnderwater());
 handle.setFade(20, 10);
 handle.uniform("MyConfig", newValue);
-handle.unregister(); // removes the effect permanently
+handle.unregister();
 ```
+
+`handle.unregister()` removes the effect permanently.
 
 See [Post-Processing](Post-Processing) for the complete handle API.
 
@@ -149,12 +151,16 @@ See [Post-Processing](Post-Processing) for the complete handle API.
 
 For common cases, Amnetic provides some methods that skip the configuration builder:
 
+Blur:
+
 ```java
-// blur
 PostEffects.blur(Identifier.of("mymod", "blur"), 2.0f);
 PostEffects.blur(Identifier.of("mymod", "blur"), () -> computeRadius());
+```
 
-// vignette
+Vignette:
+
+```java
 PostEffects.vignette(Identifier.of("mymod", "vignette"), 0.6f);
 ```
 

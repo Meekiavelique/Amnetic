@@ -91,7 +91,7 @@ Always declare `#version 330` at the top of your fragment shader.
 The `minecraft:core/screenquad` vertex shader provides one interpolated varying:
 
 ```glsl
-in vec2 texCoord;   // UV coordinates, 0.0 to 1.0
+in vec2 texCoord;
 ```
 
 You do not need to declare any other vertex inputs.
@@ -116,8 +116,8 @@ Every pass automatically receives the `SamplerInfo` UBO from the engine. Always 
 
 ```glsl
 layout(std140) uniform SamplerInfo {
-    vec2 OutSize;   // dimensions of the output framebuffer in pixels
-    vec2 InSize;    // dimensions of the primary input sampler in pixels
+    vec2 OutSize;
+    vec2 InSize;
 };
 ```
 
@@ -152,7 +152,7 @@ When `fadeIn` or `fadeOut` is configured on an effect, Amnetic injects the `Inte
 
 ```glsl
 layout(std140) uniform Intensity {
-    float Value;   // current fade intensity, 0.0 to 1.0
+    float Value;
 };
 ```
 
