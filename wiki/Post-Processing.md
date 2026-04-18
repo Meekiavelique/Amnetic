@@ -10,18 +10,15 @@ This page is the complete reference for the post-processing API: `PostEffects`, 
 
 ### register
 
+Overloads:
+
 ```java
-// Always active, no configuration
 PostEffectHandle register(Identifier id)
-
-// Conditional, no other configuration
 PostEffectHandle register(Identifier id, BooleanSupplier condition)
-
-// Full configuration via builder
 PostEffectHandle register(Identifier id, Consumer<PostEffectConfig> configurator)
 ```
 
-`id` must match the path of the pipeline JSON: `assets/[namespace]/post_effect/[path].json`.
+`id` is the pipeline name under `post_effect` (without the `.json` extension). For example, `Identifier.of("mymod", "frost")` loads `assets/mymod/post_effect/frost.json`.
 
 ### Convenience methods
 
@@ -71,9 +68,12 @@ Higher values are applied first. Default is `0`. See [Priority ordering](#priori
 
 ```java
 cfg.externalTargets(Set<Identifier> targets)
+cfg.externalTarget(Identifier id, Supplier<Framebuffer> supplier)
 ```
 
 The set of named framebuffer targets that the pipeline reads from or writes to outside of its own declared targets. By default this is `Set.of(PostEffectProcessor.MAIN)`, which represents the main scene framebuffer (`minecraft:main`). You should not need to change this unless your effect uses additional shared targets.
+
+`externalTarget(...)` binds a concrete framebuffer supplier to an external target id so the runtime can actually provide that target during rendering.
 
 ### Fade
 
@@ -133,7 +133,7 @@ Called each frame immediately before and after the effect is rendered. See [Post
 handle.enable()
 handle.disable()
 handle.setEnabled(boolean enabled)
-handle.isEnabled()           // returns boolean
+handle.isEnabled()
 ```
 
 A disabled effect is never rendered regardless of its condition supplier.
@@ -202,9 +202,9 @@ handle.onAfterApply(Consumer<PostEffectContext> callback)
 ### Status
 
 ```java
-handle.isActive()    // true if the effect was rendered this frame
-handle.isEnabled()   // true if the effect is not explicitly disabled
-handle.getId()       // the Identifier the effect was registered with
+handle.isActive()
+handle.isEnabled()
+handle.getId()
 ```
 
 ### Unregistration
@@ -222,11 +222,11 @@ Permanently removes the effect from the registry. The handle should not be used 
 `PostEffectContext` is passed to `onBeforeApply` and `onAfterApply` callbacks each frame.
 
 ```java
-ctx.getClient()        // MinecraftClient
-ctx.getDeltaTick()     // float, tick progress 0..1
-ctx.getScreenWidth()   // int
-ctx.getScreenHeight()  // int
-ctx.getProcessor()     // PostEffectProcessor being applied
+ctx.getClient()
+ctx.getDeltaTick()
+ctx.getScreenWidth()
+ctx.getScreenHeight()
+ctx.getProcessor()
 ```
 
 ---
@@ -234,13 +234,27 @@ ctx.getProcessor()     // PostEffectProcessor being applied
 ## RenderPhase
 
 ```java
-RenderPhase.POST_WORLD   // default
+RenderPhase.POST_WORLD
 RenderPhase.POST_RENDER
 ```
 
-`POST_WORLD` injects the effect after `GameRenderer.renderWorld()` returns but before the GUI is drawn. The effect covers the scene but not the HUD or inventory.
+`POST_WORLD` injects the effect after the world has rendered but before Minecraft clears the main depth buffer for hand + overlay rendering. This means `minecraft:main` depth sampling works in this phase. The effect covers the world, but anything rendered after the depth clear (hand and screen overlays) will appear on top of the post effect.
 
 `POST_RENDER` injects at the end of `GameRenderer.render()`, after everything including the GUI. The effect covers the entire final frame.
+
+Amnetic preserves depth for this phase in two steps. It snapshots world depth before vanilla clears the main depth buffer for hand rendering, and it also snapshots the later hand-inclusive depth right before vanilla clears depth again for GUI rendering. Right before `POST_RENDER` effects run, Amnetic restores that later hand-inclusive snapshot into `minecraft:main`, so default depth sampling in `POST_RENDER` includes first-person hand/item depth.
+
+Amnetic also exposes that preserved depth snapshot as an external framebuffer target with id `amnetic:world_depth_snapshot`. In a post-effect JSON you can bind it like this:
+
+```json
+{
+  "sampler_name": "WorldDepth",
+  "target": "amnetic:world_depth_snapshot",
+  "use_depth_buffer": true
+}
+```
+
+This is the most reliable way to read preserved world-only depth in `POST_RENDER`, because it does not depend on sampling `minecraft:main` depth after vanilla has already cleared it earlier in the frame.
 
 ---
 
@@ -271,5 +285,3 @@ layout(std140) uniform Intensity {
 Your shader must declare this block and multiply the visual effect strength by `Intensity.Value` to honor the fade. The block name `"Intensity"` is reserved by Amnetic and should not be used for any other purpose in effects that use fade.
 
 If no fade is configured, the `Intensity` block is not injected and you do not need to declare it in your shader.
-
-

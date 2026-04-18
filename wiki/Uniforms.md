@@ -35,12 +35,11 @@ The key `"MyConfig"` is the **block name**. It is the same string in both the JS
 **All `.uniform()` calls in Amnetic take the block name as the first argument, not the name of an individual variable inside the block.**
 
 ```java
-// Correct: "MyConfig" is the block name
 cfg.uniform("MyConfig", 0.5f);
-
-// This would be wrong: "Strength" is a member variable name, not a block name
 cfg.uniform("Strength", 0.5f);
 ```
+
+The first line is correct. The second line is wrong because `"Strength"` is a member name, not a block name.
 
 When you override a block, you replace the **entire block's value list**. All members must be accounted for in the order they appear in the JSON.
 
@@ -64,11 +63,15 @@ cfg.uniformRaw("MyConfig", () -> List.of(
 
 For blocks with a single member, a typed convenience overload is available:
 
-```java
-// For a block with one float member
-cfg.uniform("Intensity", 0.8f);
+Single float member:
 
-// For a block with one vec4 member
+```java
+cfg.uniform("Intensity", 0.8f);
+```
+
+Single vec4 member:
+
+```java
 cfg.uniformVec4("TintBlock", () -> new Vector4f(r, g, b, a));
 ```
 
@@ -94,7 +97,7 @@ The following block names are used by Amnetic or minecraft and should not be use
 
 ```java
 UniformSuppliers.constant(float value)
-UniformSuppliers.constant(float x, float y)   // returns Supplier<Vector2fc>
+UniformSuppliers.constant(float x, float y)
 ```
 
 Returns a supplier that always yields the given value. Useful for setting a uniform to a fixed value without hardcoding it in the JSON.
@@ -102,8 +105,8 @@ Returns a supplier that always yields the given value. Useful for setting a unif
 ### Time
 
 ```java
-UniformSuppliers.gameTime()      // DoubleSupplier — world tick time as a float
-UniformSuppliers.partialTick()   // DoubleSupplier — current frame's tick progress, 0.0 to 1.0
+UniformSuppliers.gameTime()
+UniformSuppliers.partialTick()
 ```
 
 `gameTime()` increases monotonically with world ticks. It is suitable for driving time-based animations in shaders.
@@ -113,9 +116,9 @@ UniformSuppliers.partialTick()   // DoubleSupplier — current frame's tick prog
 ### Screen dimensions
 
 ```java
-UniformSuppliers.screenWidth()    // DoubleSupplier - current framebuffer width in pixels
-UniformSuppliers.screenHeight()   // DoubleSupplier - current framebuffer height in pixels
-UniformSuppliers.screenSize()     // Supplier<Vector2fc> - width and height as a vec2
+UniformSuppliers.screenWidth()
+UniformSuppliers.screenHeight()
+UniformSuppliers.screenSize()
 ```
 
 These update every frame and reflect the current window size. Note that the engine also automatically provides `SamplerInfo.OutSize` and `SamplerInfo.InSize` in every shader, so `screenSize()` is mainly useful when you need the screen dimensions in a custom named block.
@@ -123,10 +126,10 @@ These update every frame and reflect the current window size. Note that the engi
 ### Player state
 
 ```java
-UniformSuppliers.playerHealth()       // DoubleSupplier - current health points (raw)
-UniformSuppliers.playerHealthNorm()   // DoubleSupplier - health normalized to 0.0..1.0
-UniformSuppliers.playerAir()          // DoubleSupplier - current air supply (raw)
-UniformSuppliers.playerAirNorm()      // DoubleSupplier - air normalized to 0.0..1.0
+UniformSuppliers.playerHealth()
+UniformSuppliers.playerHealthNorm()
+UniformSuppliers.playerAir()
+UniformSuppliers.playerAirNorm()
 ```
 
 All player state suppliers return `0.0` when no local player exists (on the main menu).
@@ -167,8 +170,9 @@ These are pass-through wrappers. They exist so that you can pass any lambda or m
 
 Suppliers do not have to come from `UniformSuppliers`. You can pass any lambda, method reference, or object that implements the supplier interface. This means uniforms can be driven by anything in your mod:
 
+Driven by a field:
+
 ```java
-// A field on your own class
 private float myStrength = 0.5f;
 
 PostEffects.register(Identifier.of("mymod", "effect"), cfg -> cfg
@@ -185,15 +189,17 @@ cfg.uniformVec4("TintBlock", () -> new Vector4f(
 ));
 ```
 
+Driven by a keybind or toggle:
+
 ```java
-// a value driven by a keybind or toggle
 private boolean active = false;
 
 cfg.uniform("FadeConfig", () -> active ? 1.0f : 0.0f);
 ```
 
+Multi-member block override:
+
 ```java
-// a multi-member block using uniformRaw
 cfg.uniformRaw("MyConfig", () -> List.of(
     new UniformValue.FloatValue(myStrength),
     new UniformValue.Vec4fValue(new Vector4f(r, g, b, 1.0f))
@@ -201,5 +207,3 @@ cfg.uniformRaw("MyConfig", () -> List.of(
 ```
 
 The supplier is called every frame the effect is active. Return whatever value is appropriate for that frame.
-
-

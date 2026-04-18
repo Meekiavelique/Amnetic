@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.post.internal;
 
 import com.meekdev.amnetic.client.post.RenderPhase;
+import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.util.ObjectAllocator;
 import net.minecraft.util.Identifier;
 
@@ -30,6 +31,27 @@ public final class PostEffectRegistry {
     public void applyAll(RenderPhase phase, float deltaTick, ObjectAllocator allocator) {
         for (PostEffectEntry entry : entries) {
             entry.apply(phase, deltaTick, allocator);
+        }
+    }
+
+    public boolean hasEnabledEffectInPhase(RenderPhase phase) {
+        for (PostEffectEntry entry : entries) {
+            if (entry.getPhase() == phase && entry.isEnabled()) return true;
+        }
+        return false;
+    }
+
+    public void captureWorldDepthSnapshot(Framebuffer framebuffer) {
+        WorldDepthSnapshot.capture(framebuffer);
+    }
+
+    public void capturePostRenderDepthSnapshot(Framebuffer framebuffer) {
+        PostRenderDepthSnapshot.capture(framebuffer);
+    }
+
+    public void restorePostRenderDepthSnapshotInto(Framebuffer framebuffer) {
+        if (!PostRenderDepthSnapshot.restoreInto(framebuffer)) {
+            WorldDepthSnapshot.restoreInto(framebuffer);
         }
     }
 

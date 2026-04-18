@@ -1,6 +1,6 @@
 # Amnetic
 
-Amnetic is a Minecraft 1.21.1 Fabric rendering utility library. 
+Amnetic is a Minecraft 1.21.11 Fabric rendering utility library. 
 
 ---
 
@@ -31,5 +31,11 @@ The following areas are planned for future releases. None of them are available 
 | [Post-Processing](Post-Processing) | Full reference for `PostEffects`, `PostEffectHandle`, `RenderPhase`, priority, and the fade system |
 | [Uniforms](Uniforms) | `UniformSuppliers` reference and an explanation of how uniform blocks work |
 | [Writing Shaders](Writing-Shaders) | JSON pipeline format, GLSL conventions, and a complete worked example |
+| [Vanilla Rendering Internals](Vanilla-Rendering-Index) | How Minecraft 1.21.11 creates the GL context, loads pipelines/shaders, and handles depth |
+| [Vanilla Window and OpenGL](Vanilla-Window-and-OpenGL) | GLFW hints, requested OpenGL version/profile, and what “forcing” a newer version entails |
+| [Vanilla RenderSystem and GlBackend](Vanilla-RenderSystem-and-GlBackend) | Backend init, debug output, capabilities, and default uniform blocks |
+| [Vanilla Shaders and Post Effects](Vanilla-Shaders-and-Post-Effects) | Post-effect JSON schema, sampler/uniform conventions, and pass execution |
+| [Vanilla Depth and Fog](Vanilla-Depth-and-Fog) | Depth sampling, linearization math, and the “hands-only depth” pitfall |
+| [Vanilla Advanced Shader Stages](Vanilla-Advanced-Shader-Stages) | What vanilla supports, how to force GL 4.x, and what it takes to use compute/tessellation |
 
 ---

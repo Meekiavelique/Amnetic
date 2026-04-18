@@ -6,11 +6,15 @@ import com.meekdev.amnetic.client.post.RenderPhase;
 import com.meekdev.amnetic.mixin.accessor.ShaderLoaderAccessor;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.PostEffectPipeline;
 import net.minecraft.client.gl.PostEffectProcessor;
 import net.minecraft.client.gl.ShaderLoader;
 import net.minecraft.client.gl.UniformValue;
+import net.minecraft.client.render.DefaultFramebufferSet;
+import net.minecraft.client.render.FrameGraphBuilder;
 import net.minecraft.client.render.ProjectionMatrix2;
+import net.minecraft.client.util.Handle;
 import net.minecraft.client.util.ObjectAllocator;
 import net.minecraft.resource.Resource;
 import net.minecraft.util.Identifier;
@@ -28,12 +32,14 @@ public final class PostEffectEntry {
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/PostEffect");
 
     private final Identifier id;
+    private final Identifier pipelineResourcePath;
     private Set<Identifier> externalTargets;
     private BooleanSupplier condition;
     private int priority;
     private RenderPhase phase;
     private final Map<String, Supplier<List<UniformValue>>> uniformSlots;
     private final Map<String, Identifier> textureOverrides;
+    private final Map<Identifier, Supplier<Framebuffer>> externalTargetSuppliers;
     private Consumer<PostEffectContext> onBeforeApply;
     private Consumer<PostEffectContext> onAfterApply;
     private int fadeInTicks;
@@ -51,15 +57,24 @@ public final class PostEffectEntry {
     private List<Identifier> lastTextureSnapshot;
 
     PostEffectEntry(Identifier id) {
-        this.id = id;
+        this.id = normalizePostEffectId(id);
+        this.pipelineResourcePath = Identifier.of(this.id.getNamespace(), "post_effect/" + this.id.getPath() + ".json");
         this.externalTargets = Set.of(PostEffectProcessor.MAIN);
         this.condition = () -> true;
         this.priority = 0;
         this.phase = RenderPhase.POST_WORLD;
         this.uniformSlots = new LinkedHashMap<>();
         this.textureOverrides = new LinkedHashMap<>();
+        this.externalTargetSuppliers = new LinkedHashMap<>();
         this.fadeInTicks = 0;
         this.fadeOutTicks = 0;
+    }
+
+    private static Identifier normalizePostEffectId(Identifier id) {
+        String path = id.getPath();
+        if (path.endsWith(".json")) path = path.substring(0, path.length() - ".json".length());
+        if (path.startsWith("post_effect/")) path = path.substring("post_effect/".length());
+        return Identifier.of(id.getNamespace(), path);
     }
 
     public void setCondition(BooleanSupplier condition) {
@@ -84,6 +99,13 @@ public final class PostEffectEntry {
 
     public void setFadeOut(int ticks) {
         this.fadeOutTicks = ticks;
+    }
+
+    public void putExternalTargetSupplier(Identifier id, Supplier<Framebuffer> supplier) {
+        this.externalTargetSuppliers.put(id, supplier);
+        LinkedHashSet<Identifier> updatedTargets = new LinkedHashSet<>(this.externalTargets);
+        updatedTargets.add(id);
+        this.externalTargets = Set.copyOf(updatedTargets);
     }
 
     public void setOnBeforeApply(Consumer<PostEffectContext> callback) {
@@ -155,7 +177,8 @@ public final class PostEffectEntry {
         }
 
         MinecraftClient mc = MinecraftClient.getInstance();
-        PostEffectProcessor processor = resolveProcessor(mc);
+        Set<Identifier> effectiveExternalTargets = getEffectiveExternalTargets(mc);
+        PostEffectProcessor processor = resolveProcessor(mc, effectiveExternalTargets);
         if (processor == null) {
             active = false;
             return;
@@ -172,7 +195,7 @@ public final class PostEffectEntry {
         );
 
         if (onBeforeApply != null) onBeforeApply.accept(ctx);
-        processor.render(mc.getFramebuffer(), allocator);
+        renderProcessor(mc, processor, allocator, effectiveExternalTargets);
         if (onAfterApply != null) onAfterApply.accept(ctx);
     }
 
@@ -192,11 +215,11 @@ public final class PostEffectEntry {
         }
     }
 
-    private PostEffectProcessor resolveProcessor(MinecraftClient mc) {
+    private PostEffectProcessor resolveProcessor(MinecraftClient mc, Set<Identifier> effectiveExternalTargets) {
         boolean needsOwnInstance = !uniformSlots.isEmpty() || !textureOverrides.isEmpty() || hasFade();
 
         if (!needsOwnInstance) {
-            return mc.getShaderLoader().loadPostEffect(id, externalTargets);
+            return mc.getShaderLoader().loadPostEffect(id, effectiveExternalTargets);
         }
 
         if (ownedProcessor == null || isTextureDirty()) {
@@ -215,7 +238,7 @@ public final class PostEffectEntry {
             ProjectionMatrix2 projMatrix = ((ShaderLoaderAccessor) shaderLoader).amnetic$getProjectionMatrix();
 
             try {
-                ownedProcessor = PostEffectProcessor.parseEffect(modified, mc.getTextureManager(), externalTargets, id, projMatrix);
+                ownedProcessor = PostEffectProcessor.parseEffect(modified, mc.getTextureManager(), effectiveExternalTargets, id, projMatrix);
                 lastTextureSnapshot = new ArrayList<>(textureOverrides.values());
             } catch (ShaderLoader.LoadException e) {
                 LOGGER.error("Failed to build post effect processor for {}: {}", id, e.getMessage());
@@ -227,6 +250,85 @@ public final class PostEffectEntry {
         uniformBufferWriter.update(ownedProcessor, effectiveUniforms);
 
         return ownedProcessor;
+    }
+
+    private Set<Identifier> getEffectiveExternalTargets(MinecraftClient mc) {
+        Set<Identifier> effective = new LinkedHashSet<>(externalTargets);
+        PostEffectPipeline base = getOrLoadBasePipeline(mc);
+        if (phase == RenderPhase.POST_RENDER && base != null && pipelineUsesTarget(base, WorldDepthSnapshot.TARGET_ID)) {
+            effective.add(WorldDepthSnapshot.TARGET_ID);
+        }
+        return Set.copyOf(effective);
+    }
+
+    private static boolean pipelineUsesTarget(PostEffectPipeline pipeline, Identifier targetId) {
+        for (PostEffectPipeline.Pass pass : pipeline.passes()) {
+            for (PostEffectPipeline.Input input : pass.inputs()) {
+                if (input instanceof PostEffectPipeline.TargetSampler sampler && sampler.targetId().equals(targetId)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void renderProcessor(MinecraftClient mc, PostEffectProcessor processor, ObjectAllocator allocator, Set<Identifier> effectiveExternalTargets) {
+        Framebuffer mainFramebuffer = mc.getFramebuffer();
+        if (effectiveExternalTargets.equals(Set.of(PostEffectProcessor.MAIN))) {
+            processor.render(mainFramebuffer, allocator);
+            return;
+        }
+
+        FrameGraphBuilder frameGraph = new FrameGraphBuilder();
+        MapFramebufferSet framebufferSet = new MapFramebufferSet();
+        framebufferSet.set(PostEffectProcessor.MAIN, frameGraph.createObjectNode("minecraft:main", mainFramebuffer));
+
+        for (Identifier targetId : effectiveExternalTargets) {
+            if (targetId.equals(PostEffectProcessor.MAIN)) continue;
+
+            Framebuffer framebuffer = resolveExternalFramebuffer(mc, targetId);
+            if (framebuffer == null) {
+                LOGGER.warn("Skipping post effect {} because external target {} is unavailable", id, targetId);
+                return;
+            }
+
+            framebufferSet.set(targetId, frameGraph.createObjectNode(targetId.toString(), framebuffer));
+        }
+
+        processor.render(frameGraph, mainFramebuffer.textureWidth, mainFramebuffer.textureHeight, framebufferSet);
+        frameGraph.run(allocator);
+    }
+
+    private Framebuffer resolveExternalFramebuffer(MinecraftClient mc, Identifier targetId) {
+        Supplier<Framebuffer> customTarget = externalTargetSuppliers.get(targetId);
+        if (customTarget != null) {
+            return customTarget.get();
+        }
+        if (targetId.equals(PostEffectProcessor.MAIN)) {
+            return mc.getFramebuffer();
+        }
+        if (targetId.equals(DefaultFramebufferSet.TRANSLUCENT)) {
+            return mc.worldRenderer.getTranslucentFramebuffer();
+        }
+        if (targetId.equals(DefaultFramebufferSet.ITEM_ENTITY)) {
+            return mc.worldRenderer.getEntityFramebuffer();
+        }
+        if (targetId.equals(DefaultFramebufferSet.PARTICLES)) {
+            return mc.worldRenderer.getParticlesFramebuffer();
+        }
+        if (targetId.equals(DefaultFramebufferSet.WEATHER)) {
+            return mc.worldRenderer.getWeatherFramebuffer();
+        }
+        if (targetId.equals(DefaultFramebufferSet.CLOUDS)) {
+            return mc.worldRenderer.getCloudsFramebuffer();
+        }
+        if (targetId.equals(DefaultFramebufferSet.ENTITY_OUTLINE)) {
+            return mc.worldRenderer.getEntityOutlinesFramebuffer();
+        }
+        if (targetId.equals(WorldDepthSnapshot.TARGET_ID)) {
+            return WorldDepthSnapshot.getFramebuffer();
+        }
+        return null;
     }
 
     private Map<String, List<UniformValue>> buildEffectiveUniforms() {
@@ -251,10 +353,9 @@ public final class PostEffectEntry {
     private PostEffectPipeline getOrLoadBasePipeline(MinecraftClient mc) {
         if (cachedBasePipeline != null) return cachedBasePipeline;
 
-        Identifier resourceId = Identifier.of(id.getNamespace(), "post_effect/" + id.getPath() + ".json");
-        Optional<Resource> resource = mc.getResourceManager().getResource(resourceId);
+        Optional<Resource> resource = mc.getResourceManager().getResource(pipelineResourcePath);
         if (resource.isEmpty()) {
-            LOGGER.warn("Post effect resource not found: {}", resourceId);
+            LOGGER.warn("Post effect resource not found: {}", pipelineResourcePath);
             return null;
         }
 
@@ -264,7 +365,7 @@ public final class PostEffectEntry {
                     .getOrThrow();
             return cachedBasePipeline;
         } catch (Exception e) {
-            LOGGER.error("Failed to load post effect pipeline for {}: {}", resourceId, e.getMessage());
+            LOGGER.error("Failed to load post effect pipeline for {}: {}", pipelineResourcePath, e.getMessage());
             return null;
         }
     }
@@ -290,6 +391,21 @@ public final class PostEffectEntry {
             ownedProcessor.close();
             ownedProcessor = null;
             lastTextureSnapshot = null;
+        }
+    }
+
+    private static final class MapFramebufferSet implements PostEffectProcessor.FramebufferSet {
+
+        private final Map<Identifier, Handle<Framebuffer>> handles = new HashMap<>();
+
+        @Override
+        public void set(Identifier id, Handle<Framebuffer> handle) {
+            handles.put(id, handle);
+        }
+
+        @Override
+        public Handle<Framebuffer> get(Identifier id) {
+            return handles.get(id);
         }
     }
 }

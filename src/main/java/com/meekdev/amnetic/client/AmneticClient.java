@@ -1,7 +1,10 @@
 package com.meekdev.amnetic.client;
 
+import com.meekdev.amnetic.client.instanced.InstancePhase;
+import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resource.ResourceManager;
@@ -22,8 +25,15 @@ public class AmneticClient implements ClientModInitializer {
                     @Override
                     public void reload(ResourceManager manager) {
                         PostEffectRegistry.INSTANCE.invalidatePipelineCaches();
+                        InstanceMeshRegistry.INSTANCE.reloadShaders();
                     }
                 }
         );
+
+        WorldRenderEvents.BEFORE_ENTITIES.register(ctx ->
+                InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.BEFORE_ENTITIES, ctx));
+
+        WorldRenderEvents.AFTER_ENTITIES.register(ctx ->
+                InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.AFTER_ENTITIES, ctx));
     }
 }

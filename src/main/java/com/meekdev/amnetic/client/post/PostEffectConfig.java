@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.post;
 
 import com.meekdev.amnetic.client.post.internal.PostEffectEntry;
+import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.UniformValue;
 import net.minecraft.util.Identifier;
 import org.joml.*;
@@ -43,6 +44,11 @@ public final class PostEffectConfig {
 
     public PostEffectConfig externalTargets(Identifier... targets) {
         entry.setExternalTargets(Set.of(targets));
+        return this;
+    }
+
+    public PostEffectConfig externalTarget(Identifier id, Supplier<Framebuffer> supplier) {
+        entry.putExternalTargetSupplier(id, supplier);
         return this;
     }
 
