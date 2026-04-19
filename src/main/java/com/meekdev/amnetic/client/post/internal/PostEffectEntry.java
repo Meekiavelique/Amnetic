@@ -255,7 +255,7 @@ public final class PostEffectEntry {
     private Set<Identifier> getEffectiveExternalTargets(MinecraftClient mc) {
         Set<Identifier> effective = new LinkedHashSet<>(externalTargets);
         PostEffectPipeline base = getOrLoadBasePipeline(mc);
-        if (phase == RenderPhase.POST_RENDER && base != null && pipelineUsesTarget(base, WorldDepthSnapshot.TARGET_ID)) {
+        if (base != null && pipelineUsesTarget(base, WorldDepthSnapshot.TARGET_ID)) {
             effective.add(WorldDepthSnapshot.TARGET_ID);
         }
         return Set.copyOf(effective);
