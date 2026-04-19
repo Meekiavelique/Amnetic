@@ -25,15 +25,8 @@ public class AmneticClient implements ClientModInitializer {
                     @Override
                     public void reload(ResourceManager manager) {
                         PostEffectRegistry.INSTANCE.invalidatePipelineCaches();
-                        InstanceMeshRegistry.INSTANCE.reloadShaders();
                     }
                 }
         );
-
-        WorldRenderEvents.BEFORE_ENTITIES.register(ctx ->
-                InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.BEFORE_ENTITIES, ctx));
-
-        WorldRenderEvents.AFTER_ENTITIES.register(ctx ->
-                InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.AFTER_ENTITIES, ctx));
     }
 }
