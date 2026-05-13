@@ -28,7 +28,8 @@ public abstract class GameRendererMixin {
     )
     private void amnetic$onPostWorldRender(RenderTickCounter ticker, CallbackInfo ci) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
+        if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.PRE_GUI)
+                || PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
             PostEffectRegistry.INSTANCE.captureWorldDepthSnapshot(mc.getFramebuffer());
         }
         PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_WORLD, ticker.getTickProgress(true), pool);
@@ -49,6 +50,7 @@ public abstract class GameRendererMixin {
         if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
             PostEffectRegistry.INSTANCE.capturePostRenderDepthSnapshot(mc.getFramebuffer());
         }
+        PostEffectRegistry.INSTANCE.applyAll(RenderPhase.PRE_GUI, ticker.getTickProgress(true), pool);
     }
 
     @Inject(method = "render", at = @At("TAIL"))

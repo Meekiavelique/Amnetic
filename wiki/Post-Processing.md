@@ -235,10 +235,13 @@ ctx.getProcessor()
 
 ```java
 RenderPhase.POST_WORLD
+RenderPhase.PRE_GUI
 RenderPhase.POST_RENDER
 ```
 
 `POST_WORLD` injects the effect after the world has rendered but before Minecraft clears the main depth buffer for hand + overlay rendering. This means `minecraft:main` depth sampling works in this phase. The effect covers the world, but anything rendered after the depth clear (hand and screen overlays) will appear on top of the post effect.
+
+`PRE_GUI` injects in `GameRenderer.render()` after world rendering and first-person hand/item rendering, but before vanilla clears depth for GUI/screen rendering. The effect covers the world plus hands/items, while GUI/screens still render on top afterward.
 
 `POST_RENDER` injects at the end of `GameRenderer.render()`, after everything including the GUI. The effect covers the entire final frame.
 
