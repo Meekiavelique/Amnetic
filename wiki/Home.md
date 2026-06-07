@@ -1,6 +1,6 @@
 # Amnetic
 
-Amnetic is a Minecraft 1.21.11 Fabric rendering utility library. 
+Amnetic is a Minecraft 26.1.2 Fabric rendering utility library. 
 
 ---
 
@@ -53,7 +53,7 @@ The following areas are planned for future releases. None of them are available 
 | [Instanced Rendering](Instanced-Rendering) | `InstancedMesh`, built-in shaders, layouts, `MeshData`, render state, and phases |
 | [Camera](Camera) | `AmneticCamera` queries, `CameraEffects` + `CameraModifier`, and the `CameraDirector` |
 | [Mesh Pipeline](Mesh-Pipeline) | Generic world-space mesh render type for custom geometry |
-| [Vanilla Rendering Internals](Vanilla-Rendering-Index) | How Minecraft 1.21.11 creates the GL context, loads pipelines/shaders, and handles depth |
+| [Vanilla Rendering Internals](Vanilla-Rendering-Index) | How Minecraft 26.1.2 creates the GL context, loads pipelines/shaders, and handles depth |
 | [Vanilla Window and OpenGL](Vanilla-Window-and-OpenGL) | GLFW hints, requested OpenGL version/profile, and what “forcing” a newer version entails |
 | [Vanilla RenderSystem and GlBackend](Vanilla-RenderSystem-and-GlBackend) | Backend init, debug output, capabilities, and default uniform blocks |
 | [Vanilla Shaders and Post Effects](Vanilla-Shaders-and-Post-Effects) | Post-effect JSON schema, sampler/uniform conventions, and pass execution |
