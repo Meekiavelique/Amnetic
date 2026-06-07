@@ -1,29 +1,30 @@
 # Instanced Rendering
 
-Instancing draws **one mesh many times in a single draw call**. Instead of issuing a draw per object — which collapses your frame rate at a few hundred objects — you upload a small record per object (its transform, its color, …) into one buffer and the GPU stamps the mesh out thousands of times in one go. Use it for anything repeated: position markers, projectiles, foliage, falling leaves, debris, spell motes, debug shapes, sprite swarms.
-
-This page explains the model, walks through complete examples (built-in shader *and* custom shader), and gives the per-type reference. Read the **Status** section at the bottom first if you're trying to get it running today.
+Instancing draws one shape many times in a single draw call. Normally each object you draw is its own draw call, and a few hundred of those will tank your frame rate. With instancing you upload one small record per object, like its position and color, and the GPU stamps the shape out thousands of times at once. Use it for anything repeated: markers, projectiles, leaves, debris, spell motes, debug shapes, sprite swarms.
 
 ---
 
-## The mental model
+## How it works
 
-An instanced mesh is four things bolted together:
+An instanced mesh is four things:
 
-1. **Geometry** (`MeshData`) — the shape drawn once per instance (a quad, a cube, a circle, or your own vertices). Uploaded to the GPU once.
-2. **Per-instance data** — the small record that differs per object. For the common cases this is "a transform matrix" or "a transform + a color".
-3. **A shader** — turns geometry + per-instance data into pixels. Amnetic ships **built-in shaders** for the three usual cases, so you often write no GLSL at all.
-4. **A render callback** (`onRender`) — runs every frame; you add the instances that should be visible *this* frame.
+1. **Geometry**. The shape, drawn once per object. A quad, a cube, a circle, or your own vertices. It is a `MeshData` and gets uploaded once.
 
-You describe all of that once with a builder and `register(...)` it. From then on, every frame Amnetic calls your callback, you fill a batch, and it draws the whole batch in one instanced call. The batch is cleared for you before each call, so you simply re-add whatever is currently visible — no manual add/remove bookkeeping.
+2. **Per-instance data**. The small record that changes per object. Usually a transform matrix, or a transform and a color.
 
-Positions are handled in **camera-relative space**: the context gives you `worldToModel(...)` helpers that subtract the camera position, which both matches what the instance shaders expect and keeps precision high far from the origin.
+3. **A shader**. Turns the geometry and the per-instance data into pixels. Amnetic ships built-in shaders for the common cases, so often you write no GLSL.
+
+4. **A render callback**. Runs every frame. You add the objects that should be visible this frame.
+
+You describe all of that once with a builder and call `register`. After that, every frame Amnetic calls your callback, you fill a batch, and it draws the whole batch in one call. The batch is cleared for you each frame, so you just add whatever is visible right now. There is no add or remove bookkeeping.
+
+Positions are camera-relative. The context gives you `worldToModel(...)` helpers that subtract the camera position for you. This is what the shaders expect and it keeps precision good far from the world origin.
 
 ---
 
-## Worked example 1 — built-in shader (no GLSL)
+## Example 1. A box on every mob
 
-Draw a translucent red cube on every mob in the world. `BuiltinShader.TRANSFORM_COLOR` bundles the layout, the writer, and the GLSL, so all you provide is geometry and the per-frame instances.
+This draws a translucent red cube on every mob. `BuiltinShader.TRANSFORM_COLOR` already bundles the layout, the writer and the GLSL, so all you give is the geometry and the per-frame objects.
 
 ```java
 import com.meekdev.amnetic.client.instanced.*;
@@ -45,35 +46,31 @@ InstancedMesh.builder(BuiltinShader.TRANSFORM_COLOR)
     .register(Identifier.of("mymod", "mob_markers"));
 ```
 
-That's the whole feature. `register(...)` is what makes it draw — a mesh you `build()` but never register does nothing. Your callback runs once per frame; add exactly the instances you want visible and Amnetic draws them all in one call.
+That is the whole feature. `register` is what makes it draw. A mesh you `build` but never register does nothing.
 
 ### The three built-in shaders
 
-| Built-in | Instance record `T` | Use it for |
-|---|---|---|
-| `BuiltinShader.TRANSFORM` | `Transform(Matrix4fc transform)` | solid white shapes (debug volumes, masks) |
-| `BuiltinShader.TRANSFORM_COLOR` | `TransformColor(Matrix4fc transform, Vector4fc color)` | colored/tinted shapes — the common case |
-| `BuiltinShader.TEXTURED_BILLBOARD` | `TexturedBillboard(Vector3fc center, float size, Vector4fc color, Vector4fc uv)` | textured screen-facing sprites |
-
-`TexturedBillboard` has a short constructor that uses the whole texture: `new TexturedBillboard(center, size, color)`. Pair it with `.texture(...)` and `.geometry(MeshData.texturedQuad())`.
+- `BuiltinShader.TRANSFORM`. Record `Transform(Matrix4fc transform)`. Solid white shapes, like debug volumes.
+- `BuiltinShader.TRANSFORM_COLOR`. Record `TransformColor(Matrix4fc transform, Vector4fc color)`. Colored shapes. The common case.
+- `BuiltinShader.TEXTURED_BILLBOARD`. Record `TexturedBillboard(Vector3fc center, float size, Vector4fc color, Vector4fc uv)`. Textured sprites that face the camera. There is a short constructor `new TexturedBillboard(center, size, color)` that uses the whole texture. Pair it with `.texture(...)` and `.geometry(MeshData.texturedQuad())`.
 
 ---
 
-## Worked example 2 — custom shader
+## Example 2. A custom shader
 
-When the built-ins aren't enough (you need extra per-instance data, or custom vertex/fragment math), supply your own layout, writer, and shader.
+When the built-ins are not enough, you give your own layout, writer and shader.
 
-**1. Describe the per-instance data with a layout.** Each call adds an attribute at a vertex-attribute *location*; `mat4` takes four consecutive locations. Geometry owns location 0 (position) and, for textured geometry, location 1 (UV) — so your instance attributes start after that:
+First, describe the per-instance data with a layout. Each call adds an attribute at a vertex-attribute location. A `mat4` takes four locations in a row. The geometry owns location 0 (position), and location 1 too if it is textured (UV), so your instance attributes start after that.
 
 ```java
-// per instance: a model matrix (locations 1..4) + an RGBA color (location 5)
+// per instance: a model matrix at locations 1..4, then an RGBA color at location 5
 InstanceLayout layout = InstanceLayout.builder()
     .mat4(1)
     .vec4(5)
     .build();
 ```
 
-**2. Write a packer** that serializes one instance into the buffer, in the same field order as the layout:
+Then write a packer that puts one object into the buffer, in the same order as the layout.
 
 ```java
 record Mote(Matrix4fc transform, Vector4fc color) {}
@@ -82,7 +79,7 @@ InstanceWriter<Mote> writer = (mote, p) ->
     p.putMat4(mote.transform()).putVec4(mote.color());
 ```
 
-**3. Build the mesh with your shader id.** `.shader(Identifier.of("mymod","instance/mote"))` loads `assets/mymod/shaders/instance/mote.vsh` and `.fsh`:
+Then build the mesh with your shader id. `.shader(Identifier.of("mymod", "instance/mote"))` loads `assets/mymod/shaders/instance/mote.vsh` and `.fsh`.
 
 ```java
 InstancedMesh.builder(layout, writer)
@@ -97,13 +94,13 @@ InstancedMesh.builder(layout, writer)
     .register(Identifier.of("mymod", "motes"));
 ```
 
-**4. The shaders.** Vertex — `assets/mymod/shaders/instance/mote.vsh`. Geometry comes in at location 0; the instance matrix/color at the locations your layout used. Amnetic uploads `ProjViewMatrix`, `ProjectionMatrix`, and `ViewMatrix` (declare the ones you use):
+The vertex shader. Geometry comes in at location 0, and the instance matrix and color at the locations your layout used. Amnetic uploads `ProjViewMatrix`, `ProjectionMatrix` and `ViewMatrix`, so declare the ones you use.
 
 ```glsl
 #version 330 core
-layout(location = 0) in vec3 Position;     // from MeshData
+layout(location = 0) in vec3 Position;       // from MeshData
 
-layout(location = 1) in vec4 InstTransform0; // the mat4, column by column
+layout(location = 1) in vec4 InstTransform0; // the mat4, one column at a time
 layout(location = 2) in vec4 InstTransform1;
 layout(location = 3) in vec4 InstTransform2;
 layout(location = 4) in vec4 InstTransform3;
@@ -119,7 +116,7 @@ void main() {
 }
 ```
 
-Fragment — `assets/mymod/shaders/instance/mote.fsh`:
+The fragment shader.
 
 ```glsl
 #version 330 core
@@ -131,54 +128,51 @@ void main() {
 }
 ```
 
-> **The number-one custom-shader bug** is mismatched locations. The geometry uses location 0 (and location 1 if the mesh is textured). Your instance attributes must start at the next free location, and a `mat4` consumes four. `TRANSFORM`/`TRANSFORM_COLOR` start their instance data at location 1 (plain mesh, only location 0 used); `TEXTURED_BILLBOARD` starts at location 2 (textured mesh uses location 1 for UV). The packer's `put...` order must match the layout's attribute order exactly, or instances render garbage.
+The most common bug with custom shaders is mismatched locations. The geometry uses location 0, and location 1 if the mesh is textured. Your instance attributes must start at the next free location, and a `mat4` takes four. `TRANSFORM` and `TRANSFORM_COLOR` start their instance data at location 1. `TEXTURED_BILLBOARD` starts at location 2, because a textured mesh already uses location 1 for the UV. The packer must put fields in the same order the layout declares them, or the instances come out as garbage.
 
-If you set `.texture(...)`, it's bound to texture unit 0 and your shader samples it via `uniform sampler2D TextureSampler;`.
+If you set `.texture(...)`, it is bound to texture unit 0 and your shader reads it with `uniform sampler2D TextureSampler;`.
 
 ---
 
 ## Reference
 
-### InstancedMesh / builder
+### Builder
 
 ```java
-// pick ONE builder:
-InstancedMesh.builder(BuiltinShader<T> shader)             // built-in: layout + writer + GLSL included
+// pick one builder:
+InstancedMesh.builder(BuiltinShader<T> shader)                          // built-in: layout, writer and GLSL included
 InstancedMesh.builder(InstanceLayout layout, InstanceWriter<T> writer)  // custom shader
 
-// configure (fluent):
-.geometry(MeshData geometry)      // REQUIRED — the mesh drawn per instance
-.shader(Identifier id)            // REQUIRED for the custom builder; selects assets/<ns>/shaders/<path>.{vsh,fsh}
-.texture(Identifier id)           // optional — bound to TextureSampler / unit 0
-.phase(InstancePhase phase)       // default WORLD_LAST (see Status note)
+.geometry(MeshData geometry)      // required: the shape drawn per instance
+.shader(Identifier id)            // required for the custom builder; assets/<ns>/shaders/<path>.vsh and .fsh
+.texture(Identifier id)           // optional: bound to TextureSampler, unit 0
+.phase(InstancePhase phase)       // default WORLD_LAST
 .renderState(RenderState state)   // default RenderState.DEFAULT
-.onRender((ctx, batch) -> { ... })// REQUIRED — fill the batch each frame
-
-// finish:
-.build()                          // -> InstancedMesh<T>
-.register(Identifier id)          // build() AND register it to actually draw
+.onRender((ctx, batch) -> { ... })// required: fill the batch each frame
+.build()                          // returns InstancedMesh<T>
+.register(Identifier id)          // build AND register; this is what makes it draw
 ```
 
-`geometry`, `onRender`, and a shader are mandatory. **`register` is what makes it render** — `build()` alone doesn't.
+`geometry`, `onRender` and a shader are required. `register` is what makes it render. `build` on its own does nothing.
 
-### MeshData — geometry
+### MeshData (geometry)
 
 ```java
-MeshData.quad()                  // flat XZ quad, 1×1 (position only)
-MeshData.texturedQuad()          // flat XY quad with UVs — for billboards (position + UV)
-MeshData.unitCircle(int segs)    // XZ disc, radius 1, segs ≥ 3 (position only)
-MeshData.unitCube()              // 1×1×1 cube centered at origin (position only)
-MeshData.of(float[] verts, int[] indices)   // custom indexed mesh
-MeshData.of(float[] verts)                   // custom non-indexed mesh
+MeshData.quad()                  // flat 1x1 quad, position only
+MeshData.texturedQuad()          // flat quad with UVs, for billboards
+MeshData.unitCircle(int segs)    // disc of radius 1, segs >= 3
+MeshData.unitCube()              // 1x1x1 cube at the origin
+MeshData.of(float[] verts, int[] indices)
+MeshData.of(float[] verts)
 ```
 
-Geometry attribute locations are fixed: **location 0 = `vec3 Position`**, **location 1 = `vec2 UV`** (only for textured geometry like `texturedQuad`). Indexed meshes draw via `glDrawElementsInstanced`, non-indexed via `glDrawArraysInstanced`. Triangles only.
+Location 0 is always `vec3 Position`. Location 1 is `vec2 UV`, only for textured geometry. Triangles only. Indexed meshes draw with `glDrawElementsInstanced`, the rest with `glDrawArraysInstanced`.
 
-### InstanceLayout — custom per-instance format
+### InstanceLayout (custom per-instance format)
 
 ```java
 InstanceLayout.builder()
-    .mat4(int startLocation)   // four vec4 columns at startLocation..+3
+    .mat4(int startLocation)   // four vec4 columns, startLocation to +3
     .vec4(int location)
     .vec3(int location)
     .vec2(int location)
@@ -186,26 +180,26 @@ InstanceLayout.builder()
     .build();
 ```
 
-Presets (used by the built-ins): `TRANSFORM` = `mat4(1)`; `TRANSFORM_COLOR` = `mat4(1).vec4(5)`; `TEXTURED_BILLBOARD` = `vec3(2).float1(3).vec4(4).vec4(5)`. All instance attributes are set with a divisor of 1 — they advance once per instance, not per vertex.
+The presets the built-ins use: `TRANSFORM` is `mat4(1)`, `TRANSFORM_COLOR` is `mat4(1).vec4(5)`, `TEXTURED_BILLBOARD` is `vec3(2).float1(3).vec4(4).vec4(5)`. Every instance attribute advances once per instance, not per vertex.
 
-### InstancePacker — used inside a custom writer
+### InstancePacker (used inside a custom writer)
 
 ```java
 p.putFloat(float)
  .putVec2(x, y)
- .putVec3(x, y, z)  / .putVec3(Vector3fc)
+ .putVec3(x, y, z) / .putVec3(Vector3fc)
  .putVec4(x, y, z, w) / .putVec4(Vector4fc)
  .putMat4(Matrix4fc);
 ```
 
-Write fields in the same order as the layout declares them.
+Write the fields in the same order as the layout.
 
 ### RenderState
 
 ```java
 RenderState.DEFAULT       // depth test on, depth write on, no blend, cull on
-RenderState.TRANSLUCENT   // depth test on, depth write OFF, alpha blend, cull on
-RenderState.ADDITIVE      // depth test on, depth write OFF, additive blend, cull OFF
+RenderState.TRANSLUCENT   // depth test on, depth write off, alpha blend, cull on
+RenderState.ADDITIVE      // depth test on, depth write off, additive blend, cull off
 
 RenderState.builder()
     .depthTest(boolean).depthWrite(boolean)
@@ -213,11 +207,11 @@ RenderState.builder()
     .backfaceCulling(boolean).build();
 ```
 
-State is applied before the draw and reset to sane defaults afterward. Use `TRANSLUCENT` for tinted overlays, `ADDITIVE` for glows.
+The state is applied before the draw and reset afterward. Use `TRANSLUCENT` for tinted overlays and `ADDITIVE` for glows.
 
 ### InstanceRenderContext
 
-Passed to `onRender` each frame. Frame state plus camera-relative matrix helpers — **always position instances with these**, never with raw world coordinates:
+Passed to `onRender` each frame. It has the frame state and the camera-relative matrix helpers. Always place instances with these, not with raw world coordinates.
 
 ```java
 Minecraft client();  ClientLevel world();  float deltaTick();
@@ -225,29 +219,26 @@ Vec3 cameraPos();  Matrix4fc viewMatrix();  Matrix4fc projectionMatrix();
 
 Matrix4f worldToModel(Vec3 pos);
 Matrix4f worldToModel(double x, double y, double z);
-Matrix4f worldToModel(BlockPos pos);                          // centered on the block
+Matrix4f worldToModel(BlockPos pos);                         // centered on the block
 Matrix4f worldToModel(Vec3 pos, float scale);
 Matrix4f worldToModel(Vec3 pos, float yawDegrees, float scale);
 Matrix4f worldToModel(Vec3 pos, Quaternionfc rotation, float scale);
-Matrix4f worldToModel(Entity entity[, float scale][, float yawDegrees]);  // interpolated by deltaTick
+Matrix4f worldToModel(Entity entity, ...);                   // interpolated by deltaTick
 ```
 
 ---
 
-## Status — how this is wired today
+## Status
 
-The instancing API above is the intended, complete usage. **Before relying on it, be aware of how it is currently hooked into the renderer**, because the runtime wiring is the part most likely to need attention after a Minecraft update:
+Rendering is driven from the client initializer. On Fabric's `LevelRenderEvents.END_MAIN`, Amnetic binds Minecraft's main framebuffer and calls `InstanceMeshRegistry.renderAll` for the `WORLD_LAST` phase. In 26.1 there is no bindable GL framebuffer, so Amnetic builds its own from the main target's color and depth textures (`MainTargetFramebuffer`).
 
-- **Rendering is driven from a `GameRenderer` mixin** (`WorldLastInstancingMixin`) that, after the world renders, binds the main framebuffer and calls `InstanceMeshRegistry.renderAll(WORLD_LAST, ...)`. For instancing to draw, that mixin must be (a) compiled — it and the `client/instanced/**` package are gated by a `sourceSets` exclude in `build.gradle` — and (b) listed in the `client` array of `amnetic.mixins.json`.
-- **Only `InstancePhase.WORLD_LAST` is actually driven.** `BEFORE_ENTITIES` and `AFTER_ENTITIES` exist in the enum but no hook calls `renderAll` for them yet — a mesh registered with those phases will not render. Use `WORLD_LAST` (the default).
-- The matrix-supplying path used by the Fabric-event overload of `renderAll` depends on a `GameRenderer` invoker accessor; the active mixin path passes the view/projection matrices directly and does not need it.
-
-If instanced meshes register without error but nothing appears on screen, this wiring is the first place to check. (If you've just ported to a new Minecraft version, re-check the `renderLevel` `@Redirect` signature in the mixin against the current `LevelRenderer.renderLevel` parameters.)
+Only `WORLD_LAST` is driven right now. Other phases exist in the enum but nothing calls `renderAll` for them, so a mesh registered with those will not draw. Use `WORLD_LAST`, which is the default. If meshes register without error but nothing shows up, this wiring and the framebuffer bind are the first place to check after a Minecraft update.
 
 ---
 
-## See also
+## See Also
 
-- [Particles](Particles) — CPU-driven camera-facing billboards; simpler than `TEXTURED_BILLBOARD` instancing for sprite swarms
-- [Mesh Pipeline](Mesh-Pipeline) — single, non-instanced world geometry through Minecraft's own render types
-- [Writing Shaders](Writing-Shaders) — GLSL conventions
+- [Particles](Particles). CPU-driven billboards built on this pipeline.
+- [Camera](Camera). Effects and a cinematic director.
+- [Mesh Pipeline](Mesh-Pipeline). Single, non-instanced world geometry.
+- [Writing Shaders](Writing-Shaders). GLSL conventions.
