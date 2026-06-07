@@ -1,22 +1,22 @@
 package com.meekdev.amnetic.client.post.internal;
 
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import net.minecraft.resources.Identifier;
 
 final class WorldDepthSnapshot {
 
-    static final Identifier TARGET_ID = Identifier.of("amnetic", "world_depth_snapshot");
+    static final Identifier TARGET_ID = Identifier.fromNamespaceAndPath("amnetic", "world_depth_snapshot");
     private static final DepthSnapshot SNAPSHOT = new DepthSnapshot("amnetic_world_depth_snapshot");
 
-    static void capture(Framebuffer source) {
+    static void capture(RenderTarget source) {
         SNAPSHOT.capture(source);
     }
 
-    static boolean restoreInto(Framebuffer target) {
+    static boolean restoreInto(RenderTarget target) {
         return SNAPSHOT.restoreInto(target);
     }
 
-    static Framebuffer getFramebuffer() {
+    static RenderTarget getFramebuffer() {
         return SNAPSHOT.getFramebuffer();
     }
 

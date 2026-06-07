@@ -2,11 +2,10 @@ package com.meekdev.amnetic.client.post;
 
 import com.meekdev.amnetic.client.post.internal.PostEffectEntry;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
-import net.minecraft.util.Identifier;
-
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
+import net.minecraft.resources.Identifier;
 
 public final class PostEffects {
 

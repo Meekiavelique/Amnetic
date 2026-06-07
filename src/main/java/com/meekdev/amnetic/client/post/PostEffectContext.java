@@ -1,17 +1,17 @@
 package com.meekdev.amnetic.client.post;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.PostEffectProcessor;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.PostChain;
 
 public final class PostEffectContext {
 
-    private final MinecraftClient client;
+    private final Minecraft client;
     private final float deltaTick;
     private final int screenWidth;
     private final int screenHeight;
-    private final PostEffectProcessor processor;
+    private final PostChain processor;
 
-    public PostEffectContext(MinecraftClient client, float deltaTick, int screenWidth, int screenHeight, PostEffectProcessor processor) {
+    public PostEffectContext(Minecraft client, float deltaTick, int screenWidth, int screenHeight, PostChain processor) {
         this.client = client;
         this.deltaTick = deltaTick;
         this.screenWidth = screenWidth;
@@ -19,7 +19,7 @@ public final class PostEffectContext {
         this.processor = processor;
     }
 
-    public MinecraftClient getClient() {
+    public Minecraft getClient() {
         return client;
     }
 
@@ -35,7 +35,7 @@ public final class PostEffectContext {
         return screenHeight;
     }
 
-    public PostEffectProcessor getProcessor() {
+    public PostChain getProcessor() {
         return processor;
     }
 }

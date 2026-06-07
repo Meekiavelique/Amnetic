@@ -6,10 +6,7 @@ import com.meekdev.amnetic.mixin.accessor.PostEffectProcessorAccessor;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import net.minecraft.client.gl.GlGpuBuffer;
-import net.minecraft.client.gl.PostEffectPass;
-import net.minecraft.client.gl.PostEffectProcessor;
-import net.minecraft.client.gl.UniformValue;
+import com.mojang.blaze3d.opengl.GlBuffer;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL31;
 import org.lwjgl.system.MemoryStack;
@@ -18,20 +15,23 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.renderer.PostChain;
+import net.minecraft.client.renderer.PostPass;
+import net.minecraft.client.renderer.UniformValue;
 
 final class UniformBufferWriter implements AutoCloseable {
 
     private final Map<String, Integer> stagingBuffers = new HashMap<>();
 
-    void update(PostEffectProcessor processor, Map<String, List<UniformValue>> uniforms) {
+    void update(PostChain processor, Map<String, List<UniformValue>> uniforms) {
         if (uniforms.isEmpty()) return;
 
-        List<PostEffectPass> passes = ((PostEffectProcessorAccessor) processor).amnetic$getPasses();
-        for (PostEffectPass pass : passes) {
+        List<PostPass> passes = ((PostEffectProcessorAccessor) processor).amnetic$getPasses();
+        for (PostPass pass : passes) {
             Map<String, GpuBuffer> uniformBuffers = ((PostEffectPassAccessor) pass).amnetic$getUniformBuffers();
             for (Map.Entry<String, List<UniformValue>> entry : uniforms.entrySet()) {
                 GpuBuffer dest = uniformBuffers.get(entry.getKey());
-                if (!(dest instanceof GlGpuBuffer)) continue;
+                if (!(dest instanceof GlBuffer)) continue;
 
                 int destId = ((GlGpuBufferAccessor) dest).amnetic$getId();
                 int size = computeSize(entry.getValue());
@@ -42,7 +42,7 @@ final class UniformBufferWriter implements AutoCloseable {
                     ByteBuffer buf = stack.malloc(size);
                     Std140Builder builder = Std140Builder.intoBuffer(buf);
                     for (UniformValue value : entry.getValue()) {
-                        value.write(builder);
+                        value.writeTo(builder);
                     }
                     buf.flip();
                     GL15.glBindBuffer(GL31.GL_COPY_READ_BUFFER, stagingId);

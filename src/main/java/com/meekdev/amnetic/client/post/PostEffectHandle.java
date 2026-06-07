@@ -2,9 +2,7 @@ package com.meekdev.amnetic.client.post;
 
 import com.meekdev.amnetic.client.post.internal.PostEffectEntry;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.UniformValue;
-import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import org.joml.*;
 
 import java.util.List;
@@ -14,6 +12,8 @@ import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import net.minecraft.client.renderer.UniformValue;
+import net.minecraft.resources.Identifier;
 
 public final class PostEffectHandle {
 
@@ -58,7 +58,7 @@ public final class PostEffectHandle {
         return this;
     }
 
-    public PostEffectHandle setExternalTarget(Identifier id, Supplier<Framebuffer> supplier) {
+    public PostEffectHandle setExternalTarget(Identifier id, Supplier<RenderTarget> supplier) {
         entry.putExternalTargetSupplier(id, supplier);
         return this;
     }
@@ -101,18 +101,18 @@ public final class PostEffectHandle {
 
     public PostEffectHandle uniform(String name, float x, float y, float z) {
         Vector3f vec = new Vector3f(x, y, z);
-        entry.putUniformSlot(name, () -> List.of(new UniformValue.Vec3fValue(vec)));
+        entry.putUniformSlot(name, () -> List.of(new UniformValue.Vec3Uniform(vec)));
         return this;
     }
 
     public PostEffectHandle uniform(String name, float x, float y, float z, float w) {
         Vector4f vec = new Vector4f(x, y, z, w);
-        entry.putUniformSlot(name, () -> List.of(new UniformValue.Vec4fValue(vec)));
+        entry.putUniformSlot(name, () -> List.of(new UniformValue.Vec4Uniform(vec)));
         return this;
     }
 
     public PostEffectHandle uniform(String name, int value) {
-        entry.putUniformSlot(name, () -> List.of(new UniformValue.IntValue(value)));
+        entry.putUniformSlot(name, () -> List.of(new UniformValue.IntUniform(value)));
         return this;
     }
 

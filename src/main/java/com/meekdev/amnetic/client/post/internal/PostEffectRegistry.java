@@ -1,12 +1,11 @@
 package com.meekdev.amnetic.client.post.internal;
 
 import com.meekdev.amnetic.client.post.RenderPhase;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.util.ObjectAllocator;
-import net.minecraft.util.Identifier;
-
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import net.minecraft.resources.Identifier;
 
 public final class PostEffectRegistry {
 
@@ -28,7 +27,7 @@ public final class PostEffectRegistry {
         entries.remove(entry);
     }
 
-    public void applyAll(RenderPhase phase, float deltaTick, ObjectAllocator allocator) {
+    public void applyAll(RenderPhase phase, float deltaTick, GraphicsResourceAllocator allocator) {
         for (PostEffectEntry entry : entries) {
             entry.apply(phase, deltaTick, allocator);
         }
@@ -41,15 +40,15 @@ public final class PostEffectRegistry {
         return false;
     }
 
-    public void captureWorldDepthSnapshot(Framebuffer framebuffer) {
+    public void captureWorldDepthSnapshot(RenderTarget framebuffer) {
         WorldDepthSnapshot.capture(framebuffer);
     }
 
-    public void capturePostRenderDepthSnapshot(Framebuffer framebuffer) {
+    public void capturePostRenderDepthSnapshot(RenderTarget framebuffer) {
         PostRenderDepthSnapshot.capture(framebuffer);
     }
 
-    public void restorePostRenderDepthSnapshotInto(Framebuffer framebuffer) {
+    public void restorePostRenderDepthSnapshotInto(RenderTarget framebuffer) {
         if (!PostRenderDepthSnapshot.restoreInto(framebuffer)) {
             WorldDepthSnapshot.restoreInto(framebuffer);
         }
