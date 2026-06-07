@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-A Fabric rendering utility library for Minecraft 1.21.11 
+A Fabric rendering utility library for Minecraft 26.1.2 
 </p>
 
 ## Installation

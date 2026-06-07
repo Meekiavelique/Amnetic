@@ -1,6 +1,6 @@
 # Writing Shaders
 
-This page covers the pipeline JSON format, GLSL conventions for Minecraft 1.21.11 post-processing shaders, and a complete worked example.
+This page covers the pipeline JSON format, GLSL conventions for Minecraft 26.1.2 post-processing shaders, and a complete worked example.
 
 ---
 
