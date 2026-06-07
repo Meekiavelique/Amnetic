@@ -49,6 +49,7 @@ Full reference are in the [wiki](../../wiki):
 - [Compute Shaders](../../wiki/Compute-Shaders) - compute programs, SSBOs, and textures
 - [Particles](../../wiki/Particles) - particle system and soft particles
 - [Instanced Rendering](../../wiki/Instanced-Rendering) - GPU instancing helpers
+- [Camera](../../wiki/Camera) - queries, effects, and the cinematic director
 - [Mesh Pipeline](../../wiki/Mesh-Pipeline) - custom world-space geometry
 
 ---
