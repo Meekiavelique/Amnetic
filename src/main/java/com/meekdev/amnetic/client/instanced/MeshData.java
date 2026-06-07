@@ -9,10 +9,18 @@ public final class MeshData {
 
     private final float[] vertices;
     private final int[] indices;
+    private final int vertexStrideFloats;
+    private final boolean textureCoordinates;
 
     private MeshData(float[] vertices, int[] indices) {
+        this(vertices, indices, 3, false);
+    }
+
+    private MeshData(float[] vertices, int[] indices, int vertexStrideFloats, boolean textureCoordinates) {
         this.vertices = vertices;
         this.indices = indices;
+        this.vertexStrideFloats = vertexStrideFloats;
+        this.textureCoordinates = textureCoordinates;
     }
 
     public static MeshData quad() {
@@ -24,6 +32,17 @@ public final class MeshData {
         };
         int[] i = { 0, 1, 2, 2, 1, 3 };
         return new MeshData(v, i);
+    }
+
+    public static MeshData texturedQuad() {
+        float[] v = {
+                -0.5f, -0.5f, 0f, 0f, 1f,
+                -0.5f,  0.5f, 0f, 0f, 0f,
+                 0.5f, -0.5f, 0f, 1f, 1f,
+                 0.5f,  0.5f, 0f, 1f, 0f,
+        };
+        int[] i = { 0, 2, 1, 2, 3, 1 };
+        return new MeshData(v, i, 5, true);
     }
 
     public static MeshData unitCircle(int segments) {
@@ -75,7 +94,9 @@ public final class MeshData {
     }
 
     public boolean hasIndices() { return indices != null; }
-    public int vertexCount() { return vertices.length / 3; }
+    public boolean hasTextureCoordinates() { return textureCoordinates; }
+    public int vertexStrideBytes() { return vertexStrideFloats * Float.BYTES; }
+    public int vertexCount() { return vertices.length / vertexStrideFloats; }
     public int indexCount() { return indices != null ? indices.length : 0; }
 
     public FloatBuffer verticesAsBuffer() {

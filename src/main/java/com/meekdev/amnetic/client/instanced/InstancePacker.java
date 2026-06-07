@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.instanced;
 
 import org.joml.Matrix4fc;
+import org.joml.Vector3fc;
 import org.joml.Vector4fc;
 
 import java.nio.ByteBuffer;
@@ -24,6 +25,10 @@ public final class InstancePacker {
     public InstancePacker putVec3(float x, float y, float z) {
         buf.putFloat(x).putFloat(y).putFloat(z);
         return this;
+    }
+
+    public InstancePacker putVec3(Vector3fc v) {
+        return putVec3(v.x(), v.y(), v.z());
     }
 
     public InstancePacker putVec4(float x, float y, float z, float w) {

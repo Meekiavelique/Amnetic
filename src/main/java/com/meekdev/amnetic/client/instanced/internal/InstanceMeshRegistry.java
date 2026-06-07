@@ -3,16 +3,18 @@ package com.meekdev.amnetic.client.instanced.internal;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
-import com.meekdev.amnetic.mixin.accessor.GameRendererInvoker;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Identifier;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 public final class InstanceMeshRegistry {
 
@@ -20,6 +22,8 @@ public final class InstanceMeshRegistry {
     public static final InstanceMeshRegistry INSTANCE = new InstanceMeshRegistry();
 
     private final CopyOnWriteArrayList<InstanceMeshEntry<?>> entries = new CopyOnWriteArrayList<>();
+    private final Map<InstancePhase, CopyOnWriteArrayList<Consumer<InstanceRenderContext>>> prePhase =
+            new EnumMap<>(InstancePhase.class);
 
     private InstanceMeshRegistry() {}
 
@@ -27,35 +31,48 @@ public final class InstanceMeshRegistry {
         entries.add(new InstanceMeshEntry<>(id, mesh));
     }
 
-    public void renderAll(InstancePhase phase, WorldRenderContext fabricCtx) {
-        MatrixStack matrices = fabricCtx.matrices();
-        if (matrices == null) return;
+    public void addPrePhaseCallback(InstancePhase phase, Consumer<InstanceRenderContext> callback) {
+        prePhase.computeIfAbsent(phase, p -> new CopyOnWriteArrayList<>()).add(callback);
+    }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        float deltaTick = client.getRenderTickCounter().getTickProgress(true);
+    public void renderAll(InstancePhase phase, LevelRenderContext fabricCtx) {
+        CameraRenderState cam = fabricCtx.levelState().cameraRenderState;
+        if (cam == null || cam.projectionMatrix == null || cam.viewRotationMatrix == null) return;
 
-        Matrix4f view = new Matrix4f(matrices.peek().getPositionMatrix());
+        Minecraft client = Minecraft.getInstance();
+        float deltaTick = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
 
-        // Clear translation for world-relative rendering
-        view.m30(0);
-        view.m31(0);
-        view.m32(0);
-
-        Matrix4f projection = new Matrix4f(((GameRendererInvoker) fabricCtx.gameRenderer()).amnetic$invokeGetProjectionMatrix(deltaTick));
+        Matrix4f view = new Matrix4f(cam.viewRotationMatrix);
+        Matrix4f projection = new Matrix4f(cam.projectionMatrix);
         InstanceRenderContext ctx = new MinecraftRenderContext(client, deltaTick, view, projection);
 
-        dispatchAll(phase, ctx);
+        int prevFbo = MainTargetFramebuffer.bind();
+        try {
+            dispatchAll(phase, ctx);
+        } finally {
+            MainTargetFramebuffer.restore(prevFbo);
+        }
     }
 
     public void renderAll(InstancePhase phase, InstanceRenderContext ctx) {
         dispatchAll(phase, ctx);
     }
 
-    public void renderAll(InstancePhase phase, MinecraftClient client, float deltaTick, Matrix4f view, Matrix4f projection) {
+    public void renderAll(InstancePhase phase, Minecraft client, float deltaTick, Matrix4f view, Matrix4f projection) {
         dispatchAll(phase, new MinecraftRenderContext(client, deltaTick, view, projection));
     }
 
     private void dispatchAll(InstancePhase phase, InstanceRenderContext ctx) {
+        var callbacks = prePhase.get(phase);
+        if (callbacks != null) {
+            for (Consumer<InstanceRenderContext> cb : callbacks) {
+                try {
+                    cb.accept(ctx);
+                } catch (Exception e) {
+                    LOGGER.error("Amnetic: error in pre-phase callback for {}", phase, e);
+                }
+            }
+        }
         for (InstanceMeshEntry<?> entry : entries) {
             if (entry.mesh().phase() == phase) {
                 try {

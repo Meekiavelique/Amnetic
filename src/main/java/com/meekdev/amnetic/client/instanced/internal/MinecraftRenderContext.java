@@ -1,24 +1,22 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 
 final class MinecraftRenderContext extends InstanceRenderContext {
 
-    private final MinecraftClient client;
+    private final Minecraft client;
     private final float deltaTick;
     private final Matrix4f viewMatrix;
     private final Matrix4f projectionMatrix;
 
-    private Vec3d cameraPos;
+    private Vec3 cameraPos;
 
-    MinecraftRenderContext(MinecraftClient client, float deltaTick, Matrix4f viewMatrix, Matrix4f projectionMatrix) {
+    MinecraftRenderContext(Minecraft client, float deltaTick, Matrix4f viewMatrix, Matrix4f projectionMatrix) {
         this.client = client;
         this.deltaTick = deltaTick;
         this.viewMatrix = viewMatrix;
@@ -26,18 +24,18 @@ final class MinecraftRenderContext extends InstanceRenderContext {
     }
 
     @Override
-    public MinecraftClient client() { return client; }
+    public Minecraft client() { return client; }
 
     @Override
-    public ClientWorld world() { return client.world; }
+    public ClientLevel world() { return client.level; }
 
     @Override
     public float deltaTick() { return deltaTick; }
 
     @Override
-    public Vec3d cameraPos() {
+    public Vec3 cameraPos() {
         if (cameraPos == null) {
-            cameraPos = client.gameRenderer.getCamera().getCameraPos();
+            cameraPos = client.gameRenderer.getMainCamera().position();
         }
         return cameraPos;
     }

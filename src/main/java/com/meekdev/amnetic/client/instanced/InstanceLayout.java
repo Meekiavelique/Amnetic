@@ -11,6 +11,7 @@ public final class InstanceLayout {
 
     public static final InstanceLayout TRANSFORM_COLOR = builder().mat4(1).vec4(5).build();
     public static final InstanceLayout TRANSFORM       = builder().mat4(1).build();
+    public static final InstanceLayout TEXTURED_BILLBOARD = builder().vec3(2).float1(3).vec4(4).vec4(5).build();
 
     private final List<AttributeSpec> attributes;
     private final int stride;

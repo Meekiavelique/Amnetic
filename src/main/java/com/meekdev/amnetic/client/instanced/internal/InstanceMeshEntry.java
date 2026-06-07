@@ -4,16 +4,21 @@ import com.meekdev.amnetic.client.instanced.InstanceBatch;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
+import org.lwjgl.opengl.GL13;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.SimpleTexture;
+import net.minecraft.resources.Identifier;
 
 public final class InstanceMeshEntry<T> implements AutoCloseable {
 
@@ -28,6 +33,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private int ibo;
     private InstanceBuffer instanceBuffer;
     private CompiledShader shader;
+    private boolean textureRegistered;
 
     InstanceMeshEntry(Identifier id, InstancedMesh<T> mesh) {
         this.id = id;
@@ -52,15 +58,20 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         instanceBuffer.upload(instanceData, instanceCount);
 
         Matrix4f projView = new Matrix4f(ctx.projectionMatrix()).mul(ctx.viewMatrix());
-        drawNow(projView, instanceCount);
+        drawNow(projView, ctx.projectionMatrix(), ctx.viewMatrix(), ctx.gameTime(), instanceCount);
     }
 
-    private void drawNow(Matrix4f projView, int instanceCount) {
+    private void drawNow(Matrix4f projView, org.joml.Matrix4fc projection, org.joml.Matrix4fc view, float time, int instanceCount) {
         mesh.renderState().apply();
 
         try {
             shader.bind();
             shader.uploadProjView(projView);
+            shader.uploadProjection(projection);
+            shader.uploadView(view);
+            shader.uploadTime(time);
+            bindTextureIfNeeded();
+            bindExtraSamplers();
 
             GlStateManager._glBindVertexArray(vao);
 
@@ -73,6 +84,41 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             GlStateManager._glBindVertexArray(0);
             GlStateManager._glUseProgram(0);
         }
+    }
+
+    private void bindTextureIfNeeded() {
+        Identifier textureId = mesh.textureId();
+        if (textureId == null) return;
+
+        var textureManager = Minecraft.getInstance().getTextureManager();
+        if (!textureRegistered) {
+            textureManager.registerAndLoad(textureId, new SimpleTexture(textureId));
+            textureRegistered = true;
+        }
+        AbstractTexture texture = textureManager.getTexture(textureId);
+        if (texture.getTexture() instanceof GlTexture glTexture) {
+            GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+            GlStateManager._bindTexture(glTexture.glId());
+            shader.uploadTextureSampler(0);
+        }
+    }
+
+    private void bindExtraSamplers() {
+        var samplers = mesh.extraSamplers();
+        if (samplers.isEmpty()) return;
+        var textureManager = Minecraft.getInstance().getTextureManager();
+        for (var sampler : samplers) {
+            try {
+                AbstractTexture texture = textureManager.getTexture(sampler.textureId());
+                if (texture != null && texture.getTexture() instanceof GlTexture glTexture) {
+                    GlStateManager._activeTexture(GL13.GL_TEXTURE0 + sampler.unit());
+                    GlStateManager._bindTexture(glTexture.glId());
+                    shader.uploadSamplerUnit(sampler.uniformName(), sampler.unit());
+                }
+            } catch (IllegalStateException ignored) {
+            }
+        }
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
     public void invalidateShader() {
@@ -91,8 +137,12 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         geometryVbo = GlStateManager._glGenBuffers();
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, geometryVbo);
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, mesh.geometry().verticesAsBuffer(), GL15.GL_STATIC_DRAW);
-        GlStateManager._vertexAttribPointer(0, 3, GL11.GL_FLOAT, false, 12, 0L);
+        GlStateManager._vertexAttribPointer(0, 3, GL11.GL_FLOAT, false, mesh.geometry().vertexStrideBytes(), 0L);
         GlStateManager._enableVertexAttribArray(0);
+        if (mesh.geometry().hasTextureCoordinates()) {
+            GlStateManager._vertexAttribPointer(1, 2, GL11.GL_FLOAT, false, mesh.geometry().vertexStrideBytes(), 12L);
+            GlStateManager._enableVertexAttribArray(1);
+        }
 
         if (mesh.geometry().hasIndices()) {
             ibo = GlStateManager._glGenBuffers();
