@@ -1,15 +1,15 @@
 package com.meekdev.amnetic.mixin.accessor;
 
-import net.minecraft.client.gl.PostEffectPass;
-import net.minecraft.client.gl.PostEffectProcessor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 import java.util.List;
+import net.minecraft.client.renderer.PostChain;
+import net.minecraft.client.renderer.PostPass;
 
-@Mixin(PostEffectProcessor.class)
+@Mixin(PostChain.class)
 public interface PostEffectProcessorAccessor {
 
     @Accessor("passes")
-    List<PostEffectPass> amnetic$getPasses();
+    List<PostPass> amnetic$getPasses();
 }

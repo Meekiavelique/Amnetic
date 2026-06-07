@@ -1,13 +1,17 @@
 package com.meekdev.amnetic.mixin.accessor;
 
-import net.minecraft.client.gl.ShaderLoader;
-import net.minecraft.client.render.ProjectionMatrix2;
+import net.minecraft.client.renderer.Projection;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
+import net.minecraft.client.renderer.ShaderManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(ShaderLoader.class)
+@Mixin(ShaderManager.class)
 public interface ShaderLoaderAccessor {
 
-    @Accessor("projectionMatrix")
-    ProjectionMatrix2 amnetic$getProjectionMatrix();
+    @Accessor("postChainProjection")
+    Projection amnetic$getProjection();
+
+    @Accessor("postChainProjectionMatrixBuffer")
+    ProjectionMatrixBuffer amnetic$getProjectionMatrixBuffer();
 }

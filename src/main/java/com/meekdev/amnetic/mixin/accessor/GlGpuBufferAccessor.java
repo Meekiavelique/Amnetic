@@ -1,12 +1,12 @@
 package com.meekdev.amnetic.mixin.accessor;
 
-import net.minecraft.client.gl.GlGpuBuffer;
+import com.mojang.blaze3d.opengl.GlBuffer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(GlGpuBuffer.class)
+@Mixin(GlBuffer.class)
 public interface GlGpuBufferAccessor {
 
-    @Accessor("id")
+    @Accessor("handle")
     int amnetic$getId();
 }
