@@ -1,10 +1,11 @@
 package com.meekdev.amnetic.client.instanced;
 
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
-import net.minecraft.util.Identifier;
-
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import net.minecraft.resources.Identifier;
 
 public final class InstancedMesh<T> {
 
@@ -13,6 +14,10 @@ public final class InstancedMesh<T> {
     final InstanceWriter<T> writer;
     final BuiltinShader<?> builtinShader;
     final Identifier customShaderId;
+    final Identifier vertexShaderId;
+    final Identifier fragmentShaderId;
+    final Identifier textureId;
+    final List<ExtraSampler> extraSamplers;
     final InstancePhase phase;
     final RenderState renderState;
     final BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
@@ -23,6 +28,10 @@ public final class InstancedMesh<T> {
         this.writer = b.writer;
         this.builtinShader = b.builtinShader;
         this.customShaderId = b.customShaderId;
+        this.vertexShaderId = b.vertexShaderId;
+        this.fragmentShaderId = b.fragmentShaderId;
+        this.textureId = b.textureId;
+        this.extraSamplers = List.copyOf(b.extraSamplers);
         this.phase = b.phase;
         this.renderState = b.renderState;
         this.onRender = Objects.requireNonNull(b.onRender, "onRender must be set");
@@ -49,12 +58,20 @@ public final class InstancedMesh<T> {
     public boolean isBuiltin()              { return builtinShader != null; }
     public BuiltinShader<?> builtinShader() { return builtinShader; }
     public Identifier customShaderId()      { return customShaderId; }
+    public Identifier vertexShaderId()      { return vertexShaderId; }
+    public Identifier fragmentShaderId()    { return fragmentShaderId; }
+    public Identifier textureId()           { return textureId; }
+    public List<ExtraSampler> extraSamplers() { return extraSamplers; }
 
     public static final class Builder<T> {
         private final InstanceLayout layout;
         private final InstanceWriter<T> writer;
         private BuiltinShader<?> builtinShader;
         private Identifier customShaderId;
+        private Identifier vertexShaderId;
+        private Identifier fragmentShaderId;
+        private Identifier textureId;
+        private final List<ExtraSampler> extraSamplers = new ArrayList<>();
         private MeshData geometry;
         private InstancePhase phase = InstancePhase.WORLD_LAST;
         private RenderState renderState = RenderState.DEFAULT;
@@ -76,6 +93,23 @@ public final class InstancedMesh<T> {
             return this;
         }
 
+        public Builder<T> shaders(Identifier vertexShaderId, Identifier fragmentShaderId) {
+            this.vertexShaderId = vertexShaderId;
+            this.fragmentShaderId = fragmentShaderId;
+            this.builtinShader = null;
+            return this;
+        }
+
+        public Builder<T> extraSampler(String uniformName, Identifier textureId, int unit) {
+            this.extraSamplers.add(new ExtraSampler(uniformName, textureId, unit));
+            return this;
+        }
+
+        public Builder<T> texture(Identifier id) {
+            this.textureId = id;
+            return this;
+        }
+
         public Builder<T> phase(InstancePhase phase) {
             this.phase = phase;
             return this;
@@ -92,7 +126,8 @@ public final class InstancedMesh<T> {
         }
 
         public InstancedMesh<T> build() {
-            if (builtinShader == null && customShaderId == null) {
+            boolean hasExplicit = vertexShaderId != null && fragmentShaderId != null;
+            if (builtinShader == null && customShaderId == null && !hasExplicit) {
                 throw new IllegalStateException("Specify a shader");
             }
             return new InstancedMesh<>(this);

@@ -2,9 +2,6 @@ package com.meekdev.amnetic.client.instanced.internal;
 
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.resource.Resource;
-import net.minecraft.util.Identifier;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
@@ -15,27 +12,41 @@ import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
 
 final class CompiledShader implements AutoCloseable {
 
     private final int program;
     private final int projViewMatrixLoc;
+    private final int projectionMatrixLoc;
+    private final int viewMatrixLoc;
+    private final int textureSamplerLoc;
+    private final int timeLoc;
 
     private CompiledShader(int program) {
         this.program = program;
         this.projViewMatrixLoc = GlStateManager._glGetUniformLocation(program, "ProjViewMatrix");
+        this.projectionMatrixLoc = GlStateManager._glGetUniformLocation(program, "ProjectionMatrix");
+        this.viewMatrixLoc = GlStateManager._glGetUniformLocation(program, "ViewMatrix");
+        this.textureSamplerLoc = GlStateManager._glGetUniformLocation(program, "TextureSampler");
+        this.timeLoc = GlStateManager._glGetUniformLocation(program, "Time");
     }
 
     static CompiledShader load(InstancedMesh<?> mesh) {
         Identifier vshId, fshId;
-        if (mesh.isBuiltin()) {
+        if (mesh.vertexShaderId() != null && mesh.fragmentShaderId() != null) {
+            vshId = toShaderPath(mesh.vertexShaderId(), ".vsh");
+            fshId = toShaderPath(mesh.fragmentShaderId(), ".fsh");
+        } else if (mesh.isBuiltin()) {
             String name = mesh.builtinShader().shaderId();
-            vshId = Identifier.of("amnetic", "shaders/instance/" + name + ".vsh");
-            fshId = Identifier.of("amnetic", "shaders/instance/" + name + ".fsh");
+            vshId = Identifier.fromNamespaceAndPath("amnetic", "shaders/instance/" + name + ".vsh");
+            fshId = Identifier.fromNamespaceAndPath("amnetic", "shaders/instance/" + name + ".fsh");
         } else {
             Identifier id = mesh.customShaderId();
-            vshId = Identifier.of(id.getNamespace(), "shaders/" + id.getPath() + ".vsh");
-            fshId = Identifier.of(id.getNamespace(), "shaders/" + id.getPath() + ".fsh");
+            vshId = toShaderPath(id, ".vsh");
+            fshId = toShaderPath(id, ".fsh");
         }
 
         String vshSrc = loadSource(vshId);
@@ -61,6 +72,10 @@ final class CompiledShader implements AutoCloseable {
         return s;
     }
 
+    private static Identifier toShaderPath(Identifier id, String ext) {
+        return Identifier.fromNamespaceAndPath(id.getNamespace(), "shaders/" + id.getPath() + ext);
+    }
+
     private static int compileShader(int type, String src, Identifier id) {
         int shader = GlStateManager.glCreateShader(type);
         GlStateManager.glShaderSource(shader, src);
@@ -74,11 +89,11 @@ final class CompiledShader implements AutoCloseable {
     }
 
     private static String loadSource(Identifier id) {
-        Optional<Resource> opt = MinecraftClient.getInstance().getResourceManager().getResource(id);
+        Optional<Resource> opt = Minecraft.getInstance().getResourceManager().getResource(id);
         if (opt.isEmpty()) {
             throw new RuntimeException("Instance shader not found: " + id);
         }
-        try (InputStream is = opt.get().getInputStream()) {
+        try (InputStream is = opt.get().open()) {
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RuntimeException("Failed to read shader " + id, e);
@@ -101,6 +116,23 @@ final class CompiledShader implements AutoCloseable {
     }
 
     void uploadProjView(Matrix4fc m) { uploadMatrix(projViewMatrixLoc, m); }
+
+    void uploadProjection(Matrix4fc m) { uploadMatrix(projectionMatrixLoc, m); }
+
+    void uploadView(Matrix4fc m) { uploadMatrix(viewMatrixLoc, m); }
+
+    void uploadTextureSampler(int unit) {
+        if (textureSamplerLoc != -1) GL20.glUniform1i(textureSamplerLoc, unit);
+    }
+
+    void uploadTime(float seconds) {
+        if (timeLoc != -1) GL20.glUniform1f(timeLoc, seconds);
+    }
+
+    void uploadSamplerUnit(String uniformName, int unit) {
+        int loc = GlStateManager._glGetUniformLocation(program, uniformName);
+        if (loc != -1) GL20.glUniform1i(loc, unit);
+    }
 
     @Override
     public void close() {
