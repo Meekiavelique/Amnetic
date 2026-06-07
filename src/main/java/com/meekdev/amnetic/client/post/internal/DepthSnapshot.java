@@ -1,48 +1,48 @@
 package com.meekdev.amnetic.client.post.internal;
 
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.SimpleFramebuffer;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
 
 final class DepthSnapshot {
 
     private final String name;
-    private SimpleFramebuffer snapshot;
+    private TextureTarget snapshot;
     private boolean pendingRestore;
 
     DepthSnapshot(String name) {
         this.name = name;
     }
 
-    void capture(Framebuffer source) {
-        if (!source.useDepthAttachment) return;
-        if (source.getDepthAttachment() == null) return;
+    void capture(RenderTarget source) {
+        if (!source.useDepth) return;
+        if (source.getDepthTexture() == null) return;
 
         if (snapshot == null) {
-            snapshot = new SimpleFramebuffer(name, source.textureWidth, source.textureHeight, true);
-        } else if (snapshot.textureWidth != source.textureWidth || snapshot.textureHeight != source.textureHeight) {
-            snapshot.resize(source.textureWidth, source.textureHeight);
+            snapshot = new TextureTarget(name, source.width, source.height, true);
+        } else if (snapshot.width != source.width || snapshot.height != source.height) {
+            snapshot.resize(source.width, source.height);
         }
 
-        if (snapshot.getDepthAttachment() == null) return;
+        if (snapshot.getDepthTexture() == null) return;
 
         snapshot.copyDepthFrom(source);
         pendingRestore = true;
     }
 
-    boolean restoreInto(Framebuffer target) {
+    boolean restoreInto(RenderTarget target) {
         if (!pendingRestore) return false;
         pendingRestore = false;
 
         if (snapshot == null) return false;
-        if (!target.useDepthAttachment) return false;
-        if (snapshot.getDepthAttachment() == null || target.getDepthAttachment() == null) return false;
-        if (snapshot.textureWidth != target.textureWidth || snapshot.textureHeight != target.textureHeight) return false;
+        if (!target.useDepth) return false;
+        if (snapshot.getDepthTexture() == null || target.getDepthTexture() == null) return false;
+        if (snapshot.width != target.width || snapshot.height != target.height) return false;
 
         target.copyDepthFrom(snapshot);
         return true;
     }
 
-    Framebuffer getFramebuffer() {
+    RenderTarget getFramebuffer() {
         return snapshot;
     }
 }
