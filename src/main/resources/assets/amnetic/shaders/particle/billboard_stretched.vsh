@@ -1,10 +1,5 @@
 #version 330 core
 
-// Amnetic particle base vertex shader (velocity-aligned, stretched). The quad is oriented so its
-// length axis (Position.y) runs along the screen-projected velocity and stretches with speed; its
-// width axis (Position.x) stays perpendicular. For sparks, rain, debris streaks. Same fragment
-// shader contract as particle/billboard.vsh.
-
 layout(location = 0) in vec3 Position;
 layout(location = 1) in vec2 UV;
 
