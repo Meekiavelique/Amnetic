@@ -46,6 +46,10 @@ Full reference are in the [wiki](../../wiki):
 - [Post-Processing](../../wiki/Post-Processing) - full API reference
 - [Uniforms](../../wiki/Uniforms) - suppliers and block name conventions
 - [Writing Shaders](../../wiki/Writing-Shaders) - pipeline format and GLSL conventions
+- [Compute Shaders](../../wiki/Compute-Shaders) - compute programs, SSBOs, and textures
+- [Particles](../../wiki/Particles) - particle system and soft particles
+- [Instanced Rendering](../../wiki/Instanced-Rendering) - GPU instancing helpers
+- [Mesh Pipeline](../../wiki/Mesh-Pipeline) - custom world-space geometry
 
 ---
 
