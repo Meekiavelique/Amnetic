@@ -7,9 +7,9 @@
   "client": [
     "GameRendererMixin",
     "WindowGlContextMixin",
-    "WorldLastInstancingMixin",
+    "CameraStateMixin",
+    "CameraMixin",
     "accessor.GlGpuBufferAccessor",
-    "accessor.GameRendererInvoker",
     "accessor.PostEffectPassAccessor",
     "accessor.PostEffectProcessorAccessor",
     "accessor.ShaderLoaderAccessor"
