@@ -33,7 +33,7 @@ repositories {
 }
 
 dependencies {
-    modImplementation "com.meekdev:amnetic:1.0-SNAPSHOT"
+    modImplementation "com.meekdev:amnetic:{latest-version}"
 }
 ```
 
