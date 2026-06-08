@@ -17,23 +17,15 @@ A Fabric rendering utility library for Minecraft 26.1.2
 
 ## Installation
 
-Not on Maven yet. Build artifacts will come soon
-
-For now, clone and publish locally:
-
-```bash
-./gradlew publishToMavenLocal
-```
-
-Then in your `build.gradle`:
+Add the repository and dependency to your `build.gradle`:
 
 ```groovy
 repositories {
-    mavenLocal()
+    maven { url "https://maven.meekhasto.rest" }
 }
 
 dependencies {
-    modImplementation "com.meekdev:amnetic:{latest-version}"
+    modImplementation "com.meekdev:amnetic:{version}"
 }
 ```
 
