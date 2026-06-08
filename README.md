@@ -2,12 +2,13 @@
   <img src="https://files.catbox.moe/jdrud4.png" alt="Java" />
 </p>
 <p align="center">
-
+  <a href="https://github.com/Meekiavelique/Amnetic/releases">
+    <img src="https://img.shields.io/github/v/release/Meekiavelique/Amnetic?style=for-the-badge&color=2ea44f&label=LATEST%20RELEASE" alt="Latest Release" />
+  </a>
   <img src="https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
-
   <img src="https://img.shields.io/badge/Running%20on-Fabric-2C2C2C?style=for-the-badge&logo=openjdk&logoColor=white" alt="Running on Fabric" />
   <a href=" "><img src="https://img.shields.io/badge/Wiki-Documentation-4A90E2?style=for-the-badge&logo=gitbook&logoColor=white" alt="Wiki" /></a>
-  <a href="https://discord.gg/avSH2JTfef"><img src="https://img.shields.io/badge/Discord-online-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" />
+  <a href="https://discord.gg/avSH2JTfef"><img src="https://img.shields.io/badge/Discord-online-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
 </p>
 
 <p align="center">
