@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.camera;
 
 import com.meekdev.amnetic.client.camera.internal.CameraController;
-import com.meekdev.amnetic.client.particle.Easing;
+import com.meekdev.amnetic.client.anim.Easing;
 import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;

@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.particle;
 
+import com.meekdev.amnetic.client.anim.Easing;
 import com.meekdev.amnetic.client.instanced.InstanceBatch;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;

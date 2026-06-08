@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client;
 
+import com.meekdev.amnetic.client.anim.Animations;
 import com.meekdev.amnetic.client.compute.ComputeCapabilities;
 import com.meekdev.amnetic.client.compute.ComputeSelfTest;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
@@ -35,6 +36,7 @@ public class AmneticClient implements ClientModInitializer {
         });
 
         LevelRenderEvents.END_MAIN.register(ctx -> {
+            Animations.update();
             InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_LAST, ctx);
             MainTargetFramebuffer.setDepthOverride(0);
         });

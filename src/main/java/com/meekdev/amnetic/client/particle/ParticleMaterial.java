@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.particle;
 
+import com.meekdev.amnetic.client.anim.Easing;
 import com.meekdev.amnetic.client.instanced.RenderState;
 import java.util.ArrayList;
 import java.util.List;
