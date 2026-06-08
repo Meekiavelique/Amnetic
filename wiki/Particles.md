@@ -179,7 +179,7 @@ Same fields as the material defaults: `life`, `size`, `color`, `alpha`, `gravity
 
 - `Blend`: `ALPHA`, `ADDITIVE`.
 - `BillboardMode`: `SPHERICAL`, `VELOCITY_STRETCHED`.
-- `Easing`: `LINEAR`, `EASE_OUT`, `EASE_IN`, `SMOOTH`.
+- `Easing` (in `com.meekdev.amnetic.client.anim`): `LINEAR`, `EASE_OUT`, `EASE_IN`, `SMOOTH`, and the rest of the family. See [Tweens](Tweens).
 
 ---
 

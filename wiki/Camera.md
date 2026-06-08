@@ -78,7 +78,7 @@ These effects are like special things you can add to the camera. They can make t
 
 ```java
 import com.meekdev.amnetic.client.camera.CameraEffects;
-import com.meekdev.amnetic.client.particle.Easing;
+import com.meekdev.amnetic.client.anim.Easing;
 
 CameraEffects.shake(0.6f);
 CameraEffects.kick(3f, 0f, 0f, 0.25f);
@@ -164,7 +164,7 @@ The `CameraDirector` is like a movie director. It can take control of the camera
 
 ```java
 import com.meekdev.amnetic.client.camera.CameraDirector;
-import com.meekdev.amnetic.client.particle.Easing;
+import com.meekdev.amnetic.client.anim.Easing;
 
 CameraDirector.moveTo(new Vec3(x, y + 30, z - 40), new Vec3(x, y, z), 70f, 3f, Easing.SMOOTH);
 CameraDirector.orbit(new Vec3(x, y, z), 25.0, 12f);
@@ -197,7 +197,7 @@ record Keyframe(Vec3 position, Vec3 lookAt, float time);
 
 - Threading is important here. The `modify` function and the offset application run on the render thread. Effect triggers, like `shake` or arm style flags or modifier targets, are commonly called from tick or network threads. Pass scalars through `volatile` fields like the examples do.
 
-- `Easing` is shared with the particle system. The types are `LINEAR`, `EASE_OUT`, `EASE_IN`, and `SMOOTH`.
+- `Easing` lives in `com.meekdev.amnetic.client.anim` and is shared with the particle and animation systems. The impulse and director blends run on the [tween engine](Tweens) internally, so the curve set is the full family (`LINEAR`, `EASE_IN`, `EASE_OUT`, `SMOOTH`, and the rest), plus any custom `t -> ...` curve.
 
 ---
 
