@@ -54,6 +54,7 @@ public final class ParticleSimulation {
     synchronized void register(ParticleMaterial material) {
         materials.add(material);
         Identifier meshId = Identifier.fromNamespaceAndPath("amnetic", "particle_material_" + (meshCounter++));
+        material.meshId = meshId;
         InstancedMesh.Builder<Particle> b = InstancedMesh.builder(ParticleLayout.LAYOUT, ParticleLayout.WRITER)
                 .geometry(MeshData.texturedQuad())
                 .shaders(material.billboardMode.vertexShader(), material.fragmentShaderId)
@@ -70,6 +71,37 @@ public final class ParticleSimulation {
         }
     }
 
+
+    public synchronized void clear() {
+        for (ParticleMaterial m : materials) {
+            if (m.meshId != null) InstanceMeshRegistry.INSTANCE.unregister(m.meshId);
+            recycleLive(m);
+        }
+        materials.clear();
+        SpawnRequest req;
+        while ((req = intake.poll()) != null) recycle(req);
+        pendingCount.set(0);
+        meshCounter = 0;
+    }
+
+    public synchronized boolean unregister(ParticleMaterial material) {
+        if (!materials.remove(material)) return false;
+        if (material.meshId != null) InstanceMeshRegistry.INSTANCE.unregister(material.meshId);
+        recycleLive(material);
+        return true;
+    }
+
+    private void recycleLive(ParticleMaterial m) {
+        for (int i = 0; i < m.liveCount; i++) {
+            Particle p = m.live[i];
+            if (p != null) {
+                p.clear();
+                pool.offer(p);
+                m.live[i] = null;
+            }
+        }
+        m.liveCount = 0;
+    }
 
     SpawnRequest borrowRequest() {
         SpawnRequest r = requestPool.poll();

@@ -30,6 +30,7 @@ public final class ParticleMaterial {
 
     final Affector[] affectors;
 
+    Identifier meshId;
     Particle[] live;
     int liveCount;
 

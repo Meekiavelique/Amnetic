@@ -31,6 +31,19 @@ public final class InstanceMeshRegistry {
         entries.add(new InstanceMeshEntry<>(id, mesh));
     }
 
+    public boolean unregister(Identifier id) {
+        boolean[] removed = {false};
+        entries.removeIf(entry -> {
+            if (entry.id().equals(id)) {
+                entry.close();
+                removed[0] = true;
+                return true;
+            }
+            return false;
+        });
+        return removed[0];
+    }
+
     public void addPrePhaseCallback(InstancePhase phase, Consumer<InstanceRenderContext> callback) {
         prePhase.computeIfAbsent(phase, p -> new CopyOnWriteArrayList<>()).add(callback);
     }
