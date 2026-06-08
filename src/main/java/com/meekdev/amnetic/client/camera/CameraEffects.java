@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.camera;
 
 import com.meekdev.amnetic.client.camera.internal.CameraController;
-import com.meekdev.amnetic.client.particle.Easing;
+import com.meekdev.amnetic.client.anim.Easing;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 

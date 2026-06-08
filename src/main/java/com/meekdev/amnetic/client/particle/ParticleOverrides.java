@@ -1,5 +1,7 @@
 package com.meekdev.amnetic.client.particle;
 
+import com.meekdev.amnetic.client.anim.Easing;
+
 public final class ParticleOverrides {
 
     public float life;

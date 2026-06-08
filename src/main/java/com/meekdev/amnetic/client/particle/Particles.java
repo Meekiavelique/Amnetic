@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.particle;
 
+import com.meekdev.amnetic.client.anim.Easing;
 import java.util.Random;
 import java.util.function.Consumer;
 import org.joml.Vector3f;

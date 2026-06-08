@@ -4,7 +4,7 @@ import com.meekdev.amnetic.client.camera.AmneticCamera;
 import com.meekdev.amnetic.client.camera.CameraDirector;
 import com.meekdev.amnetic.client.camera.CameraFrame;
 import com.meekdev.amnetic.client.camera.CameraModifier;
-import com.meekdev.amnetic.client.particle.Easing;
+import com.meekdev.amnetic.client.anim.Easing;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;

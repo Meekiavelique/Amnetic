@@ -1,7 +1,8 @@
 package com.meekdev.amnetic.client.camera.internal;
 
+import com.meekdev.amnetic.client.anim.Easing;
+import com.meekdev.amnetic.client.anim.Interpolators;
 import com.meekdev.amnetic.client.camera.CameraDirector;
-import com.meekdev.amnetic.client.particle.Easing;
 import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.world.phys.Vec3;
@@ -129,13 +130,13 @@ public final class Director {
         Pose p = rawPose(naturalPos, naturalYaw, naturalPitch, naturalFov);
         if (!releasing) return p;
 
-        float t = clamp01(releaseElapsed / releaseDuration);
+        float t = Interpolators.clamp01(releaseElapsed / releaseDuration);
         float e = easing.apply(t);
-        scratch.pos = lerp(releaseStart.pos, naturalPos, e);
-        scratch.yaw = lerpAngle(releaseStart.yaw, naturalYaw, e);
-        scratch.pitch = lerp(releaseStart.pitch, naturalPitch, e);
+        scratch.pos = Interpolators.lerp(releaseStart.pos, naturalPos, e);
+        scratch.yaw = Interpolators.lerpAngle(releaseStart.yaw, naturalYaw, e);
+        scratch.pitch = Interpolators.lerp(releaseStart.pitch, naturalPitch, e);
         scratch.hasFov = true;
-        scratch.fov = lerp(releaseStart.hasFov ? releaseStart.fov : naturalFov, naturalFov, e);
+        scratch.fov = Interpolators.lerp(releaseStart.hasFov ? releaseStart.fov : naturalFov, naturalFov, e);
         return scratch;
     }
 
@@ -143,14 +144,14 @@ public final class Director {
         scratch.hasFov = false;
         switch (mode) {
             case MOVE -> {
-                float t = duration <= 0 ? 1f : clamp01(elapsed / duration);
+                float t = duration <= 0 ? 1f : Interpolators.clamp01(elapsed / duration);
                 float e = easing.apply(t);
-                scratch.pos = lerp(startPos, endPos, e);
-                scratch.yaw = lerpAngle(startYaw, endYaw, e);
-                scratch.pitch = lerp(startPitch, endPitch, e);
+                scratch.pos = Interpolators.lerp(startPos, endPos, e);
+                scratch.yaw = Interpolators.lerpAngle(startYaw, endYaw, e);
+                scratch.pitch = Interpolators.lerp(startPitch, endPitch, e);
                 if (endFovSet) {
                     scratch.hasFov = true;
-                    scratch.fov = lerp(startFov, endFov, e);
+                    scratch.fov = Interpolators.lerp(startFov, endFov, e);
                 }
             }
             case ORBIT -> {
@@ -193,8 +194,8 @@ public final class Director {
         float span = b.time() - a.time();
         float local = span <= 1.0e-4f ? 1f : (time - a.time()) / span;
         float e = easing.apply(local);
-        scratch.pos = lerp(a.position(), b.position(), e);
-        Vec3 lookAt = lerp(a.lookAt(), b.lookAt(), e);
+        scratch.pos = Interpolators.lerp(a.position(), b.position(), e);
+        Vec3 lookAt = Interpolators.lerp(a.lookAt(), b.lookAt(), e);
         float[] yp = yawPitchToward(scratch.pos, lookAt);
         scratch.yaw = yp[0];
         scratch.pitch = yp[1];
@@ -225,26 +226,9 @@ public final class Director {
         return new float[]{yaw, pitch};
     }
 
-    private static Vec3 lerp(Vec3 a, Vec3 b, float t) {
-        return new Vec3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
-    }
-
-    private static float lerp(float a, float b, float t) {
-        return a + (b - a) * t;
-    }
-
-    private static float lerpAngle(float a, float b, float t) {
-        float delta = ((b - a) % 360f + 540f) % 360f - 180f;
-        return a + delta * t;
-    }
-
     private static float unwrap(float reference, float target) {
         float delta = ((target - reference) % 360f + 540f) % 360f - 180f;
         return reference + delta;
-    }
-
-    private static float clamp01(float v) {
-        return v < 0f ? 0f : (v > 1f ? 1f : v);
     }
 
     private static float clamp(float v, float lo, float hi) {
