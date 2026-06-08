@@ -3,6 +3,7 @@ package com.meekdev.amnetic.client;
 import com.meekdev.amnetic.client.anim.Animations;
 import com.meekdev.amnetic.client.compute.ComputeCapabilities;
 import com.meekdev.amnetic.client.compute.ComputeSelfTest;
+import com.meekdev.amnetic.client.framebuffer.internal.FramebufferRegistry;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
@@ -11,6 +12,7 @@ import com.meekdev.amnetic.client.particle.Particles;
 import com.meekdev.amnetic.client.particle.SceneDepth;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
@@ -29,6 +31,9 @@ public class AmneticClient implements ClientModInitializer {
         });
 
         Particles.init();
+
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client ->
+                FramebufferRegistry.INSTANCE.closeAll());
 
         LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> {
             boolean captured = ParticleSimulation.INSTANCE.captureSceneDepth();
