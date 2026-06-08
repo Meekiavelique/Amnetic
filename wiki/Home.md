@@ -30,6 +30,10 @@ A generic world-space mesh render type for custom geometry (fog walls, force fie
 
 Read-only camera queries (world↔screen projection, frustum tests, ray-picking), additive camera effects (shake, impulse/kick, FOV punch, spring) with a per-frame modifier hook for your own motion, and a cinematic director that takes over the camera and blends back.
 
+**Animation**
+
+A small tween and timeline engine for animating any value over time, with easing curves, delay, repeat and yoyo, and lifecycle callbacks. Built-in interpolators cover floats, vectors, colors, angles, and orientations, and you can add your own. The camera effects and director are built on it.
+
 ## Planned scope
 
 The following areas are planned for future releases. None of them are available yet.
@@ -52,6 +56,7 @@ The following areas are planned for future releases. None of them are available 
 | [Particles](Particles) | The `Particles` facade, the billboard shader contract, and `SceneDepth` soft particles |
 | [Instanced Rendering](Instanced-Rendering) | `InstancedMesh`, built-in shaders, layouts, `MeshData`, render state, and phases |
 | [Camera](Camera) | `AmneticCamera` queries, `CameraEffects` + `CameraModifier`, and the `CameraDirector` |
+| [Tweens](Tweens) | The `Animations` engine, `Tween` and `Timeline`, easing curves, and interpolators |
 | [Mesh Pipeline](Mesh-Pipeline) | Generic world-space mesh render type for custom geometry |
 | [Vanilla Rendering Internals](Vanilla-Rendering-Index) | How Minecraft 26.1.2 creates the GL context, loads pipelines/shaders, and handles depth |
 | [Vanilla Window and OpenGL](Vanilla-Window-and-OpenGL) | GLFW hints, requested OpenGL version/profile, and what “forcing” a newer version entails |
