@@ -37,6 +37,15 @@ dependencies {
 ```
 
 
+## Planned Features
+
+**Framebuffer Utilities** - Off-screen render-target abstraction. It will support render-to-texture, ping-pong multi-passe buffers, main scene color/depth capture, MRT/G-buffer targets.
+
+**Deferred Lights** - Point and spot lights (color, range, falloff, spot cone, specular). Uses full G-buffer lighting for Amnetic geometry, depth-normal for the vanilla world and support occlusion.
+
+**Model Renderer (glTF / OBJ)** - Loads glTF 2.0 and OBJ files and renders them through the existing instanced/mesh pipeline. Includes PBR metallic-roughness materials, GPU instancing, G-buffer output (so models are automatically deferred-lit), and skeletal animation with GPU skinning.
+
+
 ## Docs
 
 Full reference are in the [wiki](../../wiki):
