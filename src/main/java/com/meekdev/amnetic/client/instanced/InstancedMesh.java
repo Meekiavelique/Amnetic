@@ -20,6 +20,8 @@ public final class InstancedMesh<T> {
     final List<ExtraSampler> extraSamplers;
     final InstancePhase phase;
     final RenderState renderState;
+    final boolean emissive;
+    final float emissiveStrength;
     final BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
     private InstancedMesh(Builder<T> b) {
@@ -34,6 +36,8 @@ public final class InstancedMesh<T> {
         this.extraSamplers = List.copyOf(b.extraSamplers);
         this.phase = b.phase;
         this.renderState = b.renderState;
+        this.emissive = b.emissive;
+        this.emissiveStrength = b.emissiveStrength;
         this.onRender = Objects.requireNonNull(b.onRender, "onRender must be set");
     }
 
@@ -52,6 +56,8 @@ public final class InstancedMesh<T> {
     public InstanceWriter<T> writer()    { return writer; }
     public InstancePhase phase()         { return phase; }
     public RenderState renderState()     { return renderState; }
+    public boolean isEmissive()          { return emissive; }
+    public float emissiveStrength()      { return emissiveStrength; }
 
     public BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender() { return onRender; }
 
@@ -75,6 +81,8 @@ public final class InstancedMesh<T> {
         private MeshData geometry;
         private InstancePhase phase = InstancePhase.WORLD_LAST;
         private RenderState renderState = RenderState.DEFAULT;
+        private boolean emissive = false;
+        private float emissiveStrength = 1.0f;
         private BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
         private Builder(InstanceLayout layout, InstanceWriter<T> writer) {
@@ -105,6 +113,11 @@ public final class InstancedMesh<T> {
             return this;
         }
 
+        public Builder<T> extraSampler(String uniformName, Identifier textureId, int unit, boolean fileBacked) {
+            this.extraSamplers.add(new ExtraSampler(uniformName, textureId, unit, fileBacked));
+            return this;
+        }
+
         public Builder<T> texture(Identifier id) {
             this.textureId = id;
             return this;
@@ -117,6 +130,16 @@ public final class InstancedMesh<T> {
 
         public Builder<T> renderState(RenderState state) {
             this.renderState = state;
+            return this;
+        }
+
+        public Builder<T> emissive() {
+            return emissive(1.0f);
+        }
+
+        public Builder<T> emissive(float strength) {
+            this.emissive = true;
+            this.emissiveStrength = strength;
             return this;
         }
 

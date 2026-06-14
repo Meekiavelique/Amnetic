@@ -15,10 +15,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.resources.Identifier;
+import org.joml.Vector3f;
 
 public final class InstanceMeshEntry<T> implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Instance");
@@ -33,6 +37,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private InstanceBuffer instanceBuffer;
     private CompiledShader shader;
     private boolean textureRegistered;
+    private final Set<Identifier> registeredExtras = new HashSet<>();
+    private static final Vector3f SUN = new Vector3f(0f, 1f, 0f);
 
     InstanceMeshEntry(Identifier id, InstancedMesh<T> mesh) {
         this.id = id;
@@ -69,6 +75,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             shader.uploadProjection(projection);
             shader.uploadView(view);
             shader.uploadTime(time);
+            Vector3f sun = sunDirection();
+            shader.uploadSunDir(sun.x, sun.y, sun.z);
             bindTextureIfNeeded();
             bindExtraSamplers();
 
@@ -108,6 +116,9 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         var textureManager = Minecraft.getInstance().getTextureManager();
         for (var sampler : samplers) {
             try {
+                if (sampler.fileBacked() && registeredExtras.add(sampler.textureId())) {
+                    textureManager.registerAndLoad(sampler.textureId(), new SimpleTexture(sampler.textureId()));
+                }
                 AbstractTexture texture = textureManager.getTexture(sampler.textureId());
                 if (texture != null && texture.getTexture() instanceof GlTexture glTexture) {
                     GlStateManager._activeTexture(GL13.GL_TEXTURE0 + sampler.unit());
@@ -118,6 +129,16 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             }
         }
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+    }
+
+    private static Vector3f sunDirection() {
+        Minecraft mc = Minecraft.getInstance();
+        ClientLevel level = mc.level;
+        if (level == null) return SUN.set(0f, 1f, 0f);
+        float partial = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        float ticks = (level.getDefaultClockTime() % 24000L) + partial;
+        double phi = ((ticks - 6000.0) / 24000.0) * 2.0 * Math.PI;
+        return SUN.set((float) -Math.sin(phi), (float) Math.cos(phi), 0f);
     }
 
     public void invalidateShader() {
