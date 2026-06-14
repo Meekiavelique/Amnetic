@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "example:block/mirror" },
+    "facing=east":  { "model": "example:block/mirror", "y": 90 },
+    "facing=south": { "model": "example:block/mirror", "y": 180 },
+    "facing=west":  { "model": "example:block/mirror", "y": 270 }
+  }
+}
