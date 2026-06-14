@@ -17,6 +17,7 @@ out vec2 quadUV;
 out vec4 vColor;
 out vec2 seed;
 out float vAge;
+out vec3 vCenter;   // camera-relative particle center
 
 void main() {
     vec4 viewCenter = ViewMatrix * vec4(Center, 1.0);
@@ -33,4 +34,5 @@ void main() {
     vColor = InstColor;
     seed = SeedAge.xy;
     vAge = SeedAge.z;
+    vCenter = Center;
 }

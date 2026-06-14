@@ -10,9 +10,12 @@ public final class ParticleMaterial {
 
     final Identifier fragmentShaderId;
     final Identifier textureId;
+    final Identifier texture2Id;
     final Blend blend;
     final boolean softDepth;
     final boolean sorted;
+    final boolean emissive;
+    final float emissiveStrength;
     final BillboardMode billboardMode;
 
     final int liveCap;
@@ -25,10 +28,12 @@ public final class ParticleMaterial {
     final float defSize0, defSize1;
     final float defR0, defG0, defB0, defR1, defG1, defB1;
     final float defA0, defA1;
+    final float defAFadeIn, defAFadeOut;
     final float defGravity, defDrag;
     final Easing defEasing;
 
     final Affector[] affectors;
+    final Collider collider;
 
     Identifier meshId;
     Particle[] live;
@@ -37,9 +42,12 @@ public final class ParticleMaterial {
     private ParticleMaterial(Builder b) {
         this.fragmentShaderId = b.fragmentShaderId;
         this.textureId = b.textureId;
+        this.texture2Id = b.texture2Id;
         this.blend = b.blend;
         this.softDepth = b.softDepth;
         this.sorted = b.sorted;
+        this.emissive = b.emissive;
+        this.emissiveStrength = b.emissiveStrength;
         this.billboardMode = b.billboardMode;
         this.liveCap = b.liveCap;
         this.lightmap = b.lightmap;
@@ -50,9 +58,11 @@ public final class ParticleMaterial {
         this.defR0 = b.defR0; this.defG0 = b.defG0; this.defB0 = b.defB0;
         this.defR1 = b.defR1; this.defG1 = b.defG1; this.defB1 = b.defB1;
         this.defA0 = b.defA0; this.defA1 = b.defA1;
+        this.defAFadeIn = b.defAFadeIn; this.defAFadeOut = b.defAFadeOut;
         this.defGravity = b.defGravity; this.defDrag = b.defDrag;
         this.defEasing = b.defEasing;
         this.affectors = b.affectors.toArray(new Affector[0]);
+        this.collider = b.collider;
         this.live = new Particle[Math.min(liveCap, 256)];
     }
 
@@ -72,9 +82,12 @@ public final class ParticleMaterial {
     public static final class Builder {
         private Identifier fragmentShaderId;
         private Identifier textureId;
+        private Identifier texture2Id;
         private Blend blend = Blend.ALPHA;
         private boolean softDepth = false;
         private boolean sorted = false;
+        private boolean emissive = false;
+        private float emissiveStrength = 1.0f;
         private BillboardMode billboardMode = BillboardMode.SPHERICAL;
         private int liveCap = 4096;
         private boolean lightmap = false;
@@ -84,9 +97,11 @@ public final class ParticleMaterial {
         private float defSize0 = 0.2f, defSize1 = 0.2f;
         private float defR0 = 1, defG0 = 1, defB0 = 1, defR1 = 1, defG1 = 1, defB1 = 1;
         private float defA0 = 1, defA1 = 0;
+        private float defAFadeIn = 0f, defAFadeOut = 0f;
         private float defGravity = 0f, defDrag = 1f;
         private Easing defEasing = Easing.EASE_OUT;
         private final List<Affector> affectors = new ArrayList<>();
+        private Collider collider = null;
 
         Builder() {}
 
@@ -94,11 +109,18 @@ public final class ParticleMaterial {
 
         public Builder texture(Identifier textureId) { this.textureId = textureId; return this; }
 
+        /** Second texture, bound to {@code uniform sampler2D Sampler1} (e.g. a distortion map). */
+        public Builder texture2(Identifier textureId) { this.texture2Id = textureId; return this; }
+
         public Builder blend(Blend blend) { this.blend = blend; return this; }
 
         public Builder softDepth(boolean v) { this.softDepth = v; return this; }
 
         public Builder sorted(boolean v) { this.sorted = v; return this; }
+
+        public Builder emissive() { return emissive(1.0f); }
+
+        public Builder emissive(float strength) { this.emissive = true; this.emissiveStrength = strength; return this; }
 
         public Builder billboard(BillboardMode mode) { this.billboardMode = mode; return this; }
 
@@ -127,6 +149,10 @@ public final class ParticleMaterial {
 
         public Builder alpha(float start, float end) { this.defA0 = start; this.defA1 = end; return this; }
 
+        public Builder alphaInOut(float fadeInFrac, float fadeOutFrac) {
+            this.defAFadeIn = fadeInFrac; this.defAFadeOut = fadeOutFrac; return this;
+        }
+
         public Builder gravity(float accel) { this.defGravity = accel; return this; }
 
         public Builder drag(float perSecondRetention) { this.defDrag = perSecondRetention; return this; }
@@ -134,6 +160,8 @@ public final class ParticleMaterial {
         public Builder easing(Easing easing) { this.defEasing = easing; return this; }
 
         public Builder affector(Affector affector) { this.affectors.add(affector); return this; }
+
+        public Builder collider(Collider collider) { this.collider = collider; return this; }
 
         public ParticleMaterial register() {
             if (fragmentShaderId == null) throw new IllegalStateException("ParticleMaterial requires a shader()");
