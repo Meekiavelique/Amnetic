@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
@@ -49,15 +50,8 @@ public final class InstanceMeshRegistry {
     }
 
     public void renderAll(InstancePhase phase, LevelRenderContext fabricCtx) {
-        CameraRenderState cam = fabricCtx.levelState().cameraRenderState;
-        if (cam == null || cam.projectionMatrix == null || cam.viewRotationMatrix == null) return;
-
-        Minecraft client = Minecraft.getInstance();
-        float deltaTick = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
-
-        Matrix4f view = new Matrix4f(cam.viewRotationMatrix);
-        Matrix4f projection = new Matrix4f(cam.projectionMatrix);
-        InstanceRenderContext ctx = new MinecraftRenderContext(client, deltaTick, view, projection);
+        InstanceRenderContext ctx = buildContext(fabricCtx);
+        if (ctx == null) return;
 
         int prevFbo = MainTargetFramebuffer.bind();
         try {
@@ -65,6 +59,46 @@ public final class InstanceMeshRegistry {
         } finally {
             MainTargetFramebuffer.restore(prevFbo);
         }
+    }
+
+    public void renderEmissive(InstancePhase phase, LevelRenderContext fabricCtx,
+                               Framebuffer target, boolean all) {
+        InstanceRenderContext ctx = buildContext(fabricCtx);
+        if (ctx == null) return;
+
+        target.begin();
+        try {
+            for (InstanceMeshEntry<?> entry : entries) {
+                if (entry.mesh().phase() != phase) continue;
+                if (!all && !entry.mesh().isEmissive()) continue;
+                try {
+                    entry.render(ctx);
+                } catch (Exception e) {
+                    LOGGER.error("Amnetic: error rendering emissive mesh {}", entry.id(), e);
+                }
+            }
+        } finally {
+            target.end();
+        }
+    }
+
+    private InstanceRenderContext buildContext(LevelRenderContext fabricCtx) {
+        CameraRenderState cam = fabricCtx.levelState().cameraRenderState;
+        if (cam == null || cam.projectionMatrix == null || cam.viewRotationMatrix == null) return null;
+
+        Minecraft client = Minecraft.getInstance();
+        float deltaTick = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+
+        Matrix4f view = new Matrix4f(cam.viewRotationMatrix);
+        Matrix4f projection = new Matrix4f(cam.projectionMatrix);
+        return new MinecraftRenderContext(client, deltaTick, view, projection);
+    }
+
+    public boolean hasEmissive(InstancePhase phase, boolean all) {
+        for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.mesh().phase() == phase && (all || entry.mesh().isEmissive())) return true;
+        }
+        return false;
     }
 
     public void renderAll(InstancePhase phase, InstanceRenderContext ctx) {
