@@ -8,6 +8,7 @@ public final class ParticleOverrides {
     public float size0, size1;
     public float r0, g0, b0, r1, g1, b1;
     public float a0, a1;
+    public float aFadeIn, aFadeOut;
     public float gravity, drag;
     public float rot, rotSpeed;
     public Easing sizeEasing;
@@ -20,6 +21,7 @@ public final class ParticleOverrides {
         r0 = m.defR0; g0 = m.defG0; b0 = m.defB0;
         r1 = m.defR1; g1 = m.defG1; b1 = m.defB1;
         a0 = m.defA0; a1 = m.defA1;
+        aFadeIn = m.defAFadeIn; aFadeOut = m.defAFadeOut;
         gravity = m.defGravity; drag = m.defDrag;
         rot = 0f; rotSpeed = 0f;
         sizeEasing = m.defEasing;
@@ -42,6 +44,10 @@ public final class ParticleOverrides {
     public ParticleOverrides alpha(float constant) { this.a0 = this.a1 = constant; return this; }
 
     public ParticleOverrides alpha(float start, float end) { this.a0 = start; this.a1 = end; return this; }
+
+    public ParticleOverrides alphaInOut(float fadeInFrac, float fadeOutFrac) {
+        this.aFadeIn = fadeInFrac; this.aFadeOut = fadeOutFrac; return this;
+    }
 
     public ParticleOverrides gravity(float accel) { this.gravity = accel; return this; }
 

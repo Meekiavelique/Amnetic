@@ -13,6 +13,7 @@ public final class Particle {
     public float r0, g0, b0;
     public float r1, g1, b1;
     public float a0, a1;
+    public float aFadeIn, aFadeOut;
 
     public float rot, rotSpeed;
 
@@ -27,6 +28,7 @@ public final class Particle {
 
     public Easing sizeEasing = Easing.EASE_OUT;
     public boolean alive;
+    boolean colliding;
 
     float rCx, rCy, rCz;
     float rVx, rVy, rVz;
@@ -49,11 +51,13 @@ public final class Particle {
         size0 = size1 = 0;
         r0 = g0 = b0 = r1 = g1 = b1 = 0;
         a0 = a1 = 0;
+        aFadeIn = aFadeOut = 0;
         rot = rotSpeed = 0;
         seedX = seedY = 0;
         gravity = 0; drag = 1f; dragStep = 1f;
         brightness = 1f; lightTimer = 0;
         sizeEasing = Easing.EASE_OUT;
         alive = false;
+        colliding = false;
     }
 }

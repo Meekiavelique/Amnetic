@@ -44,6 +44,7 @@ public final class Particles {
         req.r0 = o.r0; req.g0 = o.g0; req.b0 = o.b0;
         req.r1 = o.r1; req.g1 = o.g1; req.b1 = o.b1;
         req.a0 = o.a0; req.a1 = o.a1;
+        req.aFadeIn = o.aFadeIn; req.aFadeOut = o.aFadeOut;
         req.gravity = o.gravity; req.drag = o.drag;
         req.rot = o.rot; req.rotSpeed = o.rotSpeed;
         req.easing = o.sizeEasing;
