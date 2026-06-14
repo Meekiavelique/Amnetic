@@ -61,7 +61,9 @@ public final class ParticleSimulation {
                 .renderState(material.renderState())
                 .phase(InstancePhase.WORLD_LAST)
                 .onRender((rctx, batch) -> packMaterial(material, rctx, batch));
+        if (material.emissive) b.emissive(material.emissiveStrength);
         if (material.textureId != null) b.texture(material.textureId);
+        if (material.texture2Id != null) b.extraSampler("Sampler1", material.texture2Id, 2, true);
         if (material.softDepth) b.extraSampler("DepthSampler", SceneDepth.ID, 1);
         b.register(meshId);
 
@@ -170,12 +172,14 @@ public final class ParticleSimulation {
         p.r0 = r.r0; p.g0 = r.g0; p.b0 = r.b0;
         p.r1 = r.r1; p.g1 = r.g1; p.b1 = r.b1;
         p.a0 = r.a0; p.a1 = r.a1;
+        p.aFadeIn = r.aFadeIn; p.aFadeOut = r.aFadeOut;
         p.gravity = r.gravity; p.drag = r.drag;
         p.dragStep = (float) Math.pow(Math.max(r.drag, 0f), STEP);
         p.rot = r.rot; p.rotSpeed = r.rotSpeed;
         p.seedX = r.seedX; p.seedY = r.seedY;
         p.sizeEasing = r.easing != null ? r.easing : Easing.EASE_OUT;
         p.brightness = 1f; p.lightTimer = 0;
+        p.colliding = false;
         p.alive = true;
 
         if (m.liveCount == m.live.length) {
@@ -189,12 +193,15 @@ public final class ParticleSimulation {
         ClientLevel level = ctx.world();
         for (ParticleMaterial m : materials) {
             Affector[] affectors = m.affectors;
+            Collider collider = m.collider;
             Particle[] live = m.live;
             int n = m.liveCount;
             for (int i = 0; i < n; i++) {
                 Particle p = live[i];
                 for (Affector a : affectors) a.apply(p, dt, ctx);
+                double ox = p.x, oy = p.y, oz = p.z;
                 p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+                if (collider != null) collider.resolve(p, ox, oy, oz, dt, ctx);
                 p.rot += p.rotSpeed * dt;
                 p.age += dt;
                 if (m.lightmap && level != null && --p.lightTimer <= 0) {
@@ -258,7 +265,7 @@ public final class ParticleSimulation {
             p.rR = lerp(p.r0, p.r1, t) * light;
             p.rG = lerp(p.g0, p.g1, t) * light;
             p.rB = lerp(p.b0, p.b1, t) * light;
-            p.rA = lerp(p.a0, p.a1, t);
+            p.rA = lerp(p.a0, p.a1, t) * alphaEnvelope(t, p.aFadeIn, p.aFadeOut);
             visibleBuf[vis++] = p;
         }
         if (vis == 0) return;
@@ -298,12 +305,22 @@ public final class ParticleSimulation {
 
     private static float lerp(float a, float b, float t) { return a + (b - a) * t; }
 
+    // Fade-in over the first fadeIn fraction of life, fade-out over the last fadeOut fraction
+    // (smoothstep), 1.0 in between. Both 0 -> no envelope (1.0). The 3-key in->hold->out alpha.
+    private static float alphaEnvelope(float t, float fadeIn, float fadeOut) {
+        float e = 1f;
+        if (fadeIn > 1e-4f) { float x = Math.min(t / fadeIn, 1f); e *= x * x * (3f - 2f * x); }
+        if (fadeOut > 1e-4f) { float x = Math.min((1f - t) / fadeOut, 1f); e *= x * x * (3f - 2f * x); }
+        return e;
+    }
+
     static final class SpawnRequest {
         ParticleMaterial material;
         double x, y, z, vx, vy, vz;
         float life, size0, size1;
         float r0, g0, b0, r1, g1, b1;
         float a0, a1;
+        float aFadeIn, aFadeOut;
         float gravity, drag, rot, rotSpeed;
         float seedX, seedY;
         Easing easing;

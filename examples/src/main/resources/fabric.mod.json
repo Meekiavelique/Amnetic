@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "amnetic-examples",
+  "version": "${version}",
+  "name": "Amnetic Examples",
+  "description": "Runnable examples for the Amnetic rendering library.",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "com.example.ExamplesMod"
+    ],
+    "client": [
+      "com.example.ExamplesClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": "*",
+    "fabric-api": "*",
+    "minecraft": "*",
+    "amnetic": "*"
+  }
+}

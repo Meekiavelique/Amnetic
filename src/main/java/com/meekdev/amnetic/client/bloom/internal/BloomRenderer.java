@@ -1,0 +1,146 @@
+package com.meekdev.amnetic.client.bloom.internal;
+
+import com.meekdev.amnetic.client.bloom.BloomSettings;
+import com.meekdev.amnetic.client.framebuffer.ColorFormat;
+import com.meekdev.amnetic.client.framebuffer.Framebuffer;
+import com.meekdev.amnetic.client.framebuffer.Framebuffers;
+import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
+import com.meekdev.amnetic.client.instanced.InstancePhase;
+import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
+import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
+import com.mojang.blaze3d.opengl.GlStateManager;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.minecraft.resources.Identifier;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL33;
+
+public final class BloomRenderer {
+
+    private static final InstancePhase PHASE = InstancePhase.WORLD_LAST;
+    private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/fullscreen.vsh");
+    private static final Identifier DOWN_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/downsample.fsh");
+    private static final Identifier UP_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/upsample.fsh");
+    private static final Identifier COMPOSITE_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/composite.fsh");
+
+    private final FullscreenPass downsample = new FullscreenPass(VSH, DOWN_FSH);
+    private final FullscreenPass upsample = new FullscreenPass(VSH, UP_FSH);
+    private final FullscreenPass composite = new FullscreenPass(VSH, COMPOSITE_FSH);
+
+    private Framebuffer emissiveBuf;
+    private Framebuffer[] mips;
+    private float baseScale = -1f;
+    private int levelCount = -1;
+    private boolean occludeMode;
+
+    public void render(LevelRenderContext ctx, BloomSettings s) {
+        if (!s.isEnabled()) return;
+        if (!InstanceMeshRegistry.INSTANCE.hasEmissive(PHASE, s.isAll())) return;
+
+        ensureChain(s.scale(), s.levels(), s.isOcclude());
+
+        emissiveBuf.begin();
+        emissiveBuf.clear(0f, 0f, 0f, 0f);
+        emissiveBuf.end();
+        if (s.isOcclude()) {
+            emissiveBuf.blitDepthFromMain();
+            GL11.glDepthFunc(GL11.GL_LEQUAL); // visible surfaces (equal depth) bloom
+        }
+        InstanceMeshRegistry.INSTANCE.renderEmissive(PHASE, ctx, emissiveBuf, s.isAll());
+
+        downsampleInto(emissiveBuf, mips[0]);
+        for (int i = 1; i < mips.length; i++) {
+            downsampleInto(mips[i - 1], mips[i]);
+        }
+
+        for (int i = mips.length - 1; i > 0; i--) {
+            Framebuffer from = mips[i];
+            Framebuffer to = mips[i - 1];
+            to.begin();
+            setupFullscreenState();
+            GlStateManager._enableBlend();
+            GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
+            bindTexture(from.colorTextureGlId(0));
+            upsample.begin();
+            upsample.setSampler("Sampler", 0);
+            upsample.setVec2("TexelSize", 1f / from.width(), 1f / from.height());
+            upsample.setFloat("Radius", 1.0f);
+            upsample.draw();
+            to.end();
+        }
+
+        Framebuffer result = mips[0];
+        // normalize for the mip accumulation so more levels don't blow out the scene
+        float intensity = s.intensity() * (2f / mips.length);
+        int prevFbo = MainTargetFramebuffer.bind();
+        try {
+            setupFullscreenState();
+            bindTexture(result.colorTextureGlId(0));
+            composite.begin();
+            composite.setSampler("Sampler", 0);
+            composite.setFloat("Intensity", intensity);
+            GlStateManager._enableBlend();
+            GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE);
+            composite.draw();
+        } finally {
+            MainTargetFramebuffer.restore(prevFbo);
+            restoreState();
+        }
+    }
+
+    private void downsampleInto(Framebuffer from, Framebuffer to) {
+        to.begin();
+        setupFullscreenState();
+        bindTexture(from.colorTextureGlId(0));
+        downsample.begin();
+        downsample.setSampler("Sampler", 0);
+        downsample.setVec2("TexelSize", 1f / from.width(), 1f / from.height());
+        downsample.draw();
+        to.end();
+    }
+
+    private void ensureChain(float scale, int levels, boolean occlude) {
+        if (mips != null && baseScale == scale && levelCount == levels && occludeMode == occlude) return;
+        if (mips != null) {
+            for (Framebuffer fb : mips) fb.dispose();
+        }
+        if (emissiveBuf != null) emissiveBuf.dispose();
+
+        FramebufferSpec.Builder emissive = FramebufferSpec.builder().color(ColorFormat.RGBA16F);
+        if (occlude) emissive.depthTexture();
+        emissiveBuf = Framebuffers.screen(1.0f, emissive.build());
+
+        FramebufferSpec spec = FramebufferSpec.builder().color(ColorFormat.RGBA16F).build();
+        mips = new Framebuffer[levels];
+        float sc = scale;
+        for (int i = 0; i < levels; i++) {
+            mips[i] = Framebuffers.screen(sc, spec);
+            sc *= 0.5f;
+        }
+        baseScale = scale;
+        levelCount = levels;
+        occludeMode = occlude;
+    }
+
+    private static void setupFullscreenState() {
+        GlStateManager._disableBlend();
+        GlStateManager._disableDepthTest();
+        GlStateManager._depthMask(false);
+        GlStateManager._disableCull();
+    }
+
+    private static void bindTexture(int glId) {
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        GL33.glBindSampler(0, 0);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
+    }
+
+    private static void restoreState() {
+        GlStateManager._glUseProgram(0);
+        GlStateManager._glBindVertexArray(0);
+        GlStateManager._disableBlend();
+        GlStateManager._enableDepthTest();
+        GlStateManager._depthMask(true);
+        GlStateManager._enableCull();
+    }
+}

@@ -1,5 +1,8 @@
-package com.meekdev.amnetic.client.compute;
+package com.example.compute;
 
+import com.meekdev.amnetic.client.compute.ComputeCapabilities;
+import com.meekdev.amnetic.client.compute.ComputeShader;
+import com.meekdev.amnetic.client.compute.ShaderStorageBuffer;
 import com.mojang.logging.LogUtils;
 import java.nio.FloatBuffer;
 import net.minecraft.resources.Identifier;
@@ -19,13 +22,12 @@ public final class ComputeSelfTest {
         if (ran) return;
         ran = true;
 
-        // no point running the test if compute isn't available lmao
         if (!ComputeCapabilities.isComputeAvailable()) return;
 
         final int count = 256;
 
         try (ComputeShader shader = ComputeShader.load(
-                Identifier.fromNamespaceAndPath("amnetic", "shaders/compute/selftest.comp"));
+                Identifier.fromNamespaceAndPath("example", "shaders/compute/selftest.comp"));
              ShaderStorageBuffer ssbo = new ShaderStorageBuffer((long) count * Float.BYTES)) {
 
             ssbo.bind(0);
@@ -49,7 +51,7 @@ public final class ComputeSelfTest {
             LOGGER.info("[Amnetic] compute self-test: {}", ok ? "PASS" : "FAIL");
 
         } catch (Exception e) {
-            LOGGER.error("[Amnetic] compute self-test blew up", e);
+            LOGGER.error("[Amnetic] compute self-test failed", e);
         }
     }
 }

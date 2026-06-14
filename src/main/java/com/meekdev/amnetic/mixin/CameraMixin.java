@@ -1,10 +1,13 @@
 package com.meekdev.amnetic.mixin;
 
 import com.meekdev.amnetic.client.camera.internal.CameraController;
+import com.meekdev.amnetic.client.scene.internal.CaptureManager;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Final;
@@ -82,6 +85,17 @@ public abstract class CameraMixin {
         } else if (c.fovOffset() != 0f) {
             cir.setReturnValue(cir.getReturnValueF() + c.fovOffset());
         }
+    }
+
+    @Inject(method = "getViewRotationMatrix", at = @At("HEAD"), cancellable = true)
+    private void amnetic$reflectViewRotation(Matrix4f dest, CallbackInfoReturnable<Matrix4f> cir) {
+        Matrix4f reflected = CaptureManager.INSTANCE.currentCaptureViewRotation();
+        if (reflected != null) cir.setReturnValue(dest.set((Matrix4fc) reflected));
+    }
+
+    @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
+    private void amnetic$detachedDuringCapture(CallbackInfoReturnable<Boolean> cir) {
+        if (CaptureManager.INSTANCE.isCapturing()) cir.setReturnValue(true);
     }
 
     private boolean amnetic$isMainCamera() {

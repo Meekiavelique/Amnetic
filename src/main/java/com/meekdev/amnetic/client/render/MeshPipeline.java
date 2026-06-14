@@ -38,6 +38,42 @@ public final class MeshPipeline {
         });
     }
 
+    public static RenderType cutoutRenderType(Identifier vertexShader, Identifier fragmentShader,
+                                              Identifier texture0, Identifier texture1) {
+        String key = "cutout|" + vertexShader + "|" + fragmentShader + "|" + texture0 + "|" + texture1;
+        return RENDER_TYPES.computeIfAbsent(key, k -> {
+            Identifier location = Identifier.fromNamespaceAndPath(
+                    fragmentShader.getNamespace(), "cutout/" + fragmentShader.getPath());
+            RenderPipeline pipeline = PIPELINES.computeIfAbsent(location,
+                    loc -> buildCutoutPipeline(loc, vertexShader, fragmentShader));
+            RenderSetup setup = RenderSetup.builder(pipeline)
+                    .withTexture("Sampler0", texture0)
+                    .withTexture("Sampler1", texture1)
+                    .withTexture("DepthSampler", SceneDepth.ID)
+                    .createRenderSetup();
+            return AmneticRenderTypeAccess.create("amnetic_mesh_cutout/" + RENDER_TYPES.size(), setup);
+        });
+    }
+
+    private static RenderPipeline buildCutoutPipeline(Identifier location, Identifier vertexShader,
+                                                      Identifier fragmentShader) {
+        return RenderPipeline.builder()
+                .withLocation(location)
+                .withVertexShader(vertexShader)
+                .withFragmentShader(fragmentShader)
+                .withSampler("Sampler0")
+                .withSampler("Sampler1")
+                .withSampler("DepthSampler")
+                .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+                .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+                .withUniform("Globals", UniformType.UNIFORM_BUFFER)
+                .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.QUADS)
+                .withColorTargetState(ColorTargetState.DEFAULT)
+                .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+                .withCull(false)
+                .build();
+    }
+
     private static RenderPipeline buildPipeline(Identifier vertexShader, Identifier fragmentShader) {
         return RenderPipeline.builder()
                 .withLocation(fragmentShader)
