@@ -8,8 +8,12 @@ public final class PingPongBuffer {
     private Framebuffer b;
 
     public PingPongBuffer(FramebufferSpec spec) {
-        this.a = Framebuffers.screen(spec);
-        this.b = Framebuffers.screen(spec);
+        this(1f, spec);
+    }
+
+    public PingPongBuffer(float scale, FramebufferSpec spec) {
+        this.a = Framebuffers.screen(scale, spec);
+        this.b = Framebuffers.screen(scale, spec);
     }
 
     public void pass(int passes, BiConsumer<Framebuffer, Framebuffer> body) {

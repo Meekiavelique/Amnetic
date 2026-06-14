@@ -24,6 +24,7 @@ public final class GlFramebuffer {
 
     private int fbo;
     private int readFbo;
+    private int writeFbo;
     private int width;
     private int height;
     private boolean allocated;
@@ -167,6 +168,21 @@ public final class GlFramebuffer {
         blitFromMain(srcId, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST, main);
     }
 
+    public void blitDepthFrom(int srcDepthGlId, int srcW, int srcH) {
+        if (srcDepthGlId <= 0 || srcW <= 0 || srcH <= 0) return;
+        int prev = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        if (readFbo == 0) {
+            readFbo = GL30.glGenFramebuffers();
+        }
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFbo);
+        GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, srcDepthGlId, 0);
+        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, fbo);
+        GL30.glBlitFramebuffer(0, 0, srcW, srcH, 0, 0, width, height, GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST);
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFbo);
+        GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, 0, 0);
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prev);
+    }
+
     private void blitFromMain(int srcGlId, int attachment, int mask, int filter, RenderTarget main) {
         int prev = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         if (readFbo == 0) {
@@ -182,6 +198,26 @@ public final class GlFramebuffer {
         // detach so we never dangle a reference to a resized/destroyed main texture
         GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFbo);
         GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, attachment, GL11.GL_TEXTURE_2D, 0, 0);
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prev);
+    }
+
+    public void blitColorToMain() {
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        if (main == null) return;
+        int dstId = glId(main.getColorTexture());
+        if (dstId <= 0) return;
+
+        int prev = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        if (writeFbo == 0) {
+            writeFbo = GL30.glGenFramebuffers();
+        }
+        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, writeFbo);
+        GL30.glFramebufferTexture2D(GL30.GL_DRAW_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, dstId, 0);
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, fbo);
+        GL30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
+        GL30.glBlitFramebuffer(0, 0, width, height, 0, 0, main.width, main.height,
+                GL11.GL_COLOR_BUFFER_BIT, GL11.GL_LINEAR);
+        GL30.glFramebufferTexture2D(GL30.GL_DRAW_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, 0, 0);
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prev);
     }
 
@@ -201,6 +237,10 @@ public final class GlFramebuffer {
         if (fbo != 0) {
             GL30.glDeleteFramebuffers(fbo);
             fbo = 0;
+        }
+        if (writeFbo != 0) {
+            GL30.glDeleteFramebuffers(writeFbo);
+            writeFbo = 0;
         }
         if (readFbo != 0) {
             GL30.glDeleteFramebuffers(readFbo);
