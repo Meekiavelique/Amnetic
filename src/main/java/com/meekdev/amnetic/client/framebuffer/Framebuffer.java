@@ -75,6 +75,16 @@ public final class Framebuffer {
         gl.blitDepthFromMain();
     }
 
+    public void blitDepthFrom(int srcDepthGlId, int srcW, int srcH) {
+        ensureAllocated();
+        gl.blitDepthFrom(srcDepthGlId, srcW, srcH);
+    }
+
+    public void blitColorToMain() {
+        ensureAllocated();
+        gl.blitColorToMain();
+    }
+
     public void bindSampler(int unit) {
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, gl.colorTextureGlId(0));
