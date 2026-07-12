@@ -12,8 +12,8 @@ public final class Framebuffer {
 
     private final GlFramebuffer gl;
     private final boolean screenTracking;
-    private final float scale;       // only meaningful when screenTracking
-    private final int fixedWidth;    // only meaningful when !screenTracking
+    private final float scale; // only meaningful when screenTracking
+    private final int fixedWidth; // only meaningful when !screenTracking
     private final int fixedHeight;
     private RegisteredColorTexture registered;
     private boolean disposed;
@@ -29,11 +29,19 @@ public final class Framebuffer {
     }
 
     public static Framebuffer createFixed(int width, int height, FramebufferSpec spec) {
-        return new Framebuffer(new GlFramebuffer(spec), false, 1f, width, height);
+        return createFixed(null, width, height, spec);
+    }
+
+    public static Framebuffer createFixed(String name, int width, int height, FramebufferSpec spec) {
+        return new Framebuffer(new GlFramebuffer(spec, name), false, 1f, width, height);
     }
 
     public static Framebuffer createScreen(float scale, FramebufferSpec spec) {
-        return new Framebuffer(new GlFramebuffer(spec), true, scale, 0, 0);
+        return createScreen(null, scale, spec);
+    }
+
+    public static Framebuffer createScreen(String name, float scale, FramebufferSpec spec) {
+        return new Framebuffer(new GlFramebuffer(spec, name), true, scale, 0, 0);
     }
 
     public int width() {
@@ -42,6 +50,10 @@ public final class Framebuffer {
 
     public int height() {
         return gl.height();
+    }
+
+    public boolean isAllocated() {
+        return gl.isAllocated();
     }
 
     public int colorTextureGlId(int index) {
