@@ -34,6 +34,12 @@ public final class Particle {
     float rVx, rVy, rVz;
     float rSize;
     float rR, rG, rB, rA;
+    float rUvOffX, rUvOffY, rUvScaleX = 1f, rUvScaleY = 1f;
+
+    // trail history: ring buffer of recent world positions (x,y,z per sample), null unless the material
+    // uses trails. trailHead is the next slot to write, trailCount is how many valid samples exist
+    public double[] trail;
+    public int trailHead, trailCount;
 
     Particle() {}
 
@@ -59,5 +65,7 @@ public final class Particle {
         sizeEasing = Easing.EASE_OUT;
         alive = false;
         colliding = false;
+        trailHead = 0;
+        trailCount = 0; // keep the array allocated for reuse from the pool
     }
 }

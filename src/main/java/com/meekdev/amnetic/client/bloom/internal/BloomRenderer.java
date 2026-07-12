@@ -5,14 +5,17 @@ import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
+import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
+import com.meekdev.amnetic.client.render.GlState;
+import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL33;
 
 public final class BloomRenderer {
@@ -22,32 +25,84 @@ public final class BloomRenderer {
     private static final Identifier DOWN_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/downsample.fsh");
     private static final Identifier UP_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/upsample.fsh");
     private static final Identifier COMPOSITE_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/composite.fsh");
+    private static final Identifier PREFILTER_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/prefilter.fsh");
 
-    private final FullscreenPass downsample = new FullscreenPass(VSH, DOWN_FSH);
-    private final FullscreenPass upsample = new FullscreenPass(VSH, UP_FSH);
-    private final FullscreenPass composite = new FullscreenPass(VSH, COMPOSITE_FSH);
+    private final ShaderProgram downsample = new ShaderProgram(VSH, DOWN_FSH);
+    private final ShaderProgram upsample = new ShaderProgram(VSH, UP_FSH);
+    private final ShaderProgram composite = new ShaderProgram(VSH, COMPOSITE_FSH);
+    private final ShaderProgram prefilter = new ShaderProgram(VSH, PREFILTER_FSH);
 
     private Framebuffer emissiveBuf;
+    private Framebuffer sceneCapture;
     private Framebuffer[] mips;
     private float baseScale = -1f;
     private int levelCount = -1;
     private boolean occludeMode;
 
+    private int brightQuery;
+    private boolean hadBloom = true; // assume bloom until the first query result says otherwise
+
     public void render(LevelRenderContext ctx, BloomSettings s) {
         if (!s.isEnabled()) return;
-        if (!InstanceMeshRegistry.INSTANCE.hasEmissive(PHASE, s.isAll())) return;
+        boolean instEmissive = InstanceMeshRegistry.INSTANCE.hasEmissive(PHASE, s.isAll());
+        boolean sceneBloom = s.threshold() > 0.0f;
+        if (!instEmissive && !sceneBloom) return;
 
         ensureChain(s.scale(), s.levels(), s.isOcclude());
 
+        if (brightQuery == 0) {
+            brightQuery = GL15.glGenQueries();
+        } else if (GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT_AVAILABLE) == GL11.GL_TRUE) {
+            hadBloom = GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT) != 0;
+        }
+        GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, brightQuery);
+        try {
+            renderSources(ctx, s, instEmissive, sceneBloom);
+        } finally {
+            GL15.glEndQuery(GL33.GL_ANY_SAMPLES_PASSED);
+        }
+        if (!hadBloom) return; // nothing glowed last frame, skip the pyramid and composite
+
+        runPyramidAndComposite(s);
+    }
+
+    private void renderSources(LevelRenderContext ctx, BloomSettings s, boolean instEmissive, boolean sceneBloom) {
         emissiveBuf.begin();
         emissiveBuf.clear(0f, 0f, 0f, 0f);
         emissiveBuf.end();
-        if (s.isOcclude()) {
-            emissiveBuf.blitDepthFromMain();
-            GL11.glDepthFunc(GL11.GL_LEQUAL); // visible surfaces (equal depth) bloom
+        if (instEmissive) {
+            if (s.isOcclude()) {
+                emissiveBuf.blitDepthFromMain();
+                GL11.glDepthFunc(GL11.GL_LEQUAL); // visible surfaces (equal depth) bloom
+            }
+            InstanceMeshRegistry.INSTANCE.renderEmissive(PHASE, ctx, emissiveBuf, s.isAll());
         }
-        InstanceMeshRegistry.INSTANCE.renderEmissive(PHASE, ctx, emissiveBuf, s.isAll());
 
+        if (sceneBloom) {
+            sceneCapture.blitColorFromMain();
+            sceneCapture.blitDepthFromMain();
+            emissiveBuf.begin();
+            setupFullscreenState();
+            GlStateManager._enableBlend();
+            GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
+            boolean hasGBuffer = GBufferTargets.INSTANCE.isPopulated();
+            GlState.bindTexture(0, sceneCapture.colorTextureGlId(0));
+            GlState.bindTexture(1, sceneCapture.depthTextureGlId());
+            GlState.bindTexture(2, hasGBuffer ? GBufferTargets.INSTANCE.emissiveGlId() : sceneCapture.depthTextureGlId());
+            prefilter.begin();
+            prefilter.setSampler("Sampler", 0);
+            prefilter.setSampler("DepthSampler", 1);
+            prefilter.setSampler("EmissiveSampler", 2);
+            prefilter.setInt("HasGBuffer", hasGBuffer ? 1 : 0);
+            prefilter.setFloat("Threshold", s.threshold());
+            prefilter.setFloat("Knee", s.knee());
+            prefilter.draw();
+            emissiveBuf.end();
+            restoreState();
+        }
+    }
+
+    private void runPyramidAndComposite(BloomSettings s) {
         downsampleInto(emissiveBuf, mips[0]);
         for (int i = 1; i < mips.length; i++) {
             downsampleInto(mips[i - 1], mips[i]);
@@ -105,16 +160,21 @@ public final class BloomRenderer {
             for (Framebuffer fb : mips) fb.dispose();
         }
         if (emissiveBuf != null) emissiveBuf.dispose();
+        if (sceneCapture != null) sceneCapture.dispose();
 
+        // both buffers only feed the mip chain, which downsamples to `scale` immediately, so
+        // capturing/prefiltering at full resolution would be wasted GPU work
         FramebufferSpec.Builder emissive = FramebufferSpec.builder().color(ColorFormat.RGBA16F);
         if (occlude) emissive.depthTexture();
-        emissiveBuf = Framebuffers.screen(1.0f, emissive.build());
+        emissiveBuf = Framebuffers.screen("Bloom Emissive", scale, emissive.build());
+        sceneCapture = Framebuffers.screen("Bloom Scene Capture", scale,
+                FramebufferSpec.builder().color(ColorFormat.RGBA16F).depthTexture().build());
 
         FramebufferSpec spec = FramebufferSpec.builder().color(ColorFormat.RGBA16F).build();
         mips = new Framebuffer[levels];
         float sc = scale;
         for (int i = 0; i < levels; i++) {
-            mips[i] = Framebuffers.screen(sc, spec);
+            mips[i] = Framebuffers.screen("Bloom Mip " + i, sc, spec);
             sc *= 0.5f;
         }
         baseScale = scale;
@@ -122,25 +182,9 @@ public final class BloomRenderer {
         occludeMode = occlude;
     }
 
-    private static void setupFullscreenState() {
-        GlStateManager._disableBlend();
-        GlStateManager._disableDepthTest();
-        GlStateManager._depthMask(false);
-        GlStateManager._disableCull();
-    }
+    private static void setupFullscreenState() { GlState.beginFullscreen(); }
 
-    private static void bindTexture(int glId) {
-        GL13.glActiveTexture(GL13.GL_TEXTURE0);
-        GL33.glBindSampler(0, 0);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
-    }
+    private static void bindTexture(int glId) { GlState.bindTexture(0, glId); }
 
-    private static void restoreState() {
-        GlStateManager._glUseProgram(0);
-        GlStateManager._glBindVertexArray(0);
-        GlStateManager._disableBlend();
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
-        GlStateManager._enableCull();
-    }
+    private static void restoreState() { GlState.endFullscreen(); }
 }

@@ -1,6 +1,9 @@
 package com.meekdev.amnetic.mixin;
 
+import com.meekdev.amnetic.client.AmneticClient;
+import com.meekdev.amnetic.client.camera.internal.FrameView;
 import com.meekdev.amnetic.client.post.internal.CameraState;
+import com.meekdev.amnetic.client.scene.internal.CaptureManager;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import net.minecraft.client.DeltaTracker;
@@ -26,5 +29,18 @@ public abstract class CameraStateMixin {
                                             ChunkSectionsToRender sections, CallbackInfo ci) {
         Vec3 pos = camera.pos;
         CameraState.update(camera.projectionMatrix, camera.viewRotationMatrix, pos.x, pos.y, pos.z, camera.depthFar);
+
+        if (!CaptureManager.INSTANCE.isCapturing()) {
+            FrameView.INSTANCE.set(viewRotation);
+        }
+    }
+
+    @Inject(method = "renderLevel", at = @At("TAIL"))
+    private void amnetic$renderPost(GraphicsResourceAllocator allocator, DeltaTracker deltaTracker,
+                                    boolean renderBlockOutline, CameraRenderState camera,
+                                    Matrix4fc viewRotation, GpuBufferSlice projection,
+                                    Vector4f clippingPlanes, boolean sky,
+                                    ChunkSectionsToRender sections, CallbackInfo ci) {
+        AmneticClient.renderPost();
     }
 }

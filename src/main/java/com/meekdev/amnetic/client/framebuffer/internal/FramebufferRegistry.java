@@ -1,5 +1,7 @@
 package com.meekdev.amnetic.client.framebuffer.internal;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class FramebufferRegistry {
@@ -16,6 +18,10 @@ public final class FramebufferRegistry {
 
     public void deregister(GlFramebuffer fb) {
         live.remove(fb);
+    }
+
+    public List<GlFramebuffer> registered() {
+        return new ArrayList<>(live);
     }
 
     public void closeAll() {

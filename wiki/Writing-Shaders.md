@@ -11,7 +11,7 @@ This page covers the pipeline JSON format, GLSL conventions for Minecraft 26.1.2
 | Pipeline descriptor | `assets/[namespace]/post_effect/[name].json` |
 | Fragment shader | `assets/[namespace]/shaders/post/[name].fsh` |
 
-The `[name]` in the pipeline path must match the path component of the `Identifier` you pass to `PostEffects.register`. For example, `Identifier.of("mymod", "frost")` loads `assets/mymod/post_effect/frost.json`.
+The `[name]` in the pipeline path must match the path component of the `Identifier` you pass to `PostEffects.register`. For example, `Identifier.fromNamespaceAndPath("mymod", "frost")` loads `assets/mymod/post_effect/frost.json`.
 
 ---
 
@@ -56,6 +56,21 @@ The `[name]` in the pipeline path must match the path component of the `Identifi
 
 Declares intermediate framebuffers that exist only within this pipeline. `"swap"` is a conventional name for the intermediate buffer used in a two-pass setup. You can declare multiple targets for multi-pass effects.
 
+An empty object `{}` gives a screen-sized, non-persistent target, but each target accepts options:
+
+```json
+"targets": {
+    "half": { "width": 960, "height": 540 },
+    "history": { "persistent": true, "clear_color": [0.0, 0.0, 0.0, 0.0] }
+}
+```
+
+| Option | Description |
+|---|---|
+| `width`, `height` | Fixed size in pixels. Omit for a screen-sized target |
+| `persistent` | Keep the target's contents across frames instead of reallocating it, for feedback/history effects |
+| `clear_color` | RGBA array the target is cleared to when created |
+
 Targets declared here are local to this effect. External targets (such as `minecraft:main`) are referenced by their full namespaced identifier in `inputs` and `output`.
 
 ### passes
@@ -66,17 +81,40 @@ An ordered list of render passes. Each pass runs the declared fragment shader ov
 |---|---|
 | `vertex_shader` | Use `"minecraft:core/screenquad"` for all fullscreen post effects. You do not need a custom vertex shader. |
 | `fragment_shader` | Namespaced path to your fragment shader, without the `.fsh` extension. The file lives at `assets/[namespace]/shaders/[path].fsh`. |
-| `inputs` | List of samplers bound for this pass. Each entry provides a `sampler_name` and a `target` that identifies the framebuffer to read from. |
+| `inputs` | List of samplers bound for this pass. Each entry provides a `sampler_name` plus either a `target` (framebuffer input) or a `location` (texture input). See [Inputs](#inputs) below. |
 | `output` | The framebuffer to write to. Use a local target name (e.g. `"swap"`) or `"minecraft:main"` for the final output. |
 | `uniforms` | Map of block name to list of uniform member descriptors. Values here are the defaults used when Amnetic does not override them. |
+
+### Inputs
+
+There are two kinds of input:
+
+**Target inputs** read from a framebuffer  - a local target or an external one like `minecraft:main`:
+
+```json
+{ "sampler_name": "In", "target": "minecraft:main" }
+{ "sampler_name": "Depth", "target": "minecraft:main", "use_depth_buffer": true }
+```
+
+`use_depth_buffer` binds the target's **depth attachment** instead of its color attachment, so the sampler reads depth values (this is how depth sampling works throughout these pages). Target inputs also accept `"bilinear": true` for bilinear filtering instead of nearest.
+
+**Location inputs** bind a plain texture resource by its asset location:
+
+```json
+{ "sampler_name": "Noise", "location": "mymod:post/noise", "width": 256, "height": 256, "bilinear": true }
+```
+
+`location` points at `assets/[namespace]/textures/effect/[path].png`, and `width`/`height` must state the texture's dimensions. Only these location-based inputs can be overridden at runtime with `cfg.texture(...)` / `handle.texture(...)`  - target-backed inputs cannot.
 
 ### Uniform member descriptor fields
 
 | Field | Description |
 |---|---|
 | `name` | The GLSL member variable name inside the block |
-| `type` | One of `"float"`, `"int"`, `"vec2"`, `"vec3"`, `"vec4"`, `"mat4"` |
+| `type` | One of `"int"`, `"ivec3"`, `"float"`, `"vec2"`, `"vec3"`, `"vec4"`, `"matrix4x4"`. Note the matrix type is spelled `"matrix4x4"`  - `"mat4"` is not a valid name and fails to parse |
 | `value` | Default value. Use a number for scalars, an array for vector and matrix types |
+
+When Amnetic overrides a block at runtime (any `cfg.uniform*` call, or the fade system's `Intensity` block), the override is injected into **every pass** of the pipeline, not just the passes whose JSON declares that block. Shaders that do not declare the block simply ignore it, so this is harmless  - but it means you cannot give two passes different runtime values under the same block name.
 
 ---
 

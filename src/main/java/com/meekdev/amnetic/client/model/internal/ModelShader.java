@@ -1,13 +1,16 @@
 package com.meekdev.amnetic.client.model.internal;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.meekdev.amnetic.client.model.ModelLighting;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+
+import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
+import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
@@ -20,27 +23,80 @@ final class ModelShader implements AutoCloseable {
 
     private final int program;
     private final int projViewLoc;
-    private final int albedoLoc;
-    private final int hasAlbedoLoc;
     private final int baseColorLoc;
     private final int emissiveLoc;
     private final int metallicLoc;
     private final int roughnessLoc;
+    private final int alphaCutoffLoc;
+    private final int transmissionLoc;
+    private final int emissiveStrengthLoc;
+    private final int hasAlbedoLoc;
+    private final int hasNormalLoc;
+    private final int hasOrmLoc;
+    private final int hasEmissiveLoc;
+    private final int materialIdLoc;
+    private final int skinnedLoc;
+    private final int jointMatricesLoc;
+    private final int hasEnvCubeLoc;
+    private final int envMaxLodLoc;
+    private final int sunDirectionLoc;
+    private final int sunColorLoc;
+    private final int sunIntensityLoc;
+    private final int ambientStrengthLoc;
+    private final int envIntensityLoc;
+    private final int exposureLoc;
+    private final int tonemapLoc;
+    private final int timeLoc;
 
     private ModelShader(int program) {
         this.program = program;
-        this.projViewLoc = GlStateManager._glGetUniformLocation(program, "ProjViewMatrix");
-        this.albedoLoc = GlStateManager._glGetUniformLocation(program, "AlbedoSampler");
-        this.hasAlbedoLoc = GlStateManager._glGetUniformLocation(program, "HasAlbedo");
-        this.baseColorLoc = GlStateManager._glGetUniformLocation(program, "BaseColor");
-        this.emissiveLoc = GlStateManager._glGetUniformLocation(program, "Emissive");
-        this.metallicLoc = GlStateManager._glGetUniformLocation(program, "Metallic");
-        this.roughnessLoc = GlStateManager._glGetUniformLocation(program, "Roughness");
+        this.projViewLoc = uniform("ProjViewMatrix");
+        this.baseColorLoc = uniform("BaseColor");
+        this.emissiveLoc = uniform("Emissive");
+        this.metallicLoc = uniform("Metallic");
+        this.roughnessLoc = uniform("Roughness");
+        this.alphaCutoffLoc = uniform("AlphaCutoff");
+        this.transmissionLoc = uniform("Transmission");
+        this.emissiveStrengthLoc = uniform("EmissiveStrength");
+        this.hasAlbedoLoc = uniform("HasAlbedo");
+        this.hasNormalLoc = uniform("HasNormal");
+        this.hasOrmLoc = uniform("HasOrm");
+        this.hasEmissiveLoc = uniform("HasEmissive");
+        this.materialIdLoc = uniform("MaterialId");
+        this.skinnedLoc = uniform("Skinned");
+        this.jointMatricesLoc = uniform("JointMatrices");
+        this.hasEnvCubeLoc = uniform("HasEnvCube");
+        this.envMaxLodLoc = uniform("EnvMaxLod");
+        this.sunDirectionLoc = uniform("SunDirection");
+        this.sunColorLoc = uniform("SunColor");
+        this.sunIntensityLoc = uniform("SunIntensity");
+        this.ambientStrengthLoc = uniform("AmbientStrength");
+        this.envIntensityLoc = uniform("EnvIntensity");
+        this.exposureLoc = uniform("Exposure");
+        this.tonemapLoc = uniform("Tonemap");
+        this.timeLoc = uniform("Time");
+        bindSamplerUnits();
     }
 
     static ModelShader load() {
-        int vs = compile(GL20.GL_VERTEX_SHADER, loadSource(VSH), VSH);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, loadSource(FSH), FSH);
+        return loadResolved(VSH, FSH);
+    }
+
+    // custom per-model program (see ModelConfig.shaders). path convention matches the instancing
+    // shaders: raw id "ns:foo" resolves to "ns:shaders/foo.vsh" / ".fsh". shares the built-in
+    // attribute/uniform contract (declared uniforms get uploaded, the rest are ignored) and its
+    // fragment stage writes the gbuffer
+    static ModelShader loadCustom(Identifier rawVsh, Identifier rawFsh) {
+        return loadResolved(shaderPath(rawVsh, ".vsh"), shaderPath(rawFsh, ".fsh"));
+    }
+
+    private static Identifier shaderPath(Identifier id, String ext) {
+        return Identifier.fromNamespaceAndPath(id.getNamespace(), "shaders/" + id.getPath() + ext);
+    }
+
+    private static ModelShader loadResolved(Identifier vshId, Identifier fshId) {
+        int vs = compile(GL20.GL_VERTEX_SHADER, loadSource(vshId), vshId);
+        int fs = compile(GL20.GL_FRAGMENT_SHADER, loadSource(fshId), fshId);
         int prog = GlStateManager.glCreateProgram();
         GlStateManager.glAttachShader(prog, vs);
         GlStateManager.glAttachShader(prog, fs);
@@ -48,17 +104,22 @@ final class ModelShader implements AutoCloseable {
         GlStateManager.glDeleteShader(vs);
         GlStateManager.glDeleteShader(fs);
         if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(prog, 512);
+            int length = GlStateManager.glGetProgrami(prog, GL20.GL_INFO_LOG_LENGTH);
+            String log = GlStateManager.glGetProgramInfoLog(prog, Math.max(length, 512));
             GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("Failed to link model shader: " + log);
+            throw new RuntimeException("Failed to link model shader (" + vshId + "/" + fshId + "): " + log);
         }
         return new ModelShader(prog);
     }
 
-    void bind() { GlStateManager._glUseProgram(program); }
+    void bind() {
+        GlStateManager._glUseProgram(program);
+    }
 
     void uploadProjView(Matrix4fc m) {
-        if (projViewLoc == -1) return;
+        if (projViewLoc == -1) {
+            return;
+        }
         try (MemoryStack stack = MemoryStack.stackPush()) {
             FloatBuffer buf = stack.mallocFloat(16);
             m.get(buf);
@@ -66,13 +127,113 @@ final class ModelShader implements AutoCloseable {
         }
     }
 
-    void uploadMaterial(ModelIR.Material mat, boolean hasAlbedo, int albedoUnit) {
-        if (albedoLoc != -1) GL20.glUniform1i(albedoLoc, albedoUnit);
-        if (hasAlbedoLoc != -1) GL20.glUniform1i(hasAlbedoLoc, hasAlbedo ? 1 : 0);
-        if (baseColorLoc != -1) GL20.glUniform4f(baseColorLoc, mat.baseR, mat.baseG, mat.baseB, mat.baseA);
-        if (emissiveLoc != -1) GL20.glUniform3f(emissiveLoc, mat.emR, mat.emG, mat.emB);
-        if (metallicLoc != -1) GL20.glUniform1f(metallicLoc, mat.metallic);
-        if (roughnessLoc != -1) GL20.glUniform1f(roughnessLoc, mat.roughness);
+    void uploadEmissiveStrength(float strength) {
+        if (emissiveStrengthLoc != -1) {
+            GL20.glUniform1f(emissiveStrengthLoc, strength);
+        }
+    }
+
+    void uploadLighting(ModelLighting l) {
+        if (sunDirectionLoc != -1) GL20.glUniform3f(sunDirectionLoc, l.sunX(), l.sunY(), l.sunZ());
+        if (sunColorLoc != -1) GL20.glUniform3f(sunColorLoc, l.sunR(), l.sunG(), l.sunB());
+        if (sunIntensityLoc != -1) GL20.glUniform1f(sunIntensityLoc, l.sunIntensity());
+        if (ambientStrengthLoc != -1) GL20.glUniform1f(ambientStrengthLoc, l.ambientStrength());
+        if (envIntensityLoc != -1) GL20.glUniform1f(envIntensityLoc, l.envIntensity());
+        if (exposureLoc != -1) GL20.glUniform1f(exposureLoc, l.exposure());
+        if (tonemapLoc != -1) GL20.glUniform1i(tonemapLoc, l.tonemap() ? 1 : 0);
+    }
+
+    void uploadEnv(boolean hasCube, float maxLod) {
+        if (hasEnvCubeLoc != -1) {
+            GL20.glUniform1i(hasEnvCubeLoc, hasCube ? 1 : 0);
+        }
+        if (envMaxLodLoc != -1) {
+            GL20.glUniform1f(envMaxLodLoc, maxLod);
+        }
+    }
+
+    // animation time in seconds, custom model shaders may read a Time uniform
+    void uploadTime(float seconds) {
+        if (timeLoc != -1) {
+            GL20.glUniform1f(timeLoc, seconds);
+        }
+    }
+
+    void setSkinned(boolean skinned) {
+        if (skinnedLoc != -1) {
+            GL20.glUniform1i(skinnedLoc, skinned ? 1 : 0);
+        }
+    }
+
+    void uploadJointMatrices(Matrix4f[] palette, int count) {
+        if (jointMatricesLoc == -1 || count <= 0) {
+            return;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            FloatBuffer buf = stack.mallocFloat(count * 16);
+            for (int i = 0; i < count; i++) {
+                palette[i].get(i * 16, buf);
+            }
+            buf.position(0).limit(count * 16);
+            GL20.glUniformMatrix4fv(jointMatricesLoc, false, buf);
+        }
+    }
+
+    void uploadMaterial(ModelIR.Material mat, boolean hasAlbedo, boolean hasNormal, boolean hasOrm, boolean hasEmissive) {
+        if (baseColorLoc != -1) {
+            GL20.glUniform4f(baseColorLoc, mat.baseR, mat.baseG, mat.baseB, mat.baseA);
+        }
+        if (emissiveLoc != -1) {
+            GL20.glUniform3f(emissiveLoc, mat.emR, mat.emG, mat.emB);
+        }
+        if (metallicLoc != -1) {
+            GL20.glUniform1f(metallicLoc, mat.metallic);
+        }
+        if (roughnessLoc != -1) {
+            GL20.glUniform1f(roughnessLoc, mat.roughness);
+        }
+        if (alphaCutoffLoc != -1) {
+            GL20.glUniform1f(alphaCutoffLoc, mat.alphaCutoff);
+        }
+        if (transmissionLoc != -1) {
+            GL20.glUniform1f(transmissionLoc, mat.transmission);
+        }
+        if (hasAlbedoLoc != -1) {
+            GL20.glUniform1i(hasAlbedoLoc, hasAlbedo ? 1 : 0);
+        }
+        if (hasNormalLoc != -1) {
+            GL20.glUniform1i(hasNormalLoc, hasNormal ? 1 : 0);
+        }
+        if (hasOrmLoc != -1) {
+            GL20.glUniform1i(hasOrmLoc, hasOrm ? 1 : 0);
+        }
+        if (hasEmissiveLoc != -1) {
+            GL20.glUniform1i(hasEmissiveLoc, hasEmissive ? 1 : 0);
+        }
+        if (materialIdLoc != -1) {
+            GL20.glUniform1i(materialIdLoc, mat.shadingModelId);
+        }
+    }
+
+    private void bindSamplerUnits() {
+        GlStateManager._glUseProgram(program);
+        setSampler("AlbedoSampler", 0);
+        setSampler("NormalSampler", 1);
+        setSampler("OrmSampler", 2);
+        setSampler("EmissiveSampler", 3);
+        setSampler("EnvCube", 5);
+        GlStateManager._glUseProgram(0);
+    }
+
+    private void setSampler(String name, int unit) {
+        int loc = uniform(name);
+        if (loc != -1) {
+            GL20.glUniform1i(loc, unit);
+        }
+    }
+
+    private int uniform(String name) {
+        return GlStateManager._glGetUniformLocation(program, name);
     }
 
     private static int compile(int type, String src, Identifier id) {
@@ -80,7 +241,8 @@ final class ModelShader implements AutoCloseable {
         GlStateManager.glShaderSource(shader, src);
         GlStateManager.glCompileShader(shader);
         if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 512);
+            int length = GlStateManager.glGetShaderi(shader, GL20.GL_INFO_LOG_LENGTH);
+            String log = GlStateManager.glGetShaderInfoLog(shader, Math.max(length, 512));
             GlStateManager.glDeleteShader(shader);
             throw new RuntimeException("Failed to compile model shader " + id + ": " + log);
         }
@@ -89,7 +251,9 @@ final class ModelShader implements AutoCloseable {
 
     private static String loadSource(Identifier id) {
         Optional<Resource> opt = Minecraft.getInstance().getResourceManager().getResource(id);
-        if (opt.isEmpty()) throw new RuntimeException("Model shader not found: " + id);
+        if (opt.isEmpty()) {
+            throw new RuntimeException("Model shader not found: " + id);
+        }
         try (InputStream is = opt.get().open()) {
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
@@ -99,6 +263,8 @@ final class ModelShader implements AutoCloseable {
 
     @Override
     public void close() {
-        if (program != 0) GlStateManager.glDeleteProgram(program);
+        if (program != 0) {
+            GlStateManager.glDeleteProgram(program);
+        }
     }
 }

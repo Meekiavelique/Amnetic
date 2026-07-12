@@ -13,7 +13,7 @@ They are mostly for stuff that will struggle on the CPU (particle simulations, m
 
 Compute shaders require **OpenGL 4.3** (or the `ARB_compute_shader` extension). Vanilla Minecraft requests a 3.3 context, where compute does not exist. This results in the function pointers being null.
 
-Amnetic works around this by requesting a 4.3+ context *when the game window is created* (it has to happen then; you cannot upgrade a live context (see [Vanilla Window and OpenGL](Vanilla-Window-and-OpenGL)). On the vast majority of desktop GPUs this succeeds. But some drivers or headless setups won't give you 4.3, so **there is no guarantee** and you must check at runtime:
+Amnetic works around this by requesting a **4.6 core** context *when the game window is created* (it has to happen then; you cannot upgrade a live context). The requested version is overridable with the `amnetic.opengl.major` / `amnetic.opengl.minor` system properties, and if creation fails it falls back to a plain 3.3 context. On the vast majority of desktop GPUs the 4.6 request succeeds. But some drivers or headless setups won't give you a compute-capable context, so **there is no guarantee** and you must check at runtime:
 
 ```java
 if (!ComputeCapabilities.isComputeAvailable()) {
@@ -21,8 +21,7 @@ if (!ComputeCapabilities.isComputeAvailable()) {
     return;
 }
 ```
-Amnetic probes check their capabilities. Do a self-test right away when your game starts.
-So by the time your gameplay code starts running, `isComputeAvailable()` already has an answer.
+Amnetic probes the capabilities on the first client tick. Before that probe runs, `isComputeAvailable()` returns `false`, so do not gate anything on it in your mod initializer. By the time your gameplay code starts running in a world, it already has an answer.
 Everything that has to do with compute must run on the **render thread** with the GL context current.
 For example you can run it inside a render event.
 You should not run it on a worker thread.
@@ -36,11 +35,11 @@ Let's say you have 4096 pieces of data and your shader uses `local_size_x = 64`.
 
 ```glsl
 #version 430
-layout(local_size_x = 64) in;          // 64 threads per group
+layout(local_size_x = 64) in; // 64 threads per group
 layout(std430, binding = 0) buffer Data { float values[]; };
 void main() {
-    uint i = gl_GlobalInvocationID.x;   // which piece of data am I working with?
-    values[i] = values[i] * 2.0;        // do the work on this piece of data
+    uint i = gl_GlobalInvocationID.x; // which piece of data am I working with?
+    values[i] = values[i] * 2.0; // do the work on this piece of data
 }
 ```
 
@@ -79,7 +78,7 @@ import java.nio.FloatBuffer;
 void runDoubleKernel() {
     if (!ComputeCapabilities.isComputeAvailable()) return;
     int count = 256;
-    try (ComputeShader shader = ComputeShader.load(Identifier.of("mymod", "shaders/compute/double.comp"));
+    try (ComputeShader shader = ComputeShader.load(Identifier.fromNamespaceAndPath("mymod", "shaders/compute/double.comp"));
          ShaderStorageBuffer ssbo = new ShaderStorageBuffer((long) count * Float.BYTES)) {
         ssbo.bind(0);
         shader.dispatch(count / 64, 1, 1);
@@ -126,7 +125,9 @@ int program()
 void close()
 ```
 
-**Loading** reads the source from the exact resource path. This is different from the post-effect API.
+**Loading** reads the source from the exact resource path. This is different from the post-effect API. The program compiles once at `load()` and never recompiles; if you use shader hot-reload during development, recreate the `ComputeShader` from a `ShaderHotReload.onReload(...)` callback to pick up edits.
+
+**Uniforms**: the setters write to whatever program is currently bound, so call `use()` before setting them. Only `dispatch(...)` binds the program for you.
 
 **Barriers**: pass the bit matching what you will do next.
 
@@ -168,5 +169,3 @@ The PNG is uploaded as **RGBA8** with **repeat** wrap and **trilinear** filterin
 
 ## See also
 
-- [Vanilla Shader Stages](Vanilla-Advanced-Shader-Stages)
-- [Vanilla Window and OpenGL](Vanilla-Window-and-OpenGL)

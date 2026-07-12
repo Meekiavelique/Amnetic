@@ -4,12 +4,14 @@ import net.minecraft.resources.Identifier;
 
 public enum ModelFormat {
     GLTF,
-    OBJ;
+    OBJ,
+    AMMESH;
 
     public static ModelFormat fromPath(String path) {
         String p = path.toLowerCase();
         if (p.endsWith(".obj")) return OBJ;
         if (p.endsWith(".gltf") || p.endsWith(".glb")) return GLTF;
+        if (p.endsWith(".ammesh")) return AMMESH;
         return null;
     }
 
@@ -18,6 +20,9 @@ public enum ModelFormat {
     }
 
     public static ModelFormat fromMagic(byte[] bytes) {
+        if (bytes.length >= 4 && bytes[0] == 'A' && bytes[1] == 'M' && bytes[2] == 'S' && bytes[3] == 'H') {
+            return AMMESH;
+        }
         if (bytes.length >= 4 && bytes[0] == 'g' && bytes[1] == 'l' && bytes[2] == 'T' && bytes[3] == 'F') {
             return GLTF;
         }

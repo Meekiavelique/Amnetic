@@ -4,6 +4,7 @@ import com.meekdev.amnetic.client.entityfx.internal.EffectUniforms;
 import com.meekdev.amnetic.client.entityfx.internal.EntityEffectPipeline;
 import com.meekdev.amnetic.client.entityfx.internal.EntityEffectRegistry;
 import com.meekdev.amnetic.client.entityfx.internal.SceneColorSnapshot;
+import com.meekdev.amnetic.client.particle.SceneDepth;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -90,7 +91,7 @@ public final class EntityEffect {
         return bySkin.computeIfAbsent(key, k -> {
             uploadUniforms();
             if (needsSceneColor) SceneColorSnapshot.INSTANCE.ensureRegistered();
-            if (needsDepth) com.meekdev.amnetic.client.particle.SceneDepth.update();
+            if (needsDepth) SceneDepth.update();
             return EntityEffectPipeline.build(
                     "amnetic_entityfx/" + SEQ.getAndIncrement(), vsh, fsh, uniforms.id(),
                     needsSkin ? skinId : null, needsSceneColor, needsDepth, extraSamplers);

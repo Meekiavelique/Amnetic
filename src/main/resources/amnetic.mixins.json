@@ -6,11 +6,13 @@
   "mixins": [],
   "client": [
     "GameRendererMixin",
+    "ItemInHandRendererMixin",
     "GlCommandEncoderMixin",
     "MinecraftMainTargetMixin",
     "WindowGlContextMixin",
     "CameraStateMixin",
     "CameraMixin",
+    "LevelRendererBlockChangeMixin",
     "WeatherEffectRendererMixin",
     "EntityRenderStateMixin",
     "EntityRendererMixin",

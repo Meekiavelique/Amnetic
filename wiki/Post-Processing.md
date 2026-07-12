@@ -18,7 +18,7 @@ PostEffectHandle register(Identifier id, BooleanSupplier condition)
 PostEffectHandle register(Identifier id, Consumer<PostEffectConfig> configurator)
 ```
 
-`id` is the pipeline name under `post_effect` (without the `.json` extension). For example, `Identifier.of("mymod", "frost")` loads `assets/mymod/post_effect/frost.json`.
+`id` is the pipeline name under `post_effect` (without the `.json` extension). For example, `Identifier.fromNamespaceAndPath("mymod", "frost")` loads `assets/mymod/post_effect/frost.json`.
 
 ### Convenience methods
 
@@ -33,6 +33,8 @@ PostEffectHandle conditionalWithFade(Identifier id, BooleanSupplier condition, i
 ```
 
 These methods register the effect and return a handle. They are equivalent to calling `register` with the appropriate configuration.
+
+Note that `vignette` drives the effect through the `"Intensity"` uniform block, which is the same block name the fade system reserves  - do not combine `vignette` with `fadeIn`/`fadeOut` on the same effect.
 
 ---
 
@@ -68,12 +70,18 @@ Higher values are applied first. Default is `0`. See [Priority ordering](#priori
 
 ```java
 cfg.externalTargets(Set<Identifier> targets)
-cfg.externalTarget(Identifier id, Supplier<Framebuffer> supplier)
+cfg.externalTargets(Identifier... targets)
+cfg.externalTarget(Identifier id, Supplier<RenderTarget> supplier)
 ```
 
-The set of named framebuffer targets that the pipeline reads from or writes to outside of its own declared targets. By default this is `Set.of(PostEffectProcessor.MAIN)`, which represents the main scene framebuffer (`minecraft:main`). You should not need to change this unless your effect uses additional shared targets.
+The set of named framebuffer targets that the pipeline reads from or writes to outside of its own declared targets. By default this is `Set.of(PostChain.MAIN_TARGET_ID)`, which represents the main scene framebuffer (`minecraft:main`). You should not need to change this unless your effect uses additional shared targets.
 
-`externalTarget(...)` binds a concrete framebuffer supplier to an external target id so the runtime can actually provide that target during rendering.
+`externalTarget(...)` binds a concrete `Supplier<RenderTarget>` (blaze3d `RenderTarget`) to an external target id so the runtime can actually provide that target during rendering. Calling it also adds the id to the external-target set, so you do not need a separate `externalTargets(...)` call for it.
+
+Two groups of targets resolve without a supplier:
+
+- The vanilla level targets `minecraft:translucent`, `minecraft:item_entity`, `minecraft:particles`, `minecraft:weather`, `minecraft:clouds` and `minecraft:entity_outline` are resolved from the level renderer automatically. List them in `externalTargets(...)`; no `externalTarget(...)` supplier is needed.
+- `amnetic:world_depth_snapshot` is detected in the pipeline JSON and added to the external-target set automatically  - reference it in an input and it just works, with no configuration at all.
 
 ### Fade
 
@@ -111,6 +119,8 @@ cfg.texture(String samplerName, Identifier textureId)
 ```
 
 Overrides the texture bound to a named sampler for this effect. `samplerName` matches the `sampler_name` value in the JSON pipeline (without the "Sampler" suffix that GLSL uses).
+
+This only overrides **location-based texture inputs** (inputs declared with `"location"` in the JSON). Target-backed inputs (declared with `"target"`) are framebuffers, not textures, and are not affected by `texture(...)`.
 
 ### Callbacks
 
@@ -157,7 +167,10 @@ handle.setPriority(int priority)
 
 ```java
 handle.setExternalTargets(Set<Identifier> targets)
+handle.setExternalTarget(Identifier id, Supplier<RenderTarget> supplier)
 ```
+
+`setExternalTarget` behaves like `cfg.externalTarget`: it binds a `Supplier<RenderTarget>` to the target id and adds the id to the external-target set.
 
 ### Fade
 
@@ -267,6 +280,8 @@ When multiple effects are registered for the same phase, they are applied in des
 
 Default priority is `0`. Use negative values if you need an effect to run after the defaults.
 
+The ordering takes effect immediately: the registry re-sorts after the `register` configurator runs and after every `handle.setPriority(...)` call, so a priority set at registration or changed at runtime is reliably in force on the very next frame.
+
 ---
 
 ## The fade system
@@ -276,6 +291,7 @@ When `fadeIn` or `fadeOut` is configured on an effect, Amnetic tracks a per-effe
 - When the condition transitions from false to true, `intensity` ramps linearly from `0.0` to `1.0` over `fadeIn` ticks.
 - When the condition transitions from true to false, `intensity` ramps linearly from `1.0` to `0.0` over `fadeOut` ticks.
 - If either value is `0`, the transition is instant in that direction.
+- Configuring `fadeIn` while the effect has not yet been active starts `intensity` at `0.0`, so the very first activation fades in from black instead of popping to full strength.
 
 Each frame, the current `intensity` is injected as the `Intensity` uniform block:
 

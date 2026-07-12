@@ -19,6 +19,7 @@ import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,6 +103,11 @@ public final class CaptureManager {
         Vec3 savedPos = cam.position();
         float savedYaw = cam.yRot();
         float savedPitch = cam.xRot();
+        Quaternionf savedRotation = new Quaternionf(cam.rotation());
+        Vector3f savedForward = new Vector3f(cam.forwardVector());
+        Vector3f savedUp = new Vector3f(cam.upVector());
+        Vector3f savedLeft = new Vector3f(cam.leftVector());
+        int savedMatrixDirty = inv.amnetic$getMatrixPropertiesDirty();
         Frustum savedFrustum = inv.amnetic$getCullFrustum();
         var savedVisible = lra.amnetic$getVisibleSections();
         var savedNearby = lra.amnetic$getNearbyVisibleSections();
@@ -135,7 +141,7 @@ public final class CaptureManager {
             lr.extractLevel(ticker, cam, pt);
             crs.viewRotationMatrix.set(view.viewRotation());
             crs.projectionMatrix.set(obliqueProj);
-            crs.pos = eye;   // entities read crs.pos
+            crs.pos = eye; // entities read crs.pos
             uploadCameraGlobals(renderer, ticker, eye);
             renderer.renderLevel(ticker); // into the capture target (redirected)
             bufferSource.endBatch();
@@ -147,12 +153,18 @@ public final class CaptureManager {
             currentTarget = null;
             lra.amnetic$setVisibleSections(savedVisible);
             lra.amnetic$setNearbyVisibleSections(savedNearby);
-            inv.amnetic$setRotation(savedYaw, savedPitch);
             inv.amnetic$setPosition(savedPos);
+            cam.rotation().set(savedRotation);
+            ((Vector3f) cam.forwardVector()).set(savedForward);
+            ((Vector3f) cam.upVector()).set(savedUp);
+            ((Vector3f) cam.leftVector()).set(savedLeft);
+            inv.amnetic$setXRot(savedPitch);
+            inv.amnetic$setYRot(savedYaw);
+            inv.amnetic$setMatrixPropertiesDirty(savedMatrixDirty | 1);
             inv.amnetic$setCullFrustum(savedFrustum);
             crs.pos = savedCrsPos;
             uploadCameraGlobals(renderer, ticker, savedCrsPos);
-            lr.extractLevel(ticker, cam, pt); // refill shared state for the main view
+            lr.extractLevel(ticker, cam, pt); // refill shared state for the main view (roll preserved)
             crs.viewRotationMatrix.set(mainView);
             crs.projectionMatrix.set(mainProj);
             bufferSource.endBatch();

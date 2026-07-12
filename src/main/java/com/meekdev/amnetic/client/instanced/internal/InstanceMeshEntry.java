@@ -3,9 +3,11 @@ package com.meekdev.amnetic.client.instanced.internal;
 import com.meekdev.amnetic.client.instanced.InstanceBatch;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
+import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
@@ -22,6 +24,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 public final class InstanceMeshEntry<T> implements AutoCloseable {
@@ -38,6 +41,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private InstanceBuffer instanceBuffer;
     private CompiledShader shader;
     private boolean textureRegistered;
+    private int lastInstanceCount;
+    private boolean staticUploaded;
     private final Set<Identifier> registeredExtras = new HashSet<>();
     private static final Vector3f SUN = new Vector3f(0f, 1f, 0f);
 
@@ -54,20 +59,57 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         ensureVao();
         ensureShader();
 
-        batch.reset();
-        mesh.onRender().accept(ctx, batch);
-
-        int instanceCount = batch.count();
-        if (instanceCount == 0) return;
-
-        ByteBuffer instanceData = batch.flip();
-        instanceBuffer.upload(instanceData, instanceCount);
+        // static meshes emit once and keep the uploaded buffer, later frames just redraw it (no CPU
+        // re-emit/re-upload). invalidate() re-emits (e.g. to rebake lighting when time of day changes)
+        boolean reuse = mesh.staticInstances() && staticUploaded;
+        if (!reuse) {
+            batch.reset();
+            mesh.onRender().accept(ctx, batch);
+            int instanceCount = batch.count();
+            lastInstanceCount = instanceCount;
+            if (instanceCount == 0) return;
+            instanceBuffer.upload(batch.flip(), instanceCount);
+            staticUploaded = mesh.staticInstances();
+        }
+        if (lastInstanceCount == 0) return;
 
         Matrix4f projView = new Matrix4f(ctx.projectionMatrix()).mul(ctx.viewMatrix());
-        drawNow(projView, ctx.projectionMatrix(), ctx.viewMatrix(), ctx.gameTime(), instanceCount);
+        drawNow(projView, ctx.projectionMatrix(), ctx.viewMatrix(), ctx.gameTime(), ctx.cameraPos(), lastInstanceCount);
     }
 
-    private void drawNow(Matrix4f projView, org.joml.Matrix4fc projection, org.joml.Matrix4fc view, float time, int instanceCount) {
+    void invalidate() {
+        staticUploaded = false;
+    }
+
+    public boolean castsShadow() { return mesh.castsShadow(); }
+    public int lastInstanceCount() { return lastInstanceCount; }
+
+    // redraws this frame's already-uploaded instance buffer with the light's view-proj instead of the
+    // camera's. the mesh's own vertex/fragment shader still runs (so alpha-cutout discards match the main
+    // pass), just reprojected into the shadow map
+    public void renderShadow(Matrix4fc lightViewProj) {
+        if (lastInstanceCount == 0 || vao == 0 || shader == null) return;
+
+        shader.bind();
+        shader.uploadProjView(lightViewProj);
+        bindTextureIfNeeded();
+        bindExtraSamplers();
+
+        GlStateManager._glBindVertexArray(vao);
+        try {
+            if (mesh.geometry().hasIndices()) {
+                GL31.glDrawElementsInstanced(GL11.GL_TRIANGLES, mesh.geometry().indexCount(), GL11.GL_UNSIGNED_INT, 0L, lastInstanceCount);
+            } else {
+                GL31.glDrawArraysInstanced(GL11.GL_TRIANGLES, 0, mesh.geometry().vertexCount(), lastInstanceCount);
+            }
+        } finally {
+            GlStateManager._glBindVertexArray(0);
+            GlStateManager._glUseProgram(0);
+        }
+    }
+
+    private void drawNow(Matrix4f projView, Matrix4fc projection, Matrix4fc view, float time,
+                         Vec3 cameraPos, int instanceCount) {
         mesh.renderState().apply();
 
         try {
@@ -76,6 +118,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             shader.uploadProjection(projection);
             shader.uploadView(view);
             shader.uploadTime(time);
+            shader.uploadCameraPos(cameraPos.x, cameraPos.y, cameraPos.z);
             Vector3f sun = sunDirection();
             shader.uploadSunDir(sun.x, sun.y, sun.z);
             bindTextureIfNeeded();
@@ -100,7 +143,9 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
 
         var textureManager = Minecraft.getInstance().getTextureManager();
         if (!textureRegistered) {
-            textureManager.registerAndLoad(textureId, new SimpleTexture(textureId));
+            if (!ImportedTextures.isImported(textureId)) {
+                textureManager.registerAndLoad(textureId, new SimpleTexture(textureId));
+            }
             textureRegistered = true;
         }
         AbstractTexture texture = textureManager.getTexture(textureId);
@@ -117,7 +162,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         var textureManager = Minecraft.getInstance().getTextureManager();
         for (var sampler : samplers) {
             try {
-                if (sampler.fileBacked() && registeredExtras.add(sampler.textureId())) {
+                if (sampler.fileBacked() && !ImportedTextures.isImported(sampler.textureId())
+                        && registeredExtras.add(sampler.textureId())) {
                     textureManager.registerAndLoad(sampler.textureId(), new SimpleTexture(sampler.textureId()));
                 }
                 AbstractTexture texture = textureManager.getTexture(sampler.textureId());

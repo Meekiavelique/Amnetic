@@ -2,14 +2,14 @@ package com.meekdev.amnetic.client.light.internal;
 
 import com.meekdev.amnetic.client.light.Light;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class LightRegistry {
 
     public static final LightRegistry INSTANCE = new LightRegistry();
 
-    private final List<Light> lights = new ArrayList<>();
+    private final List<Light> lights = new CopyOnWriteArrayList<>();
 
     private LightRegistry() {}
 

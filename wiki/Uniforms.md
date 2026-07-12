@@ -56,8 +56,8 @@ You cannot override just `Strength`. You must supply both values:
 
 ```java
 cfg.uniformRaw("MyConfig", () -> List.of(
-    new FloatValue(myStrength),
-    new Vec4Value(r, g, b, a)
+    new UniformValue.FloatUniform(myStrength),
+    new UniformValue.Vec4Uniform(new Vector4f(r, g, b, a))
 ));
 ```
 
@@ -93,6 +93,8 @@ The following block names are used by Amnetic or minecraft and should not be use
 
 `UniformSuppliers` is a utility class providing factory methods for commonly needed uniform value suppliers. All methods are static.
 
+Every factory returns a `Supplier<List<UniformValue>>`  - the raw block-value type  - so the result must be passed to `uniformRaw(blockName, supplier)`, not to the typed `uniform(...)` overloads (those take plain `DoubleSupplier`/`IntSupplier`/vector suppliers and do the wrapping themselves).
+
 ### Constant values
 
 ```java
@@ -111,7 +113,7 @@ UniformSuppliers.partialTick()
 
 `gameTime()` increases monotonically with world ticks. It is suitable for driving time-based animations in shaders.
 
-`partialTick()` is the interpolation factor between the last tick and the current frame. Use it when you need frame-rate-independent smooth animation.
+`partialTick()` is the raw intra-tick interpolation fraction, `0..1` between the last tick and the current frame. It saw-tooths back to `0` every tick, so on its own it is not a smooth animation driver  - combine it with a tick counter (e.g. `gameTime() + partialTick` in your own supplier) for smooth motion.
 
 ### Screen dimensions
 
@@ -141,13 +143,15 @@ UniformSuppliers.sinTime(float speed)
 UniformSuppliers.cosTime(float speed)
 ```
 
-Returns a `DoubleSupplier` yielding `sin(gameTime * speed)` or `cos(gameTime * speed)`. The result is in the range `-1.0..1.0`.
+Yields `sin(t * speed)` or `cos(t * speed)` where `t` is wall-clock time in seconds (`System.currentTimeMillis() / 1000f`), not game time  - the animation keeps running while the game is paused. The result is in the range `-1.0..1.0`.
 
 ```java
 UniformSuppliers.pingPong(float min, float max, float speed)
 ```
 
-Returns a `DoubleSupplier` that oscillates linearly between `min` and `max` at the given speed. Unlike `sinTime`, the transitions are linear rather than sinusoidal.
+Oscillates linearly between `min` and `max` at the given speed, also on wall-clock time. Unlike `sinTime`, the transitions are linear rather than sinusoidal.
+
+Like everything else in this class these return `Supplier<List<UniformValue>>`, so pass them to `uniformRaw`, not to the `uniform(String, DoubleSupplier)` overload.
 
 ### Wrapping arbitrary suppliers
 
@@ -175,7 +179,7 @@ Driven by a field:
 ```java
 private float myStrength = 0.5f;
 
-PostEffects.register(Identifier.of("mymod", "effect"), cfg -> cfg
+PostEffects.register(Identifier.fromNamespaceAndPath("mymod", "effect"), cfg -> cfg
     .uniform("MyConfig", () -> myStrength)
 );
 ```
@@ -201,8 +205,8 @@ Multi-member block override:
 
 ```java
 cfg.uniformRaw("MyConfig", () -> List.of(
-    new UniformValue.FloatValue(myStrength),
-    new UniformValue.Vec4fValue(new Vector4f(r, g, b, 1.0f))
+    new UniformValue.FloatUniform(myStrength),
+    new UniformValue.Vec4Uniform(new Vector4f(r, g, b, 1.0f))
 ));
 ```
 
