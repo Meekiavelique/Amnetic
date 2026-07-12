@@ -3,18 +3,9 @@ package com.meekdev.amnetic.client.camera;
 import com.meekdev.amnetic.client.camera.internal.CameraController;
 import net.minecraft.world.phys.Vec3;
 
-/**
- * Per-frame context handed to a {@link CameraModifier}. Exposes timing and a read-only snapshot of
- * the player-follow camera pose, and collects the modifier's additive contributions.
- *
- * <p>Rotation contributions are in degrees (pitch, yaw, roll); FOV in degrees. Position can be added
- * in world space ({@link #addPosition}) or in view space ({@link #addPositionLocal}: right, up,
- * forward), whichever is more convenient. All contributions accumulate and compose with the built-in
- * effects.
- *
- * <p>Instances are reused across frames and are only valid for the duration of the
- * {@link CameraModifier#modify} call — do not retain a reference.
- */
+// per-frame context for a CameraModifier, rotation/fov offsets in degrees, position in world
+// space (addPosition) or view space (addPositionLocal: right, up, forward)
+// instances are reused, only valid inside modify(), don't keep a reference
 public final class CameraFrame {
 
     private final CameraController owner;
