@@ -21,4 +21,16 @@ public interface CameraInvoker {
 
     @Accessor("cullFrustum")
     void amnetic$setCullFrustum(Frustum frustum);
+
+    @Accessor("xRot")
+    void amnetic$setXRot(float xRot);
+
+    @Accessor("yRot")
+    void amnetic$setYRot(float yRot);
+
+    @Accessor("matrixPropertiesDirty")
+    int amnetic$getMatrixPropertiesDirty();
+
+    @Accessor("matrixPropertiesDirty")
+    void amnetic$setMatrixPropertiesDirty(int value);
 }

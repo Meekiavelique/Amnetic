@@ -16,6 +16,8 @@ import org.lwjgl.opengl.GL42;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryStack;
 
+// compiled once at load(), so dev hot reload can't swap it in place; recreate the
+// instance from a ShaderHotReload.onReload callback if you want live compute edits
 public final class ComputeShader implements AutoCloseable {
 
     private final int program;

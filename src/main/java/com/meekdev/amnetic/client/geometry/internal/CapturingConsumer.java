@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.geometry.internal;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import java.util.Arrays;
 
 public final class CapturingConsumer implements VertexConsumer {
 
@@ -34,9 +35,9 @@ public final class CapturingConsumer implements VertexConsumer {
         if (verts <= cap) return;
         int n = cap;
         while (n < verts) n <<= 1;
-        pos = java.util.Arrays.copyOf(pos, n * 3);
-        uv = java.util.Arrays.copyOf(uv, n * 2);
-        nrm = java.util.Arrays.copyOf(nrm, n * 3);
+        pos = Arrays.copyOf(pos, n * 3);
+        uv = Arrays.copyOf(uv, n * 2);
+        nrm = Arrays.copyOf(nrm, n * 3);
         cap = n;
     }
 
