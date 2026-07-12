@@ -54,9 +54,9 @@ Tween<Quaternionfc> tween(Quaternionfc start, Quaternionfc end, float duration);
 Timeline timeline();
 
 // the engine
-void update();        // pumped once per frame by Amnetic
-int activeCount();    // how many tweens and timelines are running
-void clear();         // stop and drop everything
+void update(); // pumped once per frame by Amnetic
+int activeCount(); // how many tweens and timelines are running
+void clear(); // stop and drop everything
 ```
 
 ---
@@ -101,23 +101,23 @@ boolean finished = clock.isDone();
 // configure (before start)
 Tween<T> ease(EasingFunction easing);
 Tween<T> delay(float seconds);
-Tween<T> repeat(int count);        // extra runs after the first
+Tween<T> repeat(int count); // extra runs after the first
 Tween<T> repeatForever();
-Tween<T> yoyo(boolean yoyo);       // alternate direction each run
+Tween<T> yoyo(boolean yoyo); // alternate direction each run
 Tween<T> speed(float multiplier);
 Tween<T> onStart(Runnable cb);
 Tween<T> onUpdate(Consumer<T> cb);
 Tween<T> onComplete(Runnable cb);
 
 // control
-Tween<T> start();                  // hand it to the engine
+Tween<T> start(); // hand it to the engine
 void pause(); void resume(); void cancel();
 void seek(float seconds);
-boolean update(float dt);          // drive it yourself; returns true when done
+boolean update(float dt); // drive it yourself; returns true when done
 
 // read
 T value();
-float progress();                  // 0..1, before easing
+float progress(); // 0..1, before easing
 boolean isDone();
 ```
 
@@ -131,11 +131,11 @@ A timeline lines tweens up on a shared clock. `append` puts something after ever
 import com.meekdev.amnetic.client.anim.Animations;
 
 Animations.timeline()
-    .append(fadeIn)                 // first
-    .append(0.2f, slideUp)          // a beat later
-    .with(brighten)                 // alongside slideUp
-    .stagger(0.05f, letterPops)     // each one a little after the last
-    .call(() -> spawnBurst())       // fire a callback here
+    .append(fadeIn) // first
+    .append(0.2f, slideUp) // a beat later
+    .with(brighten) // alongside slideUp
+    .stagger(0.05f, letterPops) // each one a little after the last
+    .call(() -> spawnBurst()) // fire a callback here
     .start();
 ```
 
@@ -145,10 +145,10 @@ Animations.timeline()
 // build
 Timeline append(Updatable item);
 Timeline append(float gap, Updatable item);
-Timeline with(Updatable item);                 // parallel to the last append
+Timeline with(Updatable item); // parallel to the last append
 Timeline stagger(float step, Iterable<? extends Updatable> items);
 Timeline call(Runnable callback);
-Timeline add(float offset, Updatable item);     // place at an explicit time
+Timeline add(float offset, Updatable item); // place at an explicit time
 Timeline loop(boolean loop);
 Timeline speed(float multiplier);
 Timeline onComplete(Runnable cb);
@@ -171,8 +171,8 @@ boolean isDone();
 ```java
 import com.meekdev.amnetic.client.anim.Easing;
 
-Animations.tween(0f, 1f, 1f).ease(Easing.BACK_OUT);          // a little overshoot
-Animations.tween(0f, 1f, 1f).ease(t -> t * t * t);           // your own curve
+Animations.tween(0f, 1f, 1f).ease(Easing.BACK_OUT); // a little overshoot
+Animations.tween(0f, 1f, 1f).ease(t -> t * t * t); // your own curve
 ```
 
 ```java
@@ -188,11 +188,11 @@ BACK_OUT, ELASTIC_OUT, BOUNCE_OUT
 ```java
 // built-in interpolators
 Interpolator<Float>        FLOAT;
-Interpolator<Float>        ANGLE;       // shortest path in degrees
+Interpolator<Float>        ANGLE; // shortest path in degrees
 Interpolator<Vector3fc>    VEC3;
-Interpolator<Vec3>         VEC3D;       // Minecraft world coordinates
-Interpolator<Vector4fc>    COLOR;       // RGBA
-Interpolator<Quaternionfc> QUATERNION;  // slerp
+Interpolator<Vec3>         VEC3D; // Minecraft world coordinates
+Interpolator<Vector4fc>    COLOR; // RGBA
+Interpolator<Quaternionfc> QUATERNION; // slerp
 
 // and the shared math helpers
 float lerp(float a, float b, float t);
@@ -211,7 +211,7 @@ float clamp01(float v);
 
 - Callbacks (`onUpdate`, `onComplete`, and the timeline's `call`) run on the render thread, same as the tween itself. If you trigger a `start()` from a tick or network thread, make sure the state it reads is safe to touch.
 
-- `Easing` used to live with the particles. It now lives in `com.meekdev.amnetic.client.anim`, and both the particle and camera systems share it. The camera's impulses and the `CameraDirector` blends are built on this engine internally, so this is the same motion code the cinematics use.
+- `Easing` used to live with the particles. It now lives in `com.meekdev.amnetic.client.anim`, and both the particle and camera systems share it. The camera's impulses are built on a self-driven `Tween` internally; the `CameraDirector` blends keep their own clock and use `Easing` and `Interpolators` directly rather than this engine.
 
 - The value type is open. If there is an `Interpolator<T>` for it, you can tween it.
 
@@ -219,7 +219,7 @@ float clamp01(float v);
 
 ## See Also
 
-- [Camera](Camera). The impulse, kick, and director effects are built on top of this engine.
+- [Camera](Camera). The impulse and kick effects are built on top of this engine.
 
 - [Particles](Particles). Particle size curves use the same `Easing`.
 

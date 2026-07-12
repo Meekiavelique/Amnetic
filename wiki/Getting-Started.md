@@ -6,27 +6,37 @@ This page covers adding Amnetic to your mod and registering a basic post-process
 
 ## Adding the dependency
 
-Amnetic is not yet published to a public Maven repository. Until then, clone the repository and publish to your local Maven cache:
-
-```bash
-git clone https://github.com/meekdev/amnetic
-cd amnetic
-./gradlew publishToMavenLocal
-```
-
-In your mod's `build.gradle`:
+Amnetic is published to a public Maven repository. Add the repository and dependency to your mod's `build.gradle`:
 
 ```groovy
 repositories {
-    mavenLocal()
+    maven { url "https://maven.meekhasto.rest" }
 }
 
 dependencies {
-    modImplementation "com.meekdev:amnetic:1.0-SNAPSHOT"
+    modImplementation "com.meekdev:amnetic:{version}"
 }
 ```
 
-Amnetic targets the client side only. 
+Use `modImplementation`, not `include`. Amnetic ships as a standalone mod and must not be bundled (Jar-in-Jar) inside your own. Declare it in your `fabric.mod.json` so players are pointed to install it:
+
+```json
+"depends": {
+    "amnetic": ">={version}"
+}
+```
+
+If you want to build from source instead, clone the repository and publish to your local Maven cache:
+
+```bash
+git clone https://github.com/Meekiavelique/Amnetic
+cd Amnetic
+./gradlew publishToMavenLocal
+```
+
+Then use `mavenLocal()` as the repository and `com.meekdev:amnetic:1.0-SNAPSHOT` as the version.
+
+Amnetic targets the client side only. It requires a Java 25 toolchain and Fabric Loader 0.19.3 or newer.
 
 ---
 
@@ -100,14 +110,14 @@ import com.meekdev.amnetic.client.post.RenderPhase;
 **Always active:**
 
 ```java
-PostEffectHandle handle = PostEffects.register(Identifier.of("mymod", "my_effect"));
+PostEffectHandle handle = PostEffects.register(Identifier.fromNamespaceAndPath("mymod", "my_effect"));
 ```
 
 **Conditional:**
 
 ```java
 PostEffectHandle handle = PostEffects.register(
-    Identifier.of("mymod", "my_effect"),
+    Identifier.fromNamespaceAndPath("mymod", "my_effect"),
     () -> SomeClientState.isActive()
 );
 ```
@@ -116,7 +126,7 @@ PostEffectHandle handle = PostEffects.register(
 
 ```java
 PostEffectHandle handle = PostEffects.register(
-    Identifier.of("mymod", "my_effect"),
+    Identifier.fromNamespaceAndPath("mymod", "my_effect"),
     cfg -> cfg
         .when(() -> SomeClientState.isActive())
         .phase(RenderPhase.POST_WORLD)
@@ -154,14 +164,14 @@ For common cases, Amnetic provides some methods that skip the configuration buil
 Blur:
 
 ```java
-PostEffects.blur(Identifier.of("mymod", "blur"), 2.0f);
-PostEffects.blur(Identifier.of("mymod", "blur"), () -> computeRadius());
+PostEffects.blur(Identifier.fromNamespaceAndPath("mymod", "blur"), 2.0f);
+PostEffects.blur(Identifier.fromNamespaceAndPath("mymod", "blur"), () -> computeRadius());
 ```
 
 Vignette:
 
 ```java
-PostEffects.vignette(Identifier.of("mymod", "vignette"), 0.6f);
+PostEffects.vignette(Identifier.fromNamespaceAndPath("mymod", "vignette"), 0.6f);
 ```
 
 These still return a `PostEffectHandle` and can be further configured after the call.

@@ -4,11 +4,27 @@ Amnetic is a Minecraft 26.1.2 Fabric rendering utility library.
 
 ---
 
+## Installation
+
+Amnetic is a **standalone mod**: install it as a separate mod (e.g. from Modrinth)
+alongside any mod that uses it. **Do not bundle it (Jar-in-Jar) inside another mod.**
+
+A single shared install is supportable, whereas many bundled copies are not  - and when
+several mods each ship their own copy, Fabric loads one and shadows the rest, causing
+version mismatches and compatibility conflicts. Amnetic logs a warning if it detects it
+was loaded as a nested jar.
+
+Developers should depend on it with `modImplementation` (not `include`) and add an
+`"amnetic"` entry to their `fabric.mod.json` `depends`. See the README and
+[Getting Started](Getting-Started) for the build snippet.
+
+---
+
 ## Current scope
 
 **Post-processing effects**
 
-Register fullscreen post-processing effects using JSON pipelines and shaders. Effects can be enabled conditionally, smoothly faded in or out, configured with dynamic uniform values from the game state, and applied at two points in the frame: before the HUD or after all rendering, including the GUI.
+Register fullscreen post-processing effects using JSON pipelines and shaders. Effects can be enabled conditionally, smoothly faded in or out, configured with dynamic uniform values from the game state, and applied at three points in the frame: right after the world renders, before the GUI, or after all rendering including the GUI.
 
 **Compute shaders**
 
@@ -34,13 +50,79 @@ Read-only camera queries (world↔screen projection, frustum tests, ray-picking)
 
 A small tween and timeline engine for animating any value over time, with easing curves, delay, repeat and yoyo, and lifecycle callbacks. Built-in interpolators cover floats, vectors, colors, angles, and orientations, and you can add your own. The camera effects and director are built on it.
 
+**Framebuffers**
+
+Off-screen render targets you own: fixed or window-tracking, multiple color attachments, optional depth texture, blits to and from the main frame, and a ping-pong pair for multi-pass effects. The foundation the bloom, lights, scene-capture, and entity-effect systems sit on.
+
+**Bloom**
+
+An emissive/bright-pixel glow pass over the deferred renderer, with a configurable mip pyramid, intensity, downsample scale, and optional depth occlusion.
+
+**Deferred lights**
+
+Dynamic point, spot, directional, area, and tube lights with color (or temperature), range, falloff curves, and a global budget with frustum culling and distance fade. Lit in screen space from depth and normals. Per-light extras: cookies/gobos, IES-style angular profiles, and volumetric god-ray strength.
+
+**Shadows**
+
+Spot and point lights cast real world shadows via per-light depth maps (perspective atlas / cube array) baked from nearby blocks, cutout/translucent geometry (coloured shadows from stained glass), and entities. Soft Poisson PCF with PCSS contact-hardening, distance fade, nearest-first LOD, and a static-skip so idle lights cost nothing. A directional sun light gets cascaded shadow maps: up to four texel-snapped cascades covering the view distance that carve shadows out of vanilla daylight (intensity sets shadow depth, not brightness), with a smooth fade at the far edge. See [Shadows](Shadows).
+
+**Screen-space AO & GI**
+
+[SSAO](Screen-Space-Effects) (with TAA-lite temporal denoise) grounds objects in contact crevices; [SSGI](Screen-Space-Effects) adds one bounce of indirect colour bleed. Both read the gbuffer and composite over the lit scene.
+
+**Temporal anti-aliasing**
+
+Full TAA over the frame: sub-pixel Halton jitter on the world projection, a history reprojection resolve that accumulates samples over time, and an optional CAS sharpen pass to win back the softness TAA introduces. See [TAA](TAA).
+
+**Decals**
+
+Projected box decals: give `Decals` a texture, a center, and a surface normal, and the box projects the texture onto whatever geometry it intersects. A decal can also write the gbuffer (normal/roughness) so the deferred lights relight the surface underneath it. See [Decals](Decals).
+
+**Custom shading models**
+
+Register a GLSL snippet as a `ShadingModel` and assign it to a model material. The snippet is baked into the deferred lighting shader as a dispatch case, so your geometry responds to Amnetic lights with a fully custom BRDF instead of the default Cook-Torrance path. See [Shading Models](Shading-Models).
+
+**Quality presets**
+
+One-call presets (`Quality.off()`, `low()`, `balanced()`, `ultra()`) that tune SSAO, SSGI, SSR, and bloom together to trade performance for fidelity. Each system stays fully configurable through its own settings afterwards; a preset is just a starting point. See [Quality](Quality).
+
+**Volumetric god-rays**
+
+Single-scattering light shafts for point/spot lights with a Henyey-Greenstein phase, density, and optional shadow-map occlusion so beams are carved by geometry. Configured on `LightSettings` and per-light.
+
+**Particle editor**
+
+An in-game tool to author particle effects (material, lifetime curves/gradient, affectors, collider), preview them live, and save/load as JSON. Part of the in-game [Editor](Editor).
+
+**Color grading**
+
+A final-frame grading pass: exposure, contrast, saturation, brightness, temperature/tint, gamma, and an optional 3D LUT with intensity blending. See [Color Grading](Color-Grading).
+
+**In-game editor**
+
+An in-game inspector overlay (`AmneticEditor`) for tuning the rendering systems live, with gizmos for world-placed handles and an API for registering your own `Inspector` panels. See [Editor](Editor).
+
+**Models**
+
+Load glTF 2.0 and OBJ models and render them through the instanced pipeline, with PBR metallic-roughness materials, so they are deferred-lit. A clip-based animation player (`Animator`) is included, with GPU geometry skinning for rigged models. Parsed models are cached on disk in a compact `.ammesh` binary format for fast reloads, opt-in LOD chains are generated at load time, and models cast into the shadow maps.
+
+**Scene capture**
+
+Render the world from a virtual second camera into an off-screen texture each frame, plus a high-level planar-reflection helper for mirrors (reflected camera, oblique clip, reflective surface).
+
+**Entity effects**
+
+Run a custom vertex/fragment shader over a living entity's body with your own uniforms and samplers, or just swap an entity's texture through the vanilla shader.
+
+**Mesh tap**
+
+Read the posed vertices (positions, UVs, normals) an entity renders each frame, for driving particles or custom geometry off a live model.
+
 ## Planned scope
 
 The following areas are planned for future releases. None of them are available yet.
 
-- Second-camera rendering
 - FrameGraph pass injection
-- Deferred lighting support
 
 ---
 
@@ -49,6 +131,7 @@ The following areas are planned for future releases. None of them are available 
 | Page | Description |
 |---|---|
 | [Getting Started](Getting-Started) | How to add Amnetic to your mod and register your first effect |
+| [Render Pipeline](Render-Pipeline) | `Pipeline`, `RenderStage`s, `RenderPass`/`FrameContext`, and per-layer (`RenderLayer`/`LayerPass`) isolation |
 | [Post-Processing](Post-Processing) | Full reference for `PostEffects`, `PostEffectHandle`, `RenderPhase`, priority, and the fade system |
 | [Uniforms](Uniforms) | `UniformSuppliers` reference and an explanation of how uniform blocks work |
 | [Writing Shaders](Writing-Shaders) | JSON pipeline format, GLSL conventions, and a complete worked example |
@@ -58,11 +141,21 @@ The following areas are planned for future releases. None of them are available 
 | [Camera](Camera) | `AmneticCamera` queries, `CameraEffects` + `CameraModifier`, and the `CameraDirector` |
 | [Tweens](Tweens) | The `Animations` engine, `Tween` and `Timeline`, easing curves, and interpolators |
 | [Mesh Pipeline](Mesh-Pipeline) | Generic world-space mesh render type for custom geometry |
-| [Vanilla Rendering Internals](Vanilla-Rendering-Index) | How Minecraft 26.1.2 creates the GL context, loads pipelines/shaders, and handles depth |
-| [Vanilla Window and OpenGL](Vanilla-Window-and-OpenGL) | GLFW hints, requested OpenGL version/profile, and what “forcing” a newer version entails |
-| [Vanilla RenderSystem and GlBackend](Vanilla-RenderSystem-and-GlBackend) | Backend init, debug output, capabilities, and default uniform blocks |
-| [Vanilla Shaders and Post Effects](Vanilla-Shaders-and-Post-Effects) | Post-effect JSON schema, sampler/uniform conventions, and pass execution |
-| [Vanilla Depth and Fog](Vanilla-Depth-and-Fog) | Depth sampling, linearization math, and the “hands-only depth” pitfall |
-| [Vanilla Advanced Shader Stages](Vanilla-Advanced-Shader-Stages) | What vanilla supports, how to force GL 4.x, and what it takes to use compute/tessellation |
+| [Framebuffers](Framebuffers) | `Framebuffer`, `Framebuffers`, `FramebufferSpec`, formats, and `PingPongBuffer` |
+| [Bloom](Bloom) | `Bloom` facade and `BloomSettings` for the emissive glow pass |
+| [Deferred Lights](Deferred-Lights) | `Lights` factory, `Light`, types, falloff curves, and `LightSettings` |
+| [Shadows](Shadows) | Per-light shadow maps, coloured shadows, PCSS softening, and cascaded sun shadows |
+| [Screen-Space Effects](Screen-Space-Effects) | SSAO, SSGI, and SSR over the gbuffer, with their settings |
+| [TAA](TAA) | `Taa` and `TaaSettings` for temporal anti-aliasing and the CAS sharpen pass |
+| [Color Grading](Color-Grading) | `ColorGrade` and `ColorGradeSettings` for the final-frame grading post pass |
+| [Decals](Decals) | `Decals` factory and `Decal` handles for projected box decals and gbuffer relighting |
+| [Shading Models](Shading-Models) | `ShadingModel` custom GLSL shading snippets for deferred-lit materials |
+| [Quality](Quality) | `Quality` one-call presets for the screen-space effect stack |
+| [Models](Models) | `Models`/`Model`/`ModelInstance`, PBR materials, and the `Animator` |
+| [Scene Capture](Scene-Capture) | `PerspectiveCapture`, `PerspectiveView`, and `PlanarReflection` mirrors |
+| [Entity Effects](Entity-Effects) | `EntityEffects.surface`, `SurfaceConfig`, and `EntityTextureOverride` |
+| [Mesh Tap](Mesh-Tap) | `EntityMeshTap` and `PosedMesh` for reading a posed entity's vertices |
+| [Editor](Editor) | The in-game `AmneticEditor`, gizmos, and registering custom `Inspector` panels |
+| [Shader Hot Reload](Shader-Hot-Reload) | Dev-only shader hot reloading and the `onReload` contract |
 
 ---
