@@ -1,6 +1,33 @@
-# Amnetic
+<p align="center">
+  <img src="https://files.catbox.moe/jdrud4.png" alt="Java" />
+</p>
+<p align="center">
+  <a href="https://github.com/Meekiavelique/Amnetic/releases">
+    <img src="https://img.shields.io/github/v/release/Meekiavelique/Amnetic?style=for-the-badge&color=2ea44f&label=LATEST%20RELEASE" alt="Latest Release" />
+  </a>
+  <img src="https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
+  <img src="https://img.shields.io/badge/Running%20on-Fabric-2C2C2C?style=for-the-badge&logo=openjdk&logoColor=white" alt="Running on Fabric" />
+  <a href=" "><img src="https://img.shields.io/badge/Wiki-Documentation-4A90E2?style=for-the-badge&logo=gitbook&logoColor=white" alt="Wiki" /></a>
+  <a href="https://discord.gg/avSH2JTfef"><img src="https://img.shields.io/badge/Discord-online-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+</p>
 
-Amnetic is a Minecraft 26.1.2 Fabric rendering utility library. 
+<p align="center">
+A Fabric rendering utility library for Minecraft 26.1.2 
+</p>
+
+## Installation
+
+Amnetic is a **standalone mod**: install it as a separate mod (e.g. from Modrinth)
+alongside any mod that uses it. **Do not bundle it (Jar-in-Jar) inside another mod.**
+
+A single shared install is supportable, whereas many bundled copies are not  - and when
+several mods each ship their own copy, Fabric loads one and shadows the rest, causing
+version mismatches and compatibility conflicts. Amnetic logs a warning if it detects it
+was loaded as a nested jar.
+
+Developers should depend on it with `modImplementation` (not `include`) and add an
+`"amnetic"` entry to their `fabric.mod.json` `depends`. See the README and
+[Getting Started](Getting-Started) for the build snippet.
 
 ---
 
