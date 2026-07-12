@@ -8,7 +8,7 @@ The camera system is made up of three parts.
 
 - **`CameraDirector`** is like a movie director. It can take control of the camera. Move it around to make a scene look really cool.
 
-Some things to keep in mind when working with the camera. Positions are in world space, rotations are in degrees, and screen coordinates are in pixels.
+Some things to keep in mind when working with the camera. Positions are in world space, rotations are in degrees, and screen coordinates are GUI-scaled (the same units your HUD draws in, not physical pixels).
 
 ---
 
@@ -48,11 +48,17 @@ float fov(); float near(); float far();
 // get the camera matrices
 Matrix4f projection(); Matrix4f view(); Matrix4f viewProjection(); Matrix4f inverseViewProjection();
 
-// convert between world and screen
+// convert between world and screen (GUI-scaled coordinates, not physical pixels)
 Vector2f worldToScreen(Vec3 world);
 Ray screenToRay(double sx, double sy);
 Vector3f worldToNdc(Vec3 world);
 Vec3 ndcToWorld(float nx, float ny, float nz);
+
+// Ray, as returned by screenToRay
+record Ray(Vec3 origin, Vec3 direction) {
+    Vec3 at(double distance); // origin + direction * distance
+    Vec3 end(double maxDistance); // same as at, named for "walk the ray to its end"
+}
 
 // check if something is visible
 boolean isVisible(Vec3 point);
@@ -197,7 +203,7 @@ record Keyframe(Vec3 position, Vec3 lookAt, float time);
 
 - Threading is important here. The `modify` function and the offset application run on the render thread. Effect triggers, like `shake` or arm style flags or modifier targets, are commonly called from tick or network threads. Pass scalars through `volatile` fields like the examples do.
 
-- `Easing` lives in `com.meekdev.amnetic.client.anim` and is shared with the particle and animation systems. The impulse and director blends run on the [tween engine](Tweens) internally, so the curve set is the full family (`LINEAR`, `EASE_IN`, `EASE_OUT`, `SMOOTH`, and the rest), plus any custom `t -> ...` curve.
+- `Easing` lives in `com.meekdev.amnetic.client.anim` and is shared with the particle and animation systems. Impulses run on a self-driven [tween](Tweens) internally; the director blends keep their own clock and interpolate with `Easing` and `Interpolators` directly. Either way the curve set is the full family (`LINEAR`, `EASE_IN`, `EASE_OUT`, `SMOOTH`, and the rest), plus any custom `t -> ...` curve.
 
 ---
 
@@ -207,4 +213,3 @@ record Keyframe(Vec3 position, Vec3 lookAt, float time);
 
 - [Post-Processing](Post-Processing). Fullscreen effects driven by camera or game state.
 
-- [Vanilla Rendering Internals](Vanilla-Rendering-Index). How the camera and projection are built each frame.

@@ -18,6 +18,7 @@ public final class PostEffects {
     public static PostEffectHandle register(Identifier id, Consumer<PostEffectConfig> configurator) {
         PostEffectEntry entry = PostEffectRegistry.INSTANCE.register(id);
         configurator.accept(new PostEffectConfig(entry));
+        PostEffectRegistry.INSTANCE.resort();
         return new PostEffectHandle(entry);
     }
 

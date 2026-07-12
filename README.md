@@ -16,7 +16,17 @@ A Fabric rendering utility library for Minecraft 26.1.2
 
 ## Installation
 
-Add the repository and dependency to your `build.gradle`:
+Amnetic is a **standalone mod**. Install it as a separate mod (e.g. from Modrinth)
+alongside any mod that uses it — **do not bundle it (Jar-in-Jar) inside your own mod**.
+Bundling is unsupported: a single shared install is supportable, and when multiple mods
+each ship their own copy, Fabric loads one and shadows the rest, causing version
+mismatches and conflicts. Amnetic logs a warning if it detects it was loaded nested.
+
+**Players:** download Amnetic from Modrinth and drop it in your `mods` folder next to the
+mods that depend on it.
+
+**Developers:** depend on it without bundling. Add the repository and a `modImplementation`
+dependency to your `build.gradle`:
 
 ```groovy
 repositories {
@@ -24,18 +34,43 @@ repositories {
 }
 
 dependencies {
+    // modImplementation (not `include`) — Amnetic ships as its own mod
     modImplementation "com.meekdev:amnetic:{version}"
 }
 ```
 
+Then declare it as a dependency in your `fabric.mod.json` so users are pointed to install it:
 
-## Planned Features
+```json
+"depends": {
+    "amnetic": ">={version}"
+}
+```
 
-**Framebuffer Utilities** - Off-screen render-target abstraction. It will support render-to-texture, ping-pong multi-passe buffers, main scene color/depth capture, MRT/G-buffer targets.
 
-**Deferred Lights** - Point and spot lights (color, range, falloff, spot cone, specular). Uses full G-buffer lighting for Amnetic geometry, depth-normal for the vanilla world and support occlusion.
+## Features
 
-**Model Renderer (glTF / OBJ)** - Loads glTF 2.0 and OBJ files and renders them through the existing instanced/mesh pipeline. Includes PBR metallic-roughness materials, GPU instancing, G-buffer output (so models are automatically deferred-lit), and skeletal animation with GPU skinning.
+- **Post-processing** - fullscreen effects from JSON pipelines, conditional, faded, with dynamic uniforms.
+- **Compute shaders** - dispatch `.comp` programs with SSBOs and textures, behind a capability probe.
+- **Particles** - CPU-simulated, GPU-billboarded, with affectors, soft depth, and surface colliders.
+- **Instanced rendering** - one mesh, thousands of instances, custom layouts and shaders.
+- **World meshes** - generic world-space geometry render type with your own shaders.
+- **Camera** - queries, additive effects (shake/kick/FOV), and a cinematic director.
+- **Animation** - a tween/timeline engine with easing, repeat, and interpolators.
+- **Framebuffers** - off-screen render targets, MRT, depth capture, main-frame blits, ping-pong passes.
+- **Bloom** - emissive/bright-pixel glow over the deferred renderer.
+- **Deferred lights** - point, spot, directional, area, and tube lights, lit from depth and normals.
+- **Shadows** - per-light depth-mapped shadows for spot and point lights (soft PCF/PCSS, coloured, entity occluders).
+- **Volumetric god-rays** - per-light single-scattering shafts at reduced resolution with temporal reprojection.
+- **Screen-space AO/GI** - SSAO (with temporal denoise) and a one-bounce SSGI pass.
+- **Decals** - projected box decals that can also write the gbuffer (normal/roughness) to relight surfaces.
+- **Particle editor** - in-game tool to author particle effects (curves, gradient, affectors, trails) and save/load them as JSON.
+- **Models (glTF / OBJ)** - loaded into the instanced pipeline with PBR metallic-roughness materials, deferred-lit (clip-based animation player included; geometry skinning not yet implemented).
+- **Scene capture** - render the world from a virtual camera; planar-reflection mirrors.
+- **Entity effects** - run a custom shader over an entity's body, or override its texture.
+- **Mesh tap** - read a posed entity's vertices for particles and custom geometry.
+
+Planned: FrameGraph pass injection.
 
 
 ## Docs
@@ -53,6 +88,16 @@ Full reference are in the [wiki](../../wiki):
 - [Camera](../../wiki/Camera) - queries, effects, and the cinematic director
 - [Tweens](../../wiki/Tweens) - the animation engine, tweens, timelines, and easing
 - [Mesh Pipeline](../../wiki/Mesh-Pipeline) - custom world-space geometry
+- [Framebuffers](../../wiki/Framebuffers) - off-screen render targets and ping-pong passes
+- [Bloom](../../wiki/Bloom) - the emissive glow pass
+- [Deferred Lights](../../wiki/Deferred-Lights) - dynamic point/spot/area lights
+- [Shadows](../../wiki/Shadows) - per-light depth-mapped shadows
+- [Screen-Space Effects](../../wiki/Screen-Space-Effects) - SSAO and SSGI
+- [Particle Editor](../../wiki/Particle-Editor) - authoring effects in-game
+- [Models](../../wiki/Models) - glTF/OBJ loading, PBR materials, and animation
+- [Scene Capture](../../wiki/Scene-Capture) - virtual cameras and planar reflections
+- [Entity Effects](../../wiki/Entity-Effects) - custom shaders over entities, texture overrides
+- [Mesh Tap](../../wiki/Mesh-Tap) - reading a posed entity's vertices
 
 ---
 

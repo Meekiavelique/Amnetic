@@ -39,11 +39,11 @@ InstancedMesh.builder(BuiltinShader.TRANSFORM_COLOR)
     .onRender((ctx, batch) -> {
         for (var entity : ctx.world().entitiesForRendering()) {
             if (!(entity instanceof Mob)) continue;
-            Matrix4f model = ctx.worldToModel(entity, 0.4f);   // camera-relative, scaled to 0.4
+            Matrix4f model = ctx.worldToModel(entity, 0.4f); // camera-relative, scaled to 0.4
             batch.add(new BuiltinShader.TransformColor(model, new Vector4f(1f, 0.2f, 0.2f, 0.6f)));
         }
     })
-    .register(Identifier.of("mymod", "mob_markers"));
+    .register(Identifier.fromNamespaceAndPath("mymod", "mob_markers"));
 ```
 
 That is the whole feature. `register` is what makes it draw. A mesh you `build` but never register does nothing.
@@ -79,26 +79,26 @@ InstanceWriter<Mote> writer = (mote, p) ->
     p.putMat4(mote.transform()).putVec4(mote.color());
 ```
 
-Then build the mesh with your shader id. `.shader(Identifier.of("mymod", "instance/mote"))` loads `assets/mymod/shaders/instance/mote.vsh` and `.fsh`.
+Then build the mesh with your shader id. `.shader(Identifier.fromNamespaceAndPath("mymod", "instance/mote"))` loads `assets/mymod/shaders/instance/mote.vsh` and `.fsh`. If the vertex and fragment shaders live at different paths, use `.shaders(vshId, fshId)` instead, which takes the two ids separately.
 
 ```java
 InstancedMesh.builder(layout, writer)
     .geometry(MeshData.unitCircle(16))
-    .shader(Identifier.of("mymod", "instance/mote"))
+    .shader(Identifier.fromNamespaceAndPath("mymod", "instance/mote"))
     .renderState(RenderState.ADDITIVE)
     .onRender((ctx, batch) -> {
         for (var m : myMotes) {
             batch.add(new Mote(ctx.worldToModel(m.pos(), m.scale()), m.color()));
         }
     })
-    .register(Identifier.of("mymod", "motes"));
+    .register(Identifier.fromNamespaceAndPath("mymod", "motes"));
 ```
 
 The vertex shader. Geometry comes in at location 0, and the instance matrix and color at the locations your layout used. Amnetic uploads `ProjViewMatrix`, `ProjectionMatrix` and `ViewMatrix`, so declare the ones you use.
 
 ```glsl
 #version 330 core
-layout(location = 0) in vec3 Position;       // from MeshData
+layout(location = 0) in vec3 Position; // from MeshData
 
 layout(location = 1) in vec4 InstTransform0; // the mat4, one column at a time
 layout(location = 2) in vec4 InstTransform1;
@@ -140,28 +140,38 @@ If you set `.texture(...)`, it is bound to texture unit 0 and your shader reads 
 
 ```java
 // pick one builder:
-InstancedMesh.builder(BuiltinShader<T> shader)                          // built-in: layout, writer and GLSL included
-InstancedMesh.builder(InstanceLayout layout, InstanceWriter<T> writer)  // custom shader
+InstancedMesh.builder(BuiltinShader<T> shader) // built-in: layout, writer and GLSL included
+InstancedMesh.builder(InstanceLayout layout, InstanceWriter<T> writer) // custom shader
 
-.geometry(MeshData geometry)      // required: the shape drawn per instance
-.shader(Identifier id)            // required for the custom builder; assets/<ns>/shaders/<path>.vsh and .fsh
-.texture(Identifier id)           // optional: bound to TextureSampler, unit 0
-.phase(InstancePhase phase)       // default WORLD_LAST
-.renderState(RenderState state)   // default RenderState.DEFAULT
+.geometry(MeshData geometry) // required: the shape drawn per instance
+.shader(Identifier id) // required for the custom builder; assets/<ns>/shaders/<path>.vsh and .fsh
+.shaders(Identifier vsh, Identifier fsh) // alternative: name the two shaders separately
+.texture(Identifier id) // optional: bound to TextureSampler, unit 0
+.extraSampler(String name, Identifier id, int unit) // optional: bind another texture to a named sampler
+.extraSampler(String name, Identifier id, int unit, boolean fileBacked) // fileBacked loads it as a resource texture
+.phase(InstancePhase phase) // default WORLD_LAST
+.renderState(RenderState state) // default RenderState.DEFAULT
+.writeGBuffer(boolean v) // default false: also write normals/material into the G-buffer
+.castsShadow() // include this mesh in the shadow-map pass
+.emissive() / .emissive(float strength) // write the bloom-feeding emissive target (default strength 1.0)
+.staticInstances() // emit once, reuse the uploaded buffer every frame
 .onRender((ctx, batch) -> { ... })// required: fill the batch each frame
-.build()                          // returns InstancedMesh<T>
-.register(Identifier id)          // build AND register; this is what makes it draw
+.build() // returns InstancedMesh<T>
+.register(Identifier id) // build AND register; this is what makes it draw
 ```
 
 `geometry`, `onRender` and a shader are required. `register` is what makes it render. `build` on its own does nothing.
 
+`staticInstances()` skips the per-frame CPU re-emit and re-upload, for large static fields like grass. Call `InstancedMesh.invalidate(id)` to force a static mesh to re-run its `onRender` emitter next frame (for example to refresh baked lighting when the time of day changes); it is a no-op for dynamic meshes.
+
 ### MeshData (geometry)
 
 ```java
-MeshData.quad()                  // flat 1x1 quad, position only
-MeshData.texturedQuad()          // flat quad with UVs, for billboards
-MeshData.unitCircle(int segs)    // disc of radius 1, segs >= 3
-MeshData.unitCube()              // 1x1x1 cube at the origin
+MeshData.quad() // flat 1x1 quad, position only
+MeshData.texturedQuad() // flat quad with UVs, for billboards
+MeshData.unitCircle(int segs) // disc of radius 1, segs >= 3
+MeshData.unitCube() // 1x1x1 cube at the origin
+MeshData.box(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) // axis-aligned box
 MeshData.of(float[] verts, int[] indices)
 MeshData.of(float[] verts)
 ```
@@ -172,7 +182,7 @@ Location 0 is always `vec3 Position`. Location 1 is `vec2 UV`, only for textured
 
 ```java
 InstanceLayout.builder()
-    .mat4(int startLocation)   // four vec4 columns, startLocation to +3
+    .mat4(int startLocation) // four vec4 columns, startLocation to +3
     .vec4(int location)
     .vec3(int location)
     .vec2(int location)
@@ -197,9 +207,9 @@ Write the fields in the same order as the layout.
 ### RenderState
 
 ```java
-RenderState.DEFAULT       // depth test on, depth write on, no blend, cull on
-RenderState.TRANSLUCENT   // depth test on, depth write off, alpha blend, cull on
-RenderState.ADDITIVE      // depth test on, depth write off, additive blend, cull off
+RenderState.DEFAULT // depth test on, depth write on, no blend, cull on
+RenderState.TRANSLUCENT // depth test on, depth write off, alpha blend, cull on
+RenderState.ADDITIVE // depth test on, depth write off, additive blend, cull off
 
 RenderState.builder()
     .depthTest(boolean).depthWrite(boolean)
@@ -214,25 +224,25 @@ The state is applied before the draw and reset afterward. Use `TRANSLUCENT` for 
 Passed to `onRender` each frame. It has the frame state and the camera-relative matrix helpers. Always place instances with these, not with raw world coordinates.
 
 ```java
-Minecraft client();  ClientLevel world();  float deltaTick();
+Minecraft client();  ClientLevel world();  float deltaTick();  float gameTime();
 Vec3 cameraPos();  Matrix4fc viewMatrix();  Matrix4fc projectionMatrix();
 
 Matrix4f worldToModel(Vec3 pos);
 Matrix4f worldToModel(double x, double y, double z);
-Matrix4f worldToModel(BlockPos pos);                         // centered on the block
+Matrix4f worldToModel(BlockPos pos); // centered on the block
 Matrix4f worldToModel(Vec3 pos, float scale);
 Matrix4f worldToModel(Vec3 pos, float yawDegrees, float scale);
 Matrix4f worldToModel(Vec3 pos, Quaternionfc rotation, float scale);
-Matrix4f worldToModel(Entity entity, ...);                   // interpolated by deltaTick
+Matrix4f worldToModel(Entity entity, ...); // interpolated by deltaTick
 ```
 
 ---
 
 ## Status
 
-Rendering is driven from the client initializer. On Fabric's `LevelRenderEvents.END_MAIN`, Amnetic binds Minecraft's main framebuffer and calls `InstanceMeshRegistry.renderAll` for the `WORLD_LAST` phase. In 26.1 there is no bindable GL framebuffer, so Amnetic builds its own from the main target's color and depth textures (`MainTargetFramebuffer`).
+Rendering is driven by the staged render pipeline registered from the client initializer. `WORLD_LAST` meshes draw in the GEOMETRY stage (with a separate G-buffer pass for meshes that opted into `writeGBuffer`), `WORLD_TRANSLUCENT` meshes draw in the AFTER_WATER stage so billboards sort in front of water and glass, and `OVERLAY` meshes draw at the very end of the frame via `OverlayRender`. In 26.1 there is no bindable GL framebuffer, so Amnetic builds its own from the main target's color and depth textures (`MainTargetFramebuffer`).
 
-Only `WORLD_LAST` is driven right now. Other phases exist in the enum but nothing calls `renderAll` for them, so a mesh registered with those will not draw. Use `WORLD_LAST`, which is the default. If meshes register without error but nothing shows up, this wiring and the framebuffer bind are the first place to check after a Minecraft update.
+`BEFORE_ENTITIES` and `AFTER_ENTITIES` exist in the enum but nothing drives them yet, so a mesh registered with those will not draw. Use `WORLD_LAST` (the default), `WORLD_TRANSLUCENT` for translucent billboards, or `OVERLAY`. If meshes register without error but nothing shows up, this wiring and the framebuffer bind are the first place to check after a Minecraft update.
 
 ---
 

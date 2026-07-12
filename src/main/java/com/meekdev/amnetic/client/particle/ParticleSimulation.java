@@ -8,7 +8,9 @@ import com.meekdev.amnetic.client.instanced.InstancedMesh;
 import com.meekdev.amnetic.client.instanced.MeshData;
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,6 +29,7 @@ public final class ParticleSimulation {
 
     private static final float MAX_FRAME_DT = 0.1f;
     private static final int MAX_PENDING = 200_000;
+    private static final int TRAIL_MAX = 32;
 
     public static final ParticleSimulation INSTANCE = new ParticleSimulation();
 
@@ -40,6 +43,8 @@ public final class ParticleSimulation {
     private final Vector4f clip = new Vector4f();
     private Particle[] visibleBuf = new Particle[256];
     private long[] sortBuf = new long[256];
+    private final float[] rgbaScratch = new float[4];
+    private final Particle trailGhost = new Particle();
     private float accumulator;
     private float simClock;
     private long lastNano;
@@ -57,7 +62,7 @@ public final class ParticleSimulation {
                 .geometry(MeshData.texturedQuad())
                 .shaders(material.billboardMode.vertexShader(), material.fragmentShaderId)
                 .renderState(material.renderState())
-                .phase(InstancePhase.WORLD_LAST)
+                .phase(material.overlay ? InstancePhase.OVERLAY : InstancePhase.WORLD_TRANSLUCENT)
                 .onRender((rctx, batch) -> packMaterial(material, rctx, batch));
         if (material.emissive) b.emissive(material.emissiveStrength);
         if (material.textureId != null) b.texture(material.textureId);
@@ -66,7 +71,7 @@ public final class ParticleSimulation {
         b.register(meshId);
 
         if (!prePhaseRegistered) {
-            InstanceMeshRegistry.INSTANCE.addPrePhaseCallback(InstancePhase.WORLD_LAST, this::preRender);
+            InstanceMeshRegistry.INSTANCE.addPrePhaseCallback(InstancePhase.WORLD_TRANSLUCENT, this::preRender);
             prePhaseRegistered = true;
         }
     }
@@ -116,6 +121,10 @@ public final class ParticleSimulation {
     private void recycle(SpawnRequest req) {
         req.material = null;
         requestPool.offer(req);
+    }
+
+    public List<ParticleMaterial> materials() {
+        return new ArrayList<>(materials);
     }
 
     public int liveCount() {
@@ -178,6 +187,13 @@ public final class ParticleSimulation {
         p.colliding = false;
         p.alive = true;
 
+        p.trailHead = 0;
+        p.trailCount = 0;
+        if (m.trail) {
+            int need = TRAIL_MAX * 3;
+            if (p.trail == null || p.trail.length < need) p.trail = new double[need];
+        }
+
         if (m.liveCount == m.live.length) {
             m.live = Arrays.copyOf(m.live, Math.min(m.liveCap, m.live.length * 2));
         }
@@ -200,6 +216,12 @@ public final class ParticleSimulation {
                 if (collider != null) collider.resolve(p, ox, oy, oz, dt, ctx);
                 p.rot += p.rotSpeed * dt;
                 p.age += dt;
+                if (m.trail && p.trail != null && stepCount % m.trailInterval == 0) {
+                    int slot = p.trailHead * 3;
+                    p.trail[slot] = p.x; p.trail[slot + 1] = p.y; p.trail[slot + 2] = p.z;
+                    p.trailHead = (p.trailHead + 1) % TRAIL_MAX;
+                    if (p.trailCount < TRAIL_MAX) p.trailCount++;
+                }
                 if (m.lightmap && level != null && --p.lightTimer <= 0) {
                     p.brightness = sampleLight(level, m, p);
                     p.lightTimer = m.lightRefreshSteps;
@@ -250,29 +272,60 @@ public final class ParticleSimulation {
             Particle p = m.live[i];
             float cx = (float) (p.x - cam.x), cy = (float) (p.y - cam.y), cz = (float) (p.z - cam.z);
             float t = p.ageFraction();
-            float size = lerp(p.size0, p.size1, p.sizeEasing.apply(t));
+            float seed = p.seedX * 0.25f;
+            float size = m.sizeTrack != null
+                    ? m.sizeTrack.eval(t, seed)
+                    : lerp(p.size0, p.size1, p.sizeEasing.apply(t));
             if (!visible(projView, cx, cy, cz, size, m00, m11)) continue;
 
             float light = m.lightmap ? p.brightness : 1f;
             p.rCx = cx; p.rCy = cy; p.rCz = cz;
             p.rVx = (float) p.vx; p.rVy = (float) p.vy; p.rVz = (float) p.vz;
             p.rSize = size;
-            p.rR = lerp(p.r0, p.r1, t) * light;
-            p.rG = lerp(p.g0, p.g1, t) * light;
-            p.rB = lerp(p.b0, p.b1, t) * light;
-            p.rA = lerp(p.a0, p.a1, t) * alphaEnvelope(t, p.aFadeIn, p.aFadeOut);
+
+            float cr, cg, cb, ca;
+            if (m.colorGradient != null) {
+                m.colorGradient.eval(t, rgbaScratch);
+                cr = rgbaScratch[0]; cg = rgbaScratch[1]; cb = rgbaScratch[2]; ca = rgbaScratch[3];
+            } else {
+                cr = lerp(p.r0, p.r1, t); cg = lerp(p.g0, p.g1, t); cb = lerp(p.b0, p.b1, t);
+                ca = lerp(p.a0, p.a1, t);
+            }
+            if (m.alphaTrack != null) ca = m.alphaTrack.eval(t, seed);
+
+            p.rR = cr * light;
+            p.rG = cg * light;
+            p.rB = cb * light;
+            p.rA = ca * alphaEnvelope(t, p.aFadeIn, p.aFadeOut);
+
+            if (m.flipCols > 0) {
+                int rows = Math.max(1, m.flipRows);
+                int total = m.flipCols * rows;
+                int frame = m.flipOverLife
+                        ? Math.min((int) (t * total), total - 1)
+                        : Math.floorMod((int) (p.age * m.flipFps), total);
+                float sx = 1f / m.flipCols, sy = 1f / rows;
+                p.rUvOffX = (frame % m.flipCols) * sx;
+                p.rUvOffY = (frame / m.flipCols) * sy;
+                p.rUvScaleX = sx; p.rUvScaleY = sy;
+            } else {
+                p.rUvOffX = 0f; p.rUvOffY = 0f; p.rUvScaleX = 1f; p.rUvScaleY = 1f;
+            }
             visibleBuf[vis++] = p;
         }
         if (vis == 0) return;
 
         if (m.sorted) {
-            packSorted(batch, vis);
+            packSorted(m, batch, vis, cam);
         } else {
-            for (int i = 0; i < vis; i++) batch.add(visibleBuf[i]);
+            for (int i = 0; i < vis; i++) {
+                batch.add(visibleBuf[i]);
+                if (m.trail) emitTrail(batch, m, visibleBuf[i], cam);
+            }
         }
     }
 
-    private void packSorted(InstanceBatch<Particle> batch, int vis) {
+    private void packSorted(ParticleMaterial m, InstanceBatch<Particle> batch, int vis, Vec3 cam) {
         if (sortBuf.length < vis) sortBuf = new long[Integer.highestOneBit(vis) * 2];
         for (int i = 0; i < vis; i++) {
             Particle p = visibleBuf[i];
@@ -283,6 +336,29 @@ public final class ParticleSimulation {
         for (int i = vis - 1; i >= 0; i--) {
             int idx = (int) (sortBuf[i] & 0xffffffffL);
             batch.add(visibleBuf[idx]);
+            if (m.trail) emitTrail(batch, m, visibleBuf[idx], cam);
+        }
+    }
+
+    private void emitTrail(InstanceBatch<Particle> batch, ParticleMaterial m, Particle p, Vec3 cam) {
+        if (p.trail == null || p.trailCount < 2) return;
+        int pts = Math.min(m.trailPoints, p.trailCount);
+        Particle g = trailGhost;
+        g.rVx = p.rVx; g.rVy = p.rVy; g.rVz = p.rVz;
+        g.rUvOffX = p.rUvOffX; g.rUvOffY = p.rUvOffY; g.rUvScaleX = p.rUvScaleX; g.rUvScaleY = p.rUvScaleY;
+        g.rR = p.rR; g.rG = p.rG; g.rB = p.rB;
+        g.rot = p.rot; g.seedX = p.seedX; g.seedY = p.seedY; g.age = p.age; g.life = p.life;
+        for (int k = 1; k <= pts; k++) {
+            int hidx = ((p.trailHead - k) % TRAIL_MAX + TRAIL_MAX) % TRAIL_MAX;
+            int slot = hidx * 3;
+            float f = 1f - (float) k / (pts + 1);
+            g.rSize = p.rSize * m.trailWidth * f;
+            g.rA = p.rA * m.trailFade * f;
+            if (g.rSize <= 0f || g.rA <= 0.002f) continue;
+            g.rCx = (float) (p.trail[slot] - cam.x);
+            g.rCy = (float) (p.trail[slot + 1] - cam.y);
+            g.rCz = (float) (p.trail[slot + 2] - cam.z);
+            batch.add(g);
         }
     }
 
@@ -294,14 +370,12 @@ public final class ParticleSimulation {
         float mx = r * m00, my = r * m11;
         if (clip.x < -w - mx || clip.x > w + mx) return false;
         if (clip.y < -w - my || clip.y > w + my) return false;
-        if (clip.z < -w - r  || clip.z > w + r)  return false;
+        if (clip.z < -w - r || clip.z > w + r) return false;
         return true;
     }
 
     private static float lerp(float a, float b, float t) { return a + (b - a) * t; }
 
-    // Fade-in over the first fadeIn fraction of life, fade-out over the last fadeOut fraction
-    // (smoothstep), 1.0 in between. Both 0 -> no envelope (1.0). The 3-key in->hold->out alpha.
     private static float alphaEnvelope(float t, float fadeIn, float fadeOut) {
         float e = 1f;
         if (fadeIn > 1e-4f) { float x = Math.min(t / fadeIn, 1f); e *= x * x * (3f - 2f * x); }

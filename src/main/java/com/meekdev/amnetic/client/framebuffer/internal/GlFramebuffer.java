@@ -19,6 +19,7 @@ import org.lwjgl.system.MemoryStack;
 public final class GlFramebuffer {
 
     private final FramebufferSpec spec;
+    private final String name;
     private final List<Attachment> colorAttachments = new ArrayList<>();
     private Attachment depthAttachment; // null when DepthMode.NONE
 
@@ -33,7 +34,24 @@ public final class GlFramebuffer {
     private int savedFbo = -1;
 
     public GlFramebuffer(FramebufferSpec spec) {
+        this(spec, null);
+    }
+
+    public GlFramebuffer(FramebufferSpec spec, String name) {
         this.spec = spec;
+        this.name = name;
+    }
+
+    public FramebufferSpec spec() {
+        return spec;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public int colorCount() {
+        return spec.colorCount();
     }
 
     public int width() {
@@ -129,10 +147,32 @@ public final class GlFramebuffer {
         if (!allocated) {
             throw new FramebufferException("begin() before allocate()");
         }
-        savedFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-        GL11.glGetIntegerv(GL11.GL_VIEWPORT, savedViewport);
+        savedFbo = currentDrawFbo();
+        saveOuterViewport();
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
         GlStateManager._viewport(0, 0, width, height);
+    }
+
+    // glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING) drains the GL pipeline, a big stall since begin()/blits run
+    // dozens of times per frame. GlStateManager shadows the binding CPU-side (every bind goes through it,
+    // vanilla's included) so read the shadow instead of the driver
+    private static int currentDrawFbo() {
+        return GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
+    }
+
+    // the viewport to restore is the main target's full size wherever begin() runs, so derive it instead of
+    // glGetIntegerv(GL_VIEWPORT) which also drains the pipeline. falls back to the query if the main target
+    // isn't up yet
+    private void saveOuterViewport() {
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        if (main != null) {
+            savedViewport[0] = 0;
+            savedViewport[1] = 0;
+            savedViewport[2] = main.width;
+            savedViewport[3] = main.height;
+        } else {
+            GL11.glGetIntegerv(GL11.GL_VIEWPORT, savedViewport);
+        }
     }
 
     public void clear(float r, float g, float b, float a) {
@@ -170,7 +210,7 @@ public final class GlFramebuffer {
 
     public void blitDepthFrom(int srcDepthGlId, int srcW, int srcH) {
         if (srcDepthGlId <= 0 || srcW <= 0 || srcH <= 0) return;
-        int prev = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        int prev = currentDrawFbo();
         if (readFbo == 0) {
             readFbo = GL30.glGenFramebuffers();
         }
@@ -184,7 +224,7 @@ public final class GlFramebuffer {
     }
 
     private void blitFromMain(int srcGlId, int attachment, int mask, int filter, RenderTarget main) {
-        int prev = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        int prev = currentDrawFbo();
         if (readFbo == 0) {
             readFbo = GL30.glGenFramebuffers();
         }
@@ -207,7 +247,7 @@ public final class GlFramebuffer {
         int dstId = glId(main.getColorTexture());
         if (dstId <= 0) return;
 
-        int prev = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        int prev = currentDrawFbo();
         if (writeFbo == 0) {
             writeFbo = GL30.glGenFramebuffers();
         }

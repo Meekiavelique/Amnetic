@@ -1,6 +1,10 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.camera.internal.FrameView;
+import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
+import com.meekdev.amnetic.client.gbuffer.GBuffer;
+import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
@@ -25,7 +29,11 @@ public final class InstanceMeshRegistry {
     private final Map<InstancePhase, CopyOnWriteArrayList<Consumer<InstanceRenderContext>>> prePhase =
             new EnumMap<>(InstancePhase.class);
 
-    private InstanceMeshRegistry() {}
+    private InstanceMeshRegistry() {
+        ShaderHotReload.onReload(() -> {
+            for (InstanceMeshEntry<?> entry : entries) entry.invalidateShader();
+        });
+    }
 
     public <T> void register(Identifier id, InstancedMesh<T> mesh) {
         entries.add(new InstanceMeshEntry<>(id, mesh));
@@ -42,6 +50,14 @@ public final class InstanceMeshRegistry {
             return false;
         });
         return removed[0];
+    }
+
+    public void invalidate(Identifier id) {
+        for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.id().equals(id)) {
+                entry.invalidate();
+            }
+        }
     }
 
     public void addPrePhaseCallback(InstancePhase phase, Consumer<InstanceRenderContext> callback) {
@@ -88,8 +104,10 @@ public final class InstanceMeshRegistry {
         Minecraft client = Minecraft.getInstance();
         float deltaTick = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
 
-        Matrix4f view = new Matrix4f(cam.viewRotationMatrix);
-        Matrix4f projection = new Matrix4f(cam.projectionMatrix);
+        Matrix4f view = FrameView.INSTANCE
+                .get(new Matrix4f(), cam.viewRotationMatrix);
+        Matrix4f projection = FrameView.INSTANCE
+                .getProjection(new Matrix4f(), cam.projectionMatrix);
         return new MinecraftRenderContext(client, deltaTick, view, projection);
     }
 
@@ -120,7 +138,7 @@ public final class InstanceMeshRegistry {
             }
         }
         for (InstanceMeshEntry<?> entry : entries) {
-            if (entry.mesh().phase() == phase) {
+            if (entry.mesh().phase() == phase && !entry.mesh().writeGBuffer()) {
                 try {
                     entry.render(ctx);
                 } catch (Exception e) {
@@ -128,6 +146,52 @@ public final class InstanceMeshRegistry {
                 }
             }
         }
+    }
+
+    public void renderGBuffer(InstancePhase phase, LevelRenderContext fabricCtx) {
+        if (!GBuffer.isEnabled()) return;
+        InstanceRenderContext ctx = buildContext(fabricCtx);
+        if (ctx == null) return;
+
+        boolean any = false;
+        for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.mesh().phase() == phase && entry.mesh().writeGBuffer()) { any = true; break; }
+        }
+        if (!any) return;
+
+        int prevFbo = GBufferTargets.INSTANCE.bind();
+        if (prevFbo == -1) return;
+        try {
+            for (InstanceMeshEntry<?> entry : entries) {
+                if (entry.mesh().phase() != phase || !entry.mesh().writeGBuffer()) continue;
+                try {
+                    entry.render(ctx);
+                } catch (Exception e) {
+                    LOGGER.error("Amnetic: error rendering G-buffer mesh {}", entry.id(), e);
+                }
+            }
+            GBufferTargets.INSTANCE.setPopulated(true);
+        } finally {
+            GBufferTargets.INSTANCE.restore(prevFbo);
+        }
+    }
+
+    public void renderShadow(Matrix4f lightViewProj) {
+        for (InstanceMeshEntry<?> entry : entries) {
+            if (!entry.castsShadow()) continue;
+            try {
+                entry.renderShadow(lightViewProj);
+            } catch (Exception e) {
+                LOGGER.error("Amnetic: error rendering shadow for instanced mesh {}", entry.id(), e);
+            }
+        }
+    }
+
+    public boolean hasShadowCasters() {
+        for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.castsShadow() && entry.lastInstanceCount() > 0) return true;
+        }
+        return false;
     }
 
     public void reloadShaders() {

@@ -17,7 +17,7 @@ When you call `MeshPipeline.renderType(...)` it returns a cached `RenderType` co
 - Three samplers are available: `Sampler0` and `Sampler1` are your two textures, and `DepthSampler` is the scene depth. You can use scene depth to produce soft edges where your mesh meets solid geometry.
 - Blending is enabled, back faces are culled, depth is tested but not written. Overlapping surfaces will not fight the depth buffer.
 
-The pipeline caches one `RenderType` per shader-and-texture combination and rebuilds automatically on resource reload. Calling `renderType(...)` every frame is cheap.
+The pipeline caches one `RenderType` per shader-and-texture combination. Calling `renderType(...)` every frame is cheap. The cache is never invalidated, not even on resource reload, so a shader edit needs a game restart to show up here.
 
 ---
 
@@ -29,10 +29,10 @@ You can call this every frame and the result is cached internally.
 
 ```java
 RenderType domeType = MeshPipeline.renderType(
-    Identifier.of("core", "worldmesh"),
-    Identifier.of("mymod", "post/forcefield"),
-    Identifier.of("mymod", "textures/fx/hex.png"),
-    Identifier.of("mymod", "textures/fx/noise.png"));
+    Identifier.fromNamespaceAndPath("amnetic", "core/worldmesh"),
+    Identifier.fromNamespaceAndPath("mymod", "post/forcefield"),
+    Identifier.fromNamespaceAndPath("mymod", "textures/fx/hex.png"),
+    Identifier.fromNamespaceAndPath("mymod", "textures/fx/noise.png"));
 ```
 
 ### 2. Emit geometry during a world render event
@@ -92,7 +92,7 @@ void main() {
 `worldmesh` is a built-in vertex shader you can use without writing your own. It outputs four varyings:
 
 ```glsl
-in vec3 vPos;   // camera-relative position
+in vec3 vPos; // camera-relative position
 in vec2 vUV;
 in vec4 vColor;
 in vec3 vNormal;
@@ -112,11 +112,19 @@ static RenderType MeshPipeline.renderType(
     Identifier fragmentShader,
     Identifier texture0,
     Identifier texture1);
+
+static RenderType MeshPipeline.cutoutRenderType(
+    Identifier vertexShader,
+    Identifier fragmentShader,
+    Identifier texture0,
+    Identifier texture1);
 ```
 
 - Shaders resolve as `assets/<ns>/shaders/<path>.vsh` / `.fsh`.
 - Two texture identifiers are always required, even if your shader only samples one.
 - The returned `RenderType` is cached per `(vertexShader, fragmentShader, texture0, texture1)` tuple, so repeated calls are cheap.
+- `cutoutRenderType(...)` is the opaque variant: no blending, depth writes on, back faces not culled. Use it for cutout-style geometry (discard the transparent pixels in your fragment shader) that should occlude things behind it.
+- One caveat: the underlying GPU pipeline is cached by fragment shader alone. Two render types that share a fragment shader but name different vertex shaders silently reuse whichever vertex shader was compiled first.
 
 ---
 
@@ -124,4 +132,3 @@ static RenderType MeshPipeline.renderType(
 
 - [Instanced Rendering](Instanced-Rendering) - many repeated meshes in a single draw call
 - [Particles](Particles) - camera-facing billboards and the shared scene-depth texture
-- [Vanilla Depth and Fog](Vanilla-Depth-and-Fog) - depth sampling and linearization, for soft edges

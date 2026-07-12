@@ -4,5 +4,7 @@ public enum InstancePhase {
     BEFORE_ENTITIES,
     AFTER_ENTITIES,
 
-    WORLD_LAST
+    WORLD_LAST,
+    WORLD_TRANSLUCENT,
+    OVERLAY
 }
