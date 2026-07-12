@@ -22,6 +22,9 @@ public final class InstancedMesh<T> {
     final RenderState renderState;
     final boolean emissive;
     final float emissiveStrength;
+    final boolean writeGBuffer;
+    final boolean castsShadow;
+    final boolean staticInstances;
     final BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
     private InstancedMesh(Builder<T> b) {
@@ -38,7 +41,18 @@ public final class InstancedMesh<T> {
         this.renderState = b.renderState;
         this.emissive = b.emissive;
         this.emissiveStrength = b.emissiveStrength;
+        this.writeGBuffer = b.writeGBuffer;
+        this.castsShadow = b.castsShadow;
+        this.staticInstances = b.staticInstances;
         this.onRender = Objects.requireNonNull(b.onRender, "onRender must be set");
+    }
+
+    /**
+     * forces a static-instance mesh to re-run its onRender emitter next frame (e.g. to refresh baked
+     * per-instance lighting when the time of day changes). no-op for dynamic meshes
+     */
+    public static void invalidate(Identifier id) {
+        InstanceMeshRegistry.INSTANCE.invalidate(id);
     }
 
     public static <T> Builder<T> builder(BuiltinShader<T> shader) {
@@ -51,22 +65,25 @@ public final class InstancedMesh<T> {
         return new Builder<>(layout, writer);
     }
 
-    public MeshData geometry()           { return geometry; }
-    public InstanceLayout layout()       { return layout; }
-    public InstanceWriter<T> writer()    { return writer; }
-    public InstancePhase phase()         { return phase; }
-    public RenderState renderState()     { return renderState; }
-    public boolean isEmissive()          { return emissive; }
-    public float emissiveStrength()      { return emissiveStrength; }
+    public MeshData geometry() { return geometry; }
+    public InstanceLayout layout() { return layout; }
+    public InstanceWriter<T> writer() { return writer; }
+    public InstancePhase phase() { return phase; }
+    public RenderState renderState() { return renderState; }
+    public boolean isEmissive() { return emissive; }
+    public float emissiveStrength() { return emissiveStrength; }
+    public boolean writeGBuffer() { return writeGBuffer; }
+    public boolean castsShadow() { return castsShadow; }
+    public boolean staticInstances() { return staticInstances; }
 
     public BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender() { return onRender; }
 
-    public boolean isBuiltin()              { return builtinShader != null; }
+    public boolean isBuiltin() { return builtinShader != null; }
     public BuiltinShader<?> builtinShader() { return builtinShader; }
-    public Identifier customShaderId()      { return customShaderId; }
-    public Identifier vertexShaderId()      { return vertexShaderId; }
-    public Identifier fragmentShaderId()    { return fragmentShaderId; }
-    public Identifier textureId()           { return textureId; }
+    public Identifier customShaderId() { return customShaderId; }
+    public Identifier vertexShaderId() { return vertexShaderId; }
+    public Identifier fragmentShaderId() { return fragmentShaderId; }
+    public Identifier textureId() { return textureId; }
     public List<ExtraSampler> extraSamplers() { return extraSamplers; }
 
     public static final class Builder<T> {
@@ -83,6 +100,9 @@ public final class InstancedMesh<T> {
         private RenderState renderState = RenderState.DEFAULT;
         private boolean emissive = false;
         private float emissiveStrength = 1.0f;
+        private boolean writeGBuffer = false;
+        private boolean castsShadow = false;
+        private boolean staticInstances = false;
         private BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
         private Builder(InstanceLayout layout, InstanceWriter<T> writer) {
@@ -133,6 +153,16 @@ public final class InstancedMesh<T> {
             return this;
         }
 
+        public Builder<T> writeGBuffer(boolean v) {
+            this.writeGBuffer = v;
+            return this;
+        }
+
+        public Builder<T> castsShadow() {
+            this.castsShadow = true;
+            return this;
+        }
+
         public Builder<T> emissive() {
             return emissive(1.0f);
         }
@@ -145,6 +175,15 @@ public final class InstancedMesh<T> {
 
         public Builder<T> onRender(BiConsumer<InstanceRenderContext, InstanceBatch<T>> callback) {
             this.onRender = callback;
+            return this;
+        }
+
+        /**
+         * emit instances once and reuse the uploaded buffer every frame (no per-frame CPU re-emit/re-upload),
+         * for large static fields like grass. call {@link InstancedMesh#invalidate(Identifier)} to re-emit
+         */
+        public Builder<T> staticInstances() {
+            this.staticInstances = true;
             return this;
         }
 
