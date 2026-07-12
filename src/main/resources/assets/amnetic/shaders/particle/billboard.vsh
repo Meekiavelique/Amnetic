@@ -3,12 +3,13 @@
 layout(location = 0) in vec3 Position;
 layout(location = 1) in vec2 UV;
 
-layout(location = 2) in vec3 Center;     // camera-relative
-layout(location = 3) in vec3 Velocity;   // unused here (see stretched variant)
+layout(location = 2) in vec3 Center; // camera-relative
+layout(location = 3) in vec3 Velocity; // unused here (see stretched variant)
 layout(location = 4) in float Size;
 layout(location = 5) in float Rotation;
 layout(location = 6) in vec4 InstColor;
 layout(location = 7) in vec4 SeedAge;
+layout(location = 8) in vec4 UvRect; // flipbook sub-rect: offset.xy, scale.xy
 
 uniform mat4 ProjectionMatrix;
 uniform mat4 ViewMatrix;
@@ -17,7 +18,7 @@ out vec2 quadUV;
 out vec4 vColor;
 out vec2 seed;
 out float vAge;
-out vec3 vCenter;   // camera-relative particle center
+out vec3 vCenter; // camera-relative particle center
 
 void main() {
     vec4 viewCenter = ViewMatrix * vec4(Center, 1.0);
@@ -30,7 +31,7 @@ void main() {
 
     gl_Position = ProjectionMatrix * vec4(viewCenter.xy + offset, viewCenter.z, viewCenter.w);
 
-    quadUV = UV;
+    quadUV = UvRect.xy + UV * UvRect.zw; // flipbook frame sub-rect (whole texture when (0,0,1,1))
     vColor = InstColor;
     seed = SeedAge.xy;
     vAge = SeedAge.z;

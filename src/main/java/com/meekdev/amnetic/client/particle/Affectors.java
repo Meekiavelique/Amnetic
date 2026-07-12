@@ -62,6 +62,26 @@ public final class Affectors {
         });
     }
 
+    public static Affector vortex(double px, double py, double pz, float axisX, float axisY, float axisZ,
+                                  float strength, float inward) {
+        Vector3f axis = new Vector3f(axisX, axisY, axisZ);
+        if (axis.lengthSquared() < 1e-8f) axis.set(0f, 1f, 0f);
+        axis.normalize();
+        return force((p, ctx, out) -> {
+            float rx = (float) (p.x - px), ry = (float) (p.y - py), rz = (float) (p.z - pz);
+            float along = rx * axis.x + ry * axis.y + rz * axis.z;
+            float radx = rx - axis.x * along, rady = ry - axis.y * along, radz = rz - axis.z * along;
+            float tx = axis.y * radz - axis.z * rady;
+            float ty = axis.z * radx - axis.x * radz;
+            float tz = axis.x * rady - axis.y * radx;
+            out.set(tx * strength - radx * inward, ty * strength - rady * inward, tz * strength - radz * inward);
+        });
+    }
+
+    public static Affector vortex(double px, double py, double pz, float strength) {
+        return vortex(px, py, pz, 0f, 1f, 0f, strength, 0f);
+    }
+
     public static Affector force(VectorField field) {
         Vector3f tmp = new Vector3f();
         return (p, dt, ctx) -> {
