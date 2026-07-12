@@ -18,6 +18,21 @@ fabricApi {
 }
 
 repositories {
+    exclusiveContent { // ImGuiMC (optional helper-UI dependency)
+        forRepository {
+            maven {
+                url = "https://maven.ryanhcode.dev/releases"
+                name = "RyanHCode Maven"
+            }
+        }
+        filter {
+            includeGroup("foundry.imguimc")
+        }
+    }
+    maven { // jgltf (de.javagl) - pure-Java glTF/GLB parser
+        url = "https://repo.javagl.de/"
+        name = "javagl Maven"
+    }
 }
 
 dependencies {
@@ -25,6 +40,23 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    include implementation("de.javagl:jgltf-model:2.0.4")
+    include implementation("de.javagl:jgltf-impl-v2:2.0.4")
+    include implementation("com.fasterxml.jackson.core:jackson-databind:2.13.4.2")
+    include implementation("com.fasterxml.jackson.core:jackson-core:2.13.4")
+    include implementation("com.fasterxml.jackson.core:jackson-annotations:2.13.4")
+
+    implementation "org.lwjgl:lwjgl-assimp:${project.lwjgl_version}"
+    include "org.lwjgl:lwjgl-assimp:${project.lwjgl_version}"
+    ["natives-windows", "natives-linux", "natives-macos", "natives-macos-arm64"].each { platform ->
+        runtimeOnly "org.lwjgl:lwjgl-assimp:${project.lwjgl_version}:${platform}"
+        include "org.lwjgl:lwjgl-assimp:${project.lwjgl_version}:${platform}"
+    }
+
+    compileOnly "foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}"
+    compileOnly "io.github.spair:imgui-java-binding:1.92.0"
+    localRuntime "foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}"
 }
 
 processResources {
