@@ -13,7 +13,7 @@ import java.util.List;
 
 public final class LightBuffer implements AutoCloseable {
 
-    public static final int FLOATS_PER_LIGHT = 24;
+    public static final int FLOATS_PER_LIGHT = 32; // 8 vec4 lanes
 
     private final int maxLights;
     private final ShaderStorageBuffer ssbo;
@@ -54,8 +54,10 @@ public final class LightBuffer implements AutoCloseable {
             scratch.put(l.red()).put(l.green()).put(l.blue()).put(l.intensity() * fade);
             scratch.put(l.dirX()).put(l.dirY()).put(l.dirZ()).put((float) l.type().id());
             scratch.put(l.cosInner()).put(l.cosOuter()).put((float) l.falloffId()).put(l.falloffParam());
-            scratch.put(l.areaW()).put(l.areaH()).put(l.tubeLen()).put(0f);
-            scratch.put(l.tanX()).put(l.tanY()).put(l.tanZ()).put(0f);
+            scratch.put(l.areaW()).put(l.areaH()).put(l.tubeLen()).put(l.shadowStrength());
+            scratch.put(l.tanX()).put(l.tanY()).put(l.tanZ()).put((float) l.shadowRef());
+            scratch.put(l.cookie() ? 1f : 0f).put((float) l.iesProfile()).put(l.godray()).put(0f);
+            scratch.put((float) l.godraySteps()).put(l.godrayDensity()).put(l.godrayAniso()).put(l.godrayShadows() ? 1f : 0f);
             count++;
         }
         scratch.flip();
@@ -63,8 +65,12 @@ public final class LightBuffer implements AutoCloseable {
         return count;
     }
 
-    public void bind(int binding) { ssbo.bind(binding); }
+    public void bind(int binding) {
+        ssbo.bind(binding);
+    }
 
     @Override
-    public void close() { ssbo.close(); }
+    public void close() {
+        ssbo.close();
+    }
 }
