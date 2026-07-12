@@ -8,6 +8,8 @@ public final class BloomSettings {
     private float intensity = 1.0f;
     private int levels = 6;
     private float scale = 0.5f;
+    private float threshold = 0.75f;
+    private float knee = 0.5f;
 
     BloomSettings() {}
 
@@ -23,10 +25,16 @@ public final class BloomSettings {
 
     public BloomSettings scale(float v) { this.scale = Math.max(0.05f, Math.min(1.0f, v)); return this; }
 
+    public BloomSettings threshold(float v) { this.threshold = Math.max(0.0f, v); return this; }
+
+    public BloomSettings knee(float v) { this.knee = Math.max(0.0f, Math.min(1.0f, v)); return this; }
+
     public boolean isEnabled() { return enabled; }
-    public boolean isAll()     { return all; }
+    public boolean isAll() { return all; }
     public boolean isOcclude() { return occlude; }
-    public float intensity()   { return intensity; }
-    public int levels()        { return levels; }
-    public float scale()       { return scale; }
+    public float intensity() { return intensity; }
+    public int levels() { return levels; }
+    public float scale() { return scale; }
+    public float threshold() { return threshold; }
+    public float knee() { return knee; }
 }
