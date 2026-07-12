@@ -17,8 +17,12 @@ public final class PostEffectRegistry {
     public PostEffectEntry register(Identifier id) {
         PostEffectEntry entry = new PostEffectEntry(id);
         entries.add(entry);
-        entries.sort(Comparator.comparingInt(PostEffectEntry::getPriority).reversed());
+        resort();
         return entry;
+    }
+
+    public void resort() {
+        entries.sort(Comparator.comparingInt(PostEffectEntry::getPriority).reversed());
     }
 
     public void unregister(PostEffectEntry entry) {
