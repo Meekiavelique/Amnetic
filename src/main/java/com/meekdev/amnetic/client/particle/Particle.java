@@ -33,6 +33,10 @@ public final class Particle {
     float rVx, rVy, rVz;
     float rSize;
     float rR, rG, rB, rA;
+    float rUvOffX, rUvOffY, rUvScaleX = 1f, rUvScaleY = 1f;
+
+    public double[] trail;
+    public int trailHead, trailCount;
 
     Particle() {}
 
@@ -58,5 +62,7 @@ public final class Particle {
         sizeEasing = Easing.EASE_OUT;
         alive = false;
         colliding = false;
+        trailHead = 0;
+        trailCount = 0;
     }
 }
