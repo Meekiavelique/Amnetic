@@ -17,7 +17,7 @@ A Fabric rendering utility library for Minecraft 26.1.2
 ## Installation
 
 Amnetic is a **standalone mod**. Install it as a separate mod (e.g. from Modrinth)
-alongside any mod that uses it — **do not bundle it (Jar-in-Jar) inside your own mod**.
+alongside any mod that uses it. Please **do not bundle it (Jar-in-Jar) inside your own mod**.
 Bundling is unsupported: a single shared install is supportable, and when multiple mods
 each ship their own copy, Fabric loads one and shadows the rest, causing version
 mismatches and conflicts. Amnetic logs a warning if it detects it was loaded nested.
@@ -34,7 +34,7 @@ repositories {
 }
 
 dependencies {
-    // modImplementation (not `include`) — Amnetic ships as its own mod
+    // modImplementation (not `include`) Amnetic should ships as its own mod
     modImplementation "com.meekdev:amnetic:{version}"
 }
 ```
