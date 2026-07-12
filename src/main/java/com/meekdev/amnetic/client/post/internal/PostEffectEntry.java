@@ -3,6 +3,7 @@ package com.meekdev.amnetic.client.post.internal;
 import com.google.gson.JsonParser;
 import com.meekdev.amnetic.client.post.PostEffectContext;
 import com.meekdev.amnetic.client.post.RenderPhase;
+import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.mixin.accessor.ShaderLoaderAccessor;
 import com.mojang.blaze3d.framegraph.FrameGraphBuilder;
 import com.mojang.blaze3d.pipeline.RenderTarget;
@@ -96,6 +97,9 @@ public final class PostEffectEntry {
 
     public void setFadeIn(int ticks) {
         this.fadeInTicks = ticks;
+        // intensity starts at 1 so unfaded effects work, but a fade-in configured while
+        // inactive should ramp from black on first activation instead of popping in
+        if (ticks > 0 && !active && !wasConditionMet) intensity = 0f;
     }
 
     public void setFadeOut(int ticks) {
@@ -276,29 +280,36 @@ public final class PostEffectEntry {
 
     private void renderProcessor(Minecraft mc, PostChain processor, GraphicsResourceAllocator allocator, Set<Identifier> effectiveExternalTargets) {
         RenderTarget mainFramebuffer = mc.getMainRenderTarget();
-        if (effectiveExternalTargets.equals(Set.of(PostChain.MAIN_TARGET_ID))) {
-            processor.process(mainFramebuffer, allocator);
-            return;
-        }
-
-        FrameGraphBuilder frameGraph = new FrameGraphBuilder();
-        MapFramebufferSet framebufferSet = new MapFramebufferSet();
-        framebufferSet.replace(PostChain.MAIN_TARGET_ID, frameGraph.importExternal("minecraft:main", mainFramebuffer));
-
-        for (Identifier targetId : effectiveExternalTargets) {
-            if (targetId.equals(PostChain.MAIN_TARGET_ID)) continue;
-
-            RenderTarget framebuffer = resolveExternalFramebuffer(mc, targetId);
-            if (framebuffer == null) {
-                LOGGER.warn("Skipping post effect {} because external target {} is unavailable", id, targetId);
+        // a PostChain mutates raw GL (blend, bound FBO, program, textures) through the GpuDevice without
+        // updating the GlStateManager cache. reset to a known-clean state afterwards so the deferred lights,
+        // volumetrics and particles later this frame aren't corrupted by leftover state
+        try {
+            if (effectiveExternalTargets.equals(Set.of(PostChain.MAIN_TARGET_ID))) {
+                processor.process(mainFramebuffer, allocator);
                 return;
             }
 
-            framebufferSet.replace(targetId, frameGraph.importExternal(targetId.toString(), framebuffer));
-        }
+            FrameGraphBuilder frameGraph = new FrameGraphBuilder();
+            MapFramebufferSet framebufferSet = new MapFramebufferSet();
+            framebufferSet.replace(PostChain.MAIN_TARGET_ID, frameGraph.importExternal("minecraft:main", mainFramebuffer));
 
-        processor.addToFrame(frameGraph, mainFramebuffer.width, mainFramebuffer.height, framebufferSet);
-        frameGraph.execute(allocator);
+            for (Identifier targetId : effectiveExternalTargets) {
+                if (targetId.equals(PostChain.MAIN_TARGET_ID)) continue;
+
+                RenderTarget framebuffer = resolveExternalFramebuffer(mc, targetId);
+                if (framebuffer == null) {
+                    LOGGER.warn("Skipping post effect {} because external target {} is unavailable", id, targetId);
+                    return;
+                }
+
+                framebufferSet.replace(targetId, frameGraph.importExternal(targetId.toString(), framebuffer));
+            }
+
+            processor.addToFrame(frameGraph, mainFramebuffer.width, mainFramebuffer.height, framebufferSet);
+            frameGraph.execute(allocator);
+        } finally {
+            GlState.endFullscreen();
+        }
     }
 
     private RenderTarget resolveExternalFramebuffer(Minecraft mc, Identifier targetId) {

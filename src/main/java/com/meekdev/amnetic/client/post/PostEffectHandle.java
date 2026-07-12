@@ -45,6 +45,7 @@ public final class PostEffectHandle {
 
     public PostEffectHandle setPriority(int priority) {
         entry.setPriority(priority);
+        PostEffectRegistry.INSTANCE.resort();
         return this;
     }
 
