@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client;
 
 import com.meekdev.amnetic.client.anim.Animations;
+import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.bloom.Bloom;
 import com.meekdev.amnetic.client.compute.ComputeCapabilities;
 import com.meekdev.amnetic.client.decal.Decals;
@@ -189,6 +190,7 @@ public class AmneticClient implements ClientModInitializer {
             ModelRegistry.INSTANCE.warmup();
             GlUploadQueue.drain(2_000_000L); // ~2 ms/frame
             Animations.update();
+            Reactive.tick(surfaceDt());
             GBuffer.beginFrame();
             FrameContext fc = new FrameContext(CameraSnapshot.current(), ctx, SceneDepth.snapshotDepthGlId());
             Pipeline.runStage(RenderStage.GEOMETRY, fc);
@@ -212,5 +214,14 @@ public class AmneticClient implements ClientModInitializer {
                     }
                 }
         );
+    }
+
+    private static long surfaceLastNano;
+
+    private static float surfaceDt() {
+        long now = System.nanoTime();
+        float dt = surfaceLastNano == 0L ? 0f : (now - surfaceLastNano) / 1.0e9f;
+        surfaceLastNano = now;
+        return dt;
     }
 }
