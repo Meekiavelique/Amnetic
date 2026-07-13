@@ -4,8 +4,11 @@ import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.Surfaces;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Effect;
+import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 import com.meekdev.amnetic.client.surface.text.Fonts;
+import com.meekdev.amnetic.client.surface.text.GlyphFx;
+import com.meekdev.amnetic.client.surface.text.GlyphPose;
 import com.meekdev.amnetic.client.surface.text.SdfFont;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,13 +22,27 @@ public class Text extends Widget {
     int color = 0xFFFFFFFF;
     float align = 0f; // 0 left, 0.5 center, 1 right
     boolean wrap;
+    boolean ellipsis;
     Identifier fontId;
     Effect binding;
+
+    // extra passes drawn under the main glyphs, each is just an offset/edge/softness tuple,
+    // shadow/outline/glow are the same primitive with different knobs
+    private record Layer(float dx, float dy, float edgeOffset, float softness, int color) {}
+    private List<Layer> layers;
+
+    GlyphFx fx;
+    private final GlyphPose pose = new GlyphPose();
 
     // wrap cache
     private final List<String> lines = new ArrayList<>(1);
     private float linesForWidth = -1;
     private String linesForValue;
+
+    // ellipsis cache
+    private String ellipsized;
+    private float ellipsisForWidth = -1;
+    private String ellipsisForValue;
 
     public Text(String value) {
         this.value = value;
@@ -33,16 +50,38 @@ public class Text extends Widget {
 
     public Text(Signal<String> source) {
         this.value = source.peek();
-        binding = new Effect(() -> { value = source.get(); linesForWidth = -1; });
+        binding = new Effect(() -> { value = source.get(); invalidate(); });
     }
 
-    public Text text(String v) { value = v; linesForWidth = -1; return this; }
-    public Text px(float p) { px = p; linesForWidth = -1; return this; }
+    private void invalidate() {
+        linesForWidth = -1;
+        ellipsisForWidth = -1;
+    }
+
+    public Text text(String v) { value = v; invalidate(); return this; }
+    public Text px(float p) { px = p; invalidate(); return this; }
     public Text color(int argb) { color = argb; return this; }
     public Text center() { align = 0.5f; return this; }
     public Text right() { align = 1f; return this; }
-    public Text wrap(boolean w) { wrap = w; linesForWidth = -1; return this; }
-    public Text font(Identifier id) { fontId = id; linesForWidth = -1; return this; }
+    public Text wrap(boolean w) { wrap = w; invalidate(); return this; }
+    public Text font(Identifier id) { fontId = id; invalidate(); return this; }
+
+    // non-wrap text wider than the widget truncates with "..."
+    public Text ellipsis(boolean e) { ellipsis = e; ellipsisForWidth = -1; return this; }
+
+    // per-glyph pose hook, null clears it
+    public Text glyphFx(GlyphFx fx) { this.fx = fx; return this; }
+
+    public Text outline(float width, int color) { return layer(0, 0, width, 0, color); }
+    public Text glow(float radius, int color) { return layer(0, 0, 0, radius, color); }
+    public Text textShadow(float dx, float dy, int color) { return layer(dx, dy, 0, 0, color); }
+
+    // the generic underlayer everything above sugars into
+    public Text layer(float dx, float dy, float edgeOffset, float softness, int color) {
+        if (layers == null) layers = new ArrayList<>(1);
+        layers.add(new Layer(dx, dy, edgeOffset, softness, color));
+        return this;
+    }
 
     private SdfFont font() {
         Identifier id = fontId != null ? fontId : Surfaces.defaultFont();
@@ -89,27 +128,112 @@ public class Text extends Widget {
         }
     }
 
+    // ellipsis-truncated value for the current width, non-wrap only
+    private String displayed(SdfFont f) {
+        if (!ellipsis || wrap) return value;
+        if (ellipsisForWidth == w && value.equals(ellipsisForValue)) return ellipsized;
+        ellipsisForWidth = w;
+        ellipsisForValue = value;
+        if (f.width(value, px) <= w) {
+            ellipsized = value;
+            return ellipsized;
+        }
+        float dots = f.width("...", px);
+        float scale = px / f.bakePx();
+        StringBuilder sb = new StringBuilder();
+        float pen = 0;
+        int prev = -1;
+        for (int i = 0; i < value.length(); ) {
+            int cp = value.codePointAt(i);
+            int n = Character.charCount(cp);
+            SdfFont.Glyph g = f.glyph(cp);
+            float adv = (prev != -1 ? f.kern(prev, cp) * scale : 0)
+                    + (g == null ? 0 : g.advance() * scale);
+            if (pen + adv + dots > w) break;
+            pen += adv;
+            sb.append(value, i, i + n);
+            i += n;
+            prev = cp;
+        }
+        ellipsized = sb + "...";
+        return ellipsized;
+    }
+
     @Override
     protected void drawSelf(UiDraw d, float alpha) {
         SdfFont f = font();
         if (f == null || value == null) return;
         Identifier prev = d.currentFont();
         d.font(fontId != null ? fontId : Surfaces.defaultFont());
-        int c = fade(color, alpha);
-        if (!wrap) {
-            float tx = x + (w - f.width(value, px)) * align;
-            d.text(value, tx, y, px, c);
-        } else {
+
+        List<String> ls;
+        if (wrap) {
             wrapLines(f, w);
-            float lh = lineHeight(f);
-            float penY = y;
-            for (String line : lines) {
-                float tx = x + (w - f.width(line, px)) * align;
-                d.text(line, tx, penY, px, c);
-                penY += lh;
+            ls = lines;
+        } else {
+            ls = List.of(displayed(f));
+        }
+
+        // layers under, main glyphs on top, every pass shares the fx so effects stay attached
+        if (layers != null) {
+            for (Layer l : layers) {
+                drawPass(d, f, ls, l.dx(), l.dy(), l.edgeOffset(), l.softness(), fade(l.color(), alpha));
             }
         }
+        drawPass(d, f, ls, 0, 0, 0, 0, fade(color, alpha));
+
         if (prev != null) d.font(prev);
+    }
+
+    private void drawPass(UiDraw d, SdfFont f, List<String> ls,
+                          float odx, float ody, float edgeOffset, float softness, int c) {
+        float scale = px / f.bakePx();
+        float ascent = f.ascentPx() * scale;
+        float lh = lineHeight(f);
+        float time = fx == null ? 0f : Reactive.clock().peek();
+        float penY = y;
+        int gi = 0;
+        for (String line : ls) {
+            float tx = x + (w - f.width(line, px)) * align + odx;
+            float baseline = penY + ascent + ody;
+            if (fx == null) {
+                d.textStyled(line, tx, baseline, px, c, edgeOffset, softness);
+            } else {
+                gi = emitFxLine(d, f, line, tx, baseline, c, edgeOffset, softness, time, gi);
+            }
+            penY += lh;
+        }
+    }
+
+    // glyph-by-glyph emission with the pose applied, glyph index runs across the whole text
+    private int emitFxLine(UiDraw d, SdfFont f, String s, float x, float baselineY,
+                           int c, float edgeOffset, float softness, float time, int glyphIndex) {
+        float scale = px / f.bakePx();
+        float pen = x;
+        int prev = -1;
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            i += Character.charCount(cp);
+            if (prev != -1) pen += f.kern(prev, cp) * scale;
+            pose.reset();
+            fx.apply(glyphIndex, time, pose);
+            float a = Math.min(Math.max(pose.alpha, 0f), 1f);
+            int gc = a >= 1f ? c : fade(c, a);
+            boolean scaled = pose.scale != 1f;
+            float gx = pen + pose.dx, gy = baselineY + pose.dy;
+            if (scaled) {
+                SdfFont.Glyph g = f.glyph(cp);
+                float adv = g == null ? 0 : g.advance() * scale;
+                // pivot at the advance midpoint on the cap midline so pops stay centered
+                d.pushTransform(gx + adv * 0.5f, gy - f.capPx() * scale * 0.5f, 0, 0, pose.scale, 0);
+            }
+            float adv = d.glyph(cp, gx, gy, px, gc, edgeOffset, softness);
+            if (scaled) d.popTransform();
+            pen += adv;
+            glyphIndex++;
+            prev = cp;
+        }
+        return glyphIndex;
     }
 
     @Override

@@ -132,8 +132,44 @@ public final class UiDraw {
     public UiDraw text(String s, float x, float y, float px, int argb) {
         SdfFont f = resolveFont();
         if (f == null) return this;
-        emit(f, s, x, y + f.ascentPx() * (px / f.bakePx()), px, argb);
+        emit(f, s, x, y + f.ascentPx() * (px / f.bakePx()), px, argb, 0f, 0f);
         return this;
+    }
+
+    // styled text at an explicit baseline: edgeOffset grows/shrinks the glyph edge in gui px
+    // (positive = fatter, an outline pass), softness feathers the edge in gui px (glow/blur),
+    // reach tops out around px/8 where the baked sdf spread ends
+    public UiDraw textStyled(String s, float x, float baselineY, float px, int argb,
+                             float edgeOffset, float softness) {
+        SdfFont f = resolveFont();
+        if (f == null) return this;
+        float u = f.sdfUnitsPerGuiPx(px);
+        emit(f, s, x, baselineY, px, argb, edgeOffset * u, softness * u);
+        return this;
+    }
+
+    // emits one styled glyph at the pen position and returns its advance in gui px,
+    // kerning is the caller's job (SdfFont.kern), this is the per-glyph fx building block
+    public float glyph(int codepoint, float penX, float baselineY, float px, int argb,
+                       float edgeOffset, float softness) {
+        SdfFont f = resolveFont();
+        if (f == null) return 0f;
+        SdfFont.Glyph gl = f.glyph(codepoint);
+        if (gl == null) return 0f;
+        float scale = px / f.bakePx();
+        float u = f.sdfUnitsPerGuiPx(px);
+        if (gl.aw() > 0 && gl.ah() > 0) {
+            float inv = 1f / f.atlasSize();
+            float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
+            float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+            float x0 = penX + gl.xoff() * scale, y0 = baselineY + gl.yoff() * scale;
+            batcher.glyph(f.texture(),
+                    x0, y0, x0 + gl.aw() * scale, y0 + gl.ah() * scale,
+                    gl.ax() * inv, gl.ay() * inv,
+                    (gl.ax() + gl.aw()) * inv, (gl.ay() + gl.ah()) * inv,
+                    r, g, b, a, edgeOffset * u, softness * u);
+        }
+        return gl.advance() * scale;
     }
 
     public UiDraw textCentered(String s, float cx, float cy, float px, int argb) {
@@ -142,7 +178,7 @@ public final class UiDraw {
         float scale = px / f.bakePx();
         float x = cx - f.width(s, px) * 0.5f;
         float baseline = cy + f.capPx() * scale * 0.5f; // center the cap block, not the ascent
-        emit(f, s, x, baseline, px, argb);
+        emit(f, s, x, baseline, px, argb, 0f, 0f);
         return this;
     }
 
@@ -151,7 +187,7 @@ public final class UiDraw {
         SdfFont f = resolveFont();
         if (f == null) return this;
         float baseline = cy + f.capPx() * (px / f.bakePx()) * 0.5f;
-        emit(f, s, x, baseline, px, argb);
+        emit(f, s, x, baseline, px, argb, 0f, 0f);
         return this;
     }
 
@@ -169,7 +205,9 @@ public final class UiDraw {
         return font == null ? null : Fonts.get(font);
     }
 
-    private void emit(SdfFont f, String s, float penX, float baseline, float px, int argb) {
+    // edgeOffset/softness already converted to sdf units here
+    private void emit(SdfFont f, String s, float penX, float baseline, float px, int argb,
+                      float edgeOffset, float softness) {
         float scale = px / f.bakePx();
         float inv = 1f / f.atlasSize();
         float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
@@ -188,7 +226,7 @@ public final class UiDraw {
                         x0, y0, x1, y1,
                         gl.ax() * inv, gl.ay() * inv,
                         (gl.ax() + gl.aw()) * inv, (gl.ay() + gl.ah()) * inv,
-                        r, g, b, a);
+                        r, g, b, a, edgeOffset, softness);
             }
             penX += gl.advance() * scale;
             prev = cp;
