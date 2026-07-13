@@ -4,6 +4,10 @@ import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
+import java.nio.ByteBuffer;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL45;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +62,7 @@ public class Viewport extends Widget {
 
     private float zeroSince = -1;
     private boolean reported;
+    private boolean sampled;
 
     @Override
     protected void drawSelf(UiDraw d, float alpha) {
@@ -75,6 +80,14 @@ public class Viewport extends Widget {
                     reported = true;
                     LOG.warn("viewport produced no texture for 2s, its content never became ready or its render fails");
                 }
+            } else if (!sampled) {
+                // one-shot center-pixel probe so an all-transparent render is diagnosable
+                sampled = true;
+                ByteBuffer buf = BufferUtils.createByteBuffer(4);
+                GL45.glGetTextureSubImage(lastTexture, 0, 256, 256, 0, 1, 1, 1,
+                        GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf);
+                LOG.info("viewport probe: texture {} center rgba = {} {} {} {}", lastTexture,
+                        buf.get(0) & 0xFF, buf.get(1) & 0xFF, buf.get(2) & 0xFF, buf.get(3) & 0xFF);
             } else if (zeroSince >= 0) {
                 zeroSince = -1;
                 if (reported) {

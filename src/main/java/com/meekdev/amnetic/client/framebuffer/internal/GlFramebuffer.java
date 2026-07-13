@@ -176,6 +176,11 @@ public final class GlFramebuffer {
     }
 
     public void clear(float r, float g, float b, float a) {
+        // glClear obeys the write masks and scissor, a caller mid ui/post pass often has
+        // depth writes off which silently skips the depth clear and every LEQUAL test
+        // fails afterward, so force clear-friendly state first
+        GlStateManager._depthMask(true); GL11.glDepthMask(true);
+        GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
         GL11.glClearColor(r, g, b, a);
         int mask = GL11.GL_COLOR_BUFFER_BIT;
         if (depthAttachment != null) {
