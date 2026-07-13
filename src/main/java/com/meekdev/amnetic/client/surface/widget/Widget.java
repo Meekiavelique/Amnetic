@@ -105,13 +105,14 @@ public abstract class Widget {
     public void drawAfterChildren(UiDraw d) {}
 
     // topmost interactive descendant containing the point, null if none
+    // draggables and drop targets count as hittable even when otherwise passive
     public Widget hitTest(float mx, float my) {
         if (!visible || mx < x || my < y || mx > x + w || my > y + h) return null;
         for (int i = children.size() - 1; i >= 0; i--) {
             Widget hit = children.get(i).hitTest(mx, my);
             if (hit != null) return hit;
         }
-        return interactive() ? this : null;
+        return interactive() || dragPayload != null || dropHandler != null ? this : null;
     }
 
     protected boolean interactive() { return false; }
@@ -124,10 +125,21 @@ public abstract class Widget {
     public boolean onMouseDown(float mx, float my, int button) { return interactive(); }
     public void onMouseUp(float mx, float my, int button) {}
     public void onMouseDrag(float mx, float my) {}
-    public void onScroll(float amount) {}
+    public boolean onScroll(float amount) { return false; }
     public boolean onChar(int codepoint) { return false; }
     public boolean onKey(int key, int modifiers) { return false; }
     public void onFocusLost() {}
+
+    // drag and drop: a draggable carries a payload, a drop target consumes one
+    Object dragPayload;
+    java.util.function.Consumer<Object> dropHandler;
+
+    public Widget draggable(Object payload) { dragPayload = payload; return this; }
+    public Widget dropTarget(java.util.function.Consumer<Object> onDrop) { dropHandler = onDrop; return this; }
+
+    public Object dragPayloadValue() { return dragPayload; }
+    public java.util.function.Consumer<Object> dropHandlerValue() { return dropHandler; }
+    public Widget parentWidget() { return parent; }
 
     // multiply an argb's alpha by a factor
     protected static int fade(int argb, float alpha) {

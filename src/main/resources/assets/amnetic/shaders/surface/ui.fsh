@@ -8,6 +8,7 @@ flat in vec2 vExtra;  // borderW, softness
 flat in vec4 vClip;   // clip rect in gui px, x1 <= 0 means none
 
 uniform sampler2D Tex;
+uniform vec2 ScreenSize; // gui-scaled dims, matches vPos space
 
 out vec4 FragColor;
 
@@ -33,6 +34,26 @@ void main() {
 
     if (mode == 2) { // plain textured
         FragColor = texture(Tex, vUv) * vColor;
+        return;
+    }
+
+    if (mode == 3) { // frosted glass, Tex is the scene capture, extra.y is blur radius
+        vec2 suv = vec2(vPos.x / ScreenSize.x, 1.0 - vPos.y / ScreenSize.y);
+        vec2 px = vExtra.y / vec2(textureSize(Tex, 0));
+        vec3 acc = vec3(0.0);
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                acc += texture(Tex, suv + vec2(i, j) * px).rgb;
+            }
+        }
+        acc /= 9.0;
+        float d3 = roundedBox(vUv, vParams.zw, vParams.y);
+        float aa3 = max(fwidth(d3), 1e-4);
+        float cov3 = 1.0 - smoothstep(-aa3, aa3, d3);
+        if (cov3 <= 0.0) discard;
+        // tint multiplies, alpha mixes tint over the blurred scene
+        vec3 tinted = mix(acc, acc * vColor.rgb, vColor.a);
+        FragColor = vec4(tinted, cov3);
         return;
     }
 

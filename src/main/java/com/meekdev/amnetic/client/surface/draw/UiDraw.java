@@ -14,13 +14,19 @@ public final class UiDraw {
 
     private final UiBatcher batcher;
     private final float width, height;
+    private final int sceneTexture; // 0 when no capture is available this frame
     private Identifier font;
     private final Deque<float[]> clips = new ArrayDeque<>();
 
     public UiDraw(UiBatcher batcher, float width, float height) {
+        this(batcher, width, height, 0);
+    }
+
+    public UiDraw(UiBatcher batcher, float width, float height, int sceneTexture) {
         this.batcher = batcher;
         this.width = width;
         this.height = height;
+        this.sceneTexture = sceneTexture;
     }
 
     public float width() { return width; }
@@ -86,6 +92,12 @@ public final class UiDraw {
 
     public UiDraw image(int glTextureId, float x, float y, float w, float h, int argb) {
         batcher.image(glTextureId, x, y, w, h, argb);
+        return this;
+    }
+
+    // frosted glass over the scene, falls back to a translucent fill without a capture
+    public UiDraw blurBehind(float x, float y, float w, float h, float radius, float blurPx, int tint) {
+        batcher.blurBehind(sceneTexture, x, y, w, h, radius, blurPx, tint);
         return this;
     }
 

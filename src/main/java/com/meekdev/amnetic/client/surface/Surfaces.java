@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.surface;
 
 import com.meekdev.amnetic.client.surface.internal.SurfaceRenderer;
+import com.meekdev.amnetic.client.surface.internal.WorldSurfaceRenderer;
 import net.minecraft.resources.Identifier;
 
 // entry point for surface canvases, world mounts arrive in a later phase
@@ -29,6 +30,13 @@ public final class Surfaces {
     public static ScreenSurface screen(String name) {
         ScreenSurface surface = new ScreenSurface(name);
         SurfaceRenderer.INSTANCE.add(surface);
+        return surface;
+    }
+
+    // panel living in the world, meters wide/tall, crosshair-pickable within range
+    public static WorldSurface world(float widthMeters, float heightMeters) {
+        WorldSurface surface = new WorldSurface(widthMeters, heightMeters);
+        WorldSurfaceRenderer.INSTANCE.add(surface);
         return surface;
     }
 }

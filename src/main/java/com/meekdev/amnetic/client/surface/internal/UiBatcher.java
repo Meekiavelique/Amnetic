@@ -126,6 +126,27 @@ public final class UiBatcher {
         vert(x1, y1, u1, v1, r, g, b, a, 1f, 0, 0, 0, 0, 0);
     }
 
+    // frosted glass: samples the blurred scene behind the rect, masked by the rounded sdf
+    public void blurBehind(int sceneTexture, float x, float y, float w, float h,
+                           float radius, float blurPx, int argb) {
+        if (sceneTexture == 0) { // capture unavailable, translucent fallback
+            rect(x, y, w, h, radius, 0f, 0f, argb);
+            return;
+        }
+        segment(sceneTexture);
+        grow(6 * FLOATS);
+        float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
+        float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+        float hw = w * 0.5f, hh = h * 0.5f;
+        float cx = x + hw, cy = y + hh;
+        vert(cx - hw, cy - hh, -hw, -hh, r, g, b, a, 3f, radius, hw, hh, 0, blurPx);
+        vert(cx - hw, cy + hh, -hw,  hh, r, g, b, a, 3f, radius, hw, hh, 0, blurPx);
+        vert(cx + hw, cy - hh,  hw, -hh, r, g, b, a, 3f, radius, hw, hh, 0, blurPx);
+        vert(cx + hw, cy - hh,  hw, -hh, r, g, b, a, 3f, radius, hw, hh, 0, blurPx);
+        vert(cx - hw, cy + hh, -hw,  hh, r, g, b, a, 3f, radius, hw, hh, 0, blurPx);
+        vert(cx + hw, cy + hh,  hw,  hh, r, g, b, a, 3f, radius, hw, hh, 0, blurPx);
+    }
+
     // textured quad with a raw gl texture id
     public void image(int texture, float x, float y, float w, float h, int argb) {
         segment(texture);
@@ -174,6 +195,7 @@ public final class UiBatcher {
         program.begin();
         program.setMatrix4("Ortho", ortho);
         program.setSampler("Tex", 0);
+        program.setVec2("ScreenSize", guiW, guiH);
         drawPending();
         GlStateManager._glUseProgram(0);
     }

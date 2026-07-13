@@ -1,5 +1,7 @@
 package com.meekdev.amnetic.client.surface.internal;
 
+import com.meekdev.amnetic.client.framebuffer.Framebuffer;
+import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderStage;
@@ -51,15 +53,22 @@ public final class SurfaceRenderer {
         Pipeline.add(RenderStage.BEFORE_GUI, 50, "Surface", ctx -> render());
     }
 
+    private Framebuffer sceneCapture;
+
     private void render() {
         if (huds.isEmpty() && screens.isEmpty()) return;
         Minecraft mc = Minecraft.getInstance();
         float w = mc.getWindow().getGuiScaledWidth();
         float h = mc.getWindow().getGuiScaledHeight();
 
+        // scene snapshot for blur-behind panels, taken before any ui lands in the target
+        if (sceneCapture == null) sceneCapture = Framebuffers.captureColor();
+        sceneCapture.blitColorFromMain();
+        int sceneTex = sceneCapture.colorTextureGlId(0);
+
         UiBatcher batcher = UiBatcher.INSTANCE;
         batcher.begin(w, h);
-        UiDraw draw = new UiDraw(batcher, w, h);
+        UiDraw draw = new UiDraw(batcher, w, h, sceneTex);
 
         // state first so material draws can interleave real gl mid-tree
         int prevFbo = MainTargetFramebuffer.bind();
@@ -90,6 +99,13 @@ public final class SurfaceRenderer {
                 if ((screen.dimValue() >>> 24) != 0) draw.rect(0, 0, w, h, screen.dimValue());
                 screen.root().layout(0, 0, w, h);
                 screen.root().draw(draw, 1f);
+                // drag ghost rides the cursor, next frame's layout puts the widget back
+                var dragging = screen.internalInput().dragging();
+                if (dragging != null) {
+                    dragging.layout(screen.internalInput().dragX() - dragging.w * 0.5f,
+                            screen.internalInput().dragY() - dragging.h * 0.5f, dragging.w, dragging.h);
+                    dragging.draw(draw, 0.55f);
+                }
             } catch (Exception e) {
                 LOG.warn("screen surface {} draw failed, closing it", screen.name(), e);
                 screen.close();

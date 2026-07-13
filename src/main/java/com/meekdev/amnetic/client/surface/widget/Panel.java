@@ -15,6 +15,7 @@ public class Panel extends Stack {
     float shadowSoftness;
     int shadowColor = 0x80000000;
     boolean clipContent;
+    float blurBehind;
     SurfaceMaterial material;
 
     public Panel background(int argb) { background = argb; return this; }
@@ -24,6 +25,9 @@ public class Panel extends Stack {
     public Panel shadow(float softness) { shadowSoftness = softness; return this; }
     public Panel shadow(float softness, int argb) { shadowSoftness = softness; shadowColor = argb; return this; }
     public Panel clipContent(boolean clip) { clipContent = clip; return this; }
+
+    // frosted glass: blur radius in scene pixels, the background color becomes the tint
+    public Panel blurBehind(float blurPx) { blurBehind = blurPx; return this; }
 
     // surface shader material replaces the flat fill
     public Panel material(SurfaceMaterial mat) { material = mat; return this; }
@@ -36,6 +40,8 @@ public class Panel extends Stack {
         if (material != null) {
             d.material(material, x, y, w, h, rounding,
                     hovered ? 1f : 0f, pressed ? 1f : 0f, focused ? 1f : 0f, fade(0xFFFFFFFF, alpha));
+        } else if (blurBehind > 0) {
+            d.blurBehind(x, y, w, h, rounding, blurBehind, fade(background, alpha));
         } else if (backgroundBottom != 0) {
             d.gradient(x, y, w, h, rounding, fade(background, alpha), fade(backgroundBottom, alpha));
         } else if ((background >>> 24) != 0) {
