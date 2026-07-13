@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.material.SurfaceMaterial;
 import com.meekdev.amnetic.client.surface.reactive.Motion;
@@ -88,4 +89,15 @@ public class Button extends Widget {
         hoverT.dispose();
         super.remove();
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public Button size(float w, float h) { super.size(w, h); return this; }
+    @Override public Button width(float w) { super.width(w); return this; }
+    @Override public Button height(float h) { super.height(h); return this; }
+    @Override public Button grow(float g) { super.grow(g); return this; }
+    @Override public Button anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public Button offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public Button padding(float p) { super.padding(p); return this; }
+    @Override public Button visible(boolean v) { super.visible(v); return this; }
+    @Override public Button opacity(float o) { super.opacity(o); return this; }
 }

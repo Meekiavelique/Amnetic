@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.material.SurfaceMaterial;
 
@@ -57,4 +58,15 @@ public class Panel extends Stack {
     public final void drawAfterChildren(UiDraw d) {
         if (clipContent) d.popClip();
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public Panel size(float w, float h) { super.size(w, h); return this; }
+    @Override public Panel width(float w) { super.width(w); return this; }
+    @Override public Panel height(float h) { super.height(h); return this; }
+    @Override public Panel grow(float g) { super.grow(g); return this; }
+    @Override public Panel anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public Panel offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public Panel padding(float p) { super.padding(p); return this; }
+    @Override public Panel visible(boolean v) { super.visible(v); return this; }
+    @Override public Panel opacity(float o) { super.opacity(o); return this; }
 }

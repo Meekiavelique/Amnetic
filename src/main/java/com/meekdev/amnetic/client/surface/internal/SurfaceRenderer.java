@@ -53,6 +53,27 @@ public final class SurfaceRenderer {
         Pipeline.add(RenderStage.BEFORE_GUI, 50, "Surface", ctx -> render());
     }
 
+    // interactive huds get whatever mouse events an open surface screen didn't consume
+    public void hudMouseMoved(float mx, float my) {
+        for (HudSurface hud : huds) {
+            if (hud.isVisible() && hud.isInteractive()) hud.internalInput().mouseMoved(mx, my);
+        }
+    }
+
+    public boolean hudMouseDown(float mx, float my, int button) {
+        for (HudSurface hud : huds) {
+            if (hud.isVisible() && hud.isInteractive() && hud.internalInput().mouseDown(mx, my, button)) return true;
+        }
+        return false;
+    }
+
+    public boolean hudMouseUp(float mx, float my, int button) {
+        for (HudSurface hud : huds) {
+            if (hud.isVisible() && hud.isInteractive() && hud.internalInput().mouseUp(mx, my, button)) return true;
+        }
+        return false;
+    }
+
     private Framebuffer sceneCapture;
 
     private void render() {

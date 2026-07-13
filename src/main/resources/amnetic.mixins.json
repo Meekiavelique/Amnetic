@@ -11,6 +11,7 @@
     "MinecraftMainTargetMixin",
     "WindowGlContextMixin",
     "CameraStateMixin",
+    "SurfaceClickMixin",
     "CameraMixin",
     "LevelRendererBlockChangeMixin",
     "WeatherEffectRendererMixin",

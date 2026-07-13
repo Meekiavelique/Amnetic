@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Motion;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
@@ -59,4 +60,15 @@ public class Toggle extends Widget {
         knob.dispose();
         super.remove();
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public Toggle size(float w, float h) { super.size(w, h); return this; }
+    @Override public Toggle width(float w) { super.width(w); return this; }
+    @Override public Toggle height(float h) { super.height(h); return this; }
+    @Override public Toggle grow(float g) { super.grow(g); return this; }
+    @Override public Toggle anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public Toggle offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public Toggle padding(float p) { super.padding(p); return this; }
+    @Override public Toggle visible(boolean v) { super.visible(v); return this; }
+    @Override public Toggle opacity(float o) { super.opacity(o); return this; }
 }

@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 // vertical flex container: gap, per-child grow shares leftover height
 public class Column extends Widget {
 
@@ -60,4 +61,15 @@ public class Column extends Widget {
             first = false;
         }
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public Column size(float w, float h) { super.size(w, h); return this; }
+    @Override public Column width(float w) { super.width(w); return this; }
+    @Override public Column height(float h) { super.height(h); return this; }
+    @Override public Column grow(float g) { super.grow(g); return this; }
+    @Override public Column anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public Column offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public Column padding(float p) { super.padding(p); return this; }
+    @Override public Column visible(boolean v) { super.visible(v); return this; }
+    @Override public Column opacity(float o) { super.opacity(o); return this; }
 }
