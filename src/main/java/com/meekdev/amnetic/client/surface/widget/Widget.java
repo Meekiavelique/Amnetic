@@ -2,6 +2,7 @@ package com.meekdev.amnetic.client.surface.widget;
 
 import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
+import com.meekdev.amnetic.client.surface.reactive.Motion;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +25,38 @@ public abstract class Widget {
     public float x, y, w, h;
 
     public boolean hovered, pressed, focused;
+
+    // generic transform channels around the widget center, drive them with anything:
+    // a spring on scale is a bounce, clock noise on translate is a shake, and so on
+    float channelDx, channelDy, channelScale = 1f, channelRotation;
+
+    public Widget translate(float dx, float dy) { channelDx = dx; channelDy = dy; return this; }
+    public Widget scaleChannel(float s) { channelScale = s; return this; }
+    public Widget rotate(float radians) { channelRotation = radians; return this; }
+    public float translateXValue() { return channelDx; }
+    public float translateYValue() { return channelDy; }
+    public float scaleValue() { return channelScale; }
+    public float rotationValue() { return channelRotation; }
+
+    private boolean hasTransform() {
+        return channelDx != 0 || channelDy != 0 || channelScale != 1f || channelRotation != 0;
+    }
+
+    // layout animation: when enabled the widget springs to new layout positions
+    // instead of teleporting, one switch that works inside every container
+    boolean animateLayout;
+    float layoutStiffness = 60, layoutDamping = 9;
+    private Motion<Float> layoutMx, layoutMy;
+    private boolean laidOutOnce;
+
+    public Widget animateLayout(boolean animate) { animateLayout = animate; return this; }
+
+    public Widget animateLayout(float stiffness, float damping) {
+        animateLayout = true;
+        layoutStiffness = stiffness;
+        layoutDamping = damping;
+        return this;
+    }
 
     public Widget add(Widget child) {
         child.parent = this;
@@ -54,6 +87,7 @@ public abstract class Widget {
     public Widget padding(float p) { padding = p; return this; }
     public Widget visible(boolean v) { visible = v; return this; }
     public Widget opacity(float o) { opacity = o; return this; }
+    public float opacityValue() { return opacity; }
 
     public boolean isVisible() { return visible; }
 
@@ -71,7 +105,21 @@ public abstract class Widget {
 
     // place self at the given rect then lay out children, containers override placeChildren
     public final void layout(float x, float y, float w, float h) {
-        this.x = x; this.y = y; this.w = w; this.h = h;
+        if (animateLayout && laidOutOnce) {
+            if (layoutMx == null) {
+                layoutMx = Motion.spring(this.x, layoutStiffness, layoutDamping);
+                layoutMy = Motion.spring(this.y, layoutStiffness, layoutDamping);
+            }
+            layoutMx.target(x);
+            layoutMy.target(y);
+            this.x = layoutMx.value().peek();
+            this.y = layoutMy.value().peek();
+        } else {
+            this.x = x;
+            this.y = y;
+        }
+        this.w = w; this.h = h;
+        laidOutOnce = true;
         placeChildren();
     }
 
@@ -94,9 +142,12 @@ public abstract class Widget {
         if (!visible) return;
         float alpha = opacity * parentOpacity;
         if (alpha <= 0f) return;
+        boolean xf = hasTransform();
+        if (xf) d.pushTransform(x + w * 0.5f, y + h * 0.5f, channelDx, channelDy, channelScale, channelRotation);
         drawSelf(d, alpha);
         for (Widget c : children) c.draw(d, alpha);
         drawAfterChildren(d);
+        if (xf) d.popTransform();
     }
 
     protected void drawSelf(UiDraw d, float alpha) {}
@@ -107,7 +158,17 @@ public abstract class Widget {
     // topmost interactive descendant containing the point, null if none
     // draggables and drop targets count as hittable even when otherwise passive
     public Widget hitTest(float mx, float my) {
-        if (!visible || mx < x || my < y || mx > x + w || my > y + h) return null;
+        if (!visible) return null;
+        if (hasTransform()) {
+            // inverse of the draw transform so the pointer follows shakes/scales/rotations
+            float cx = x + w * 0.5f, cy = y + h * 0.5f;
+            float px = mx - cx - channelDx, py = my - cy - channelDy;
+            float inv = 1f / Math.max(channelScale, 1e-4f);
+            float cos = (float) Math.cos(-channelRotation), sin = (float) Math.sin(-channelRotation);
+            mx = cx + (px * cos - py * sin) * inv;
+            my = cy + (px * sin + py * cos) * inv;
+        }
+        if (mx < x || my < y || mx > x + w || my > y + h) return null;
         for (int i = children.size() - 1; i >= 0; i--) {
             Widget hit = children.get(i).hitTest(mx, my);
             if (hit != null) return hit;
