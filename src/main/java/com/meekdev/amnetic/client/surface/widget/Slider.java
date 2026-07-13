@@ -11,6 +11,7 @@ public class Slider extends Widget {
     public final Signal<Float> value;
     int track = 0xFF2A2F36;
     int fill = 0xFF4C8FDD;
+    int knobColor = 0xFFFFFFFF;
     float rounding = 7;
     Consumer<Float> onChange;
 
@@ -20,6 +21,8 @@ public class Slider extends Widget {
     }
 
     public Slider colors(int track, int fill) { this.track = track; this.fill = fill; return this; }
+    public Slider rounding(float r) { rounding = r; return this; }
+    public Slider knobColor(int argb) { knobColor = argb; return this; }
     public Slider onChange(Consumer<Float> c) { onChange = c; return this; }
 
     @Override
@@ -40,7 +43,7 @@ public class Slider extends Widget {
         float knobX = x + 2 + (w - knobSize - 4) * v;
         float fillW = Math.max(knobX + knobSize + 2 - x, h);
         d.roundedRect(x, y, fillW, h, rounding, fade(fill, alpha));
-        d.roundedRect(knobX, y + 2, knobSize, knobSize, knobSize * 0.5f, fade(0xFFFFFFFF, alpha));
+        d.roundedRect(knobX, y + 2, knobSize, knobSize, Math.min(rounding, knobSize * 0.5f), fade(knobColor, alpha));
     }
 
     private void setFromMouse(float mx) {
