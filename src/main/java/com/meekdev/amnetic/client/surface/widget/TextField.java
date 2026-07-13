@@ -24,6 +24,7 @@ public class TextField extends Widget {
     int textColor = 0xFFFFFFFF;
     int placeholderColor = 0x60FFFFFF;
     int selectionColor = 0x504C8FDD;
+    int accent = 0x804C8FDD;
     float rounding = 7;
     Consumer<String> onSubmit;
 
@@ -37,6 +38,9 @@ public class TextField extends Widget {
     }
 
     public TextField placeholder(String p) { placeholder = p; return this; }
+    public TextField colors(int background, int text) { this.background = background; this.textColor = text; return this; }
+    public TextField rounding(float r) { rounding = r; return this; }
+    public TextField accent(int argb) { accent = argb; selectionColor = (argb & 0xFFFFFF) | 0x50000000; return this; }
     public TextField px(float p) { px = p; return this; }
     public TextField onSubmit(Consumer<String> c) { onSubmit = c; return this; }
 
@@ -91,7 +95,7 @@ public class TextField extends Widget {
     @Override
     protected void drawSelf(UiDraw d, float alpha) {
         d.roundedRect(x, y, w, h, rounding, fade(background, alpha));
-        d.border(x, y, w, h, rounding, 1f, fade(focused ? 0x804C8FDD : 0x30FFFFFF, alpha));
+        d.border(x, y, w, h, rounding, 1f, fade(focused ? accent : 0x30FFFFFF, alpha));
 
         Identifier fid = Surfaces.defaultFont();
         if (fid == null) return;

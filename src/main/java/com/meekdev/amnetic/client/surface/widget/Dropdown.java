@@ -52,11 +52,13 @@ public class Dropdown extends Widget {
     }
 
     // the popup needs somewhere above the rest of the tree to live
+    public Dropdown rounding(float r) { rounding = r; return this; }
+    public Dropdown accent(int argb) { accent = argb; return this; }
+
     public Dropdown attach(Stack overlayLayer) { overlay = overlayLayer; return this; }
     public Dropdown onChange(Consumer<Integer> c) { onChange = c; return this; }
     public Dropdown px(float p) { px = p; return this; }
     public Dropdown colors(int normal, int hover) { background = normal; hoverBackground = hover; return this; }
-    public Dropdown accent(int argb) { accent = argb; return this; }
 
     public boolean isOpen() { return popup != null; }
 

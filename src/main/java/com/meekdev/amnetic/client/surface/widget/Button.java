@@ -19,6 +19,10 @@ public class Button extends Widget {
     int background = 0xFF232A33;
     int hoverBackground = 0xFF3A4654;
     int textColor = 0xFFFFFFFF;
+    float borderWidth = 1f;
+    int borderColor = 0x30FFFFFF;
+    int borderHover = 0x30FFFFFF;
+    int labelShadow; // 0 = off, classic mc text look when set
     Identifier fontId;
     SurfaceMaterial material;
     Runnable onClick;
@@ -36,6 +40,9 @@ public class Button extends Widget {
     public Button rounding(float r) { rounding = r; return this; }
     public Button colors(int normal, int hover) { background = normal; hoverBackground = hover; return this; }
     public Button textColor(int argb) { textColor = argb; return this; }
+    public Button textShadow(int argb) { labelShadow = argb; return this; }
+    public Button border(float width, int color) { borderWidth = width; borderColor = color; borderHover = color; return this; }
+    public Button border(float width, int color, int hoverColor) { borderWidth = width; borderColor = color; borderHover = hoverColor; return this; }
     public Button font(Identifier id) { fontId = id; return this; }
     public Button material(SurfaceMaterial mat) { material = mat; return this; }
     public Button onClick(Runnable r) { onClick = r; return this; }
@@ -65,11 +72,12 @@ public class Button extends Widget {
             int bg = lerpColor(background, hoverBackground, t);
             if (pressed) bg = lerpColor(bg, 0xFF000000, 0.25f);
             d.roundedRect(x, y, w, h, rounding, fade(bg, alpha));
-            d.border(x, y, w, h, rounding, 1f, fade(0x30FFFFFF, alpha));
+            if (borderWidth > 0) d.border(x, y, w, h, rounding, borderWidth, fade(lerpColor(borderColor, borderHover, t), alpha));
         }
         Identifier prev = d.currentFont();
         d.font(fontId != null ? fontId : Surfaces.defaultFont());
         float lift = pressed ? 1f : 0f;
+        if (labelShadow != 0) d.textCentered(label, x + w * 0.5f + 1, y + h * 0.5f + lift + 1, px, fade(labelShadow, alpha));
         d.textCentered(label, x + w * 0.5f, y + h * 0.5f + lift, px, fade(textColor, alpha));
         if (prev != null) d.font(prev);
     }
