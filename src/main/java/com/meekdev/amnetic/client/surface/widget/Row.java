@@ -1,0 +1,85 @@
+package com.meekdev.amnetic.client.surface.widget;
+
+// horizontal flex container: gap, per-child grow shares leftover, wrap moves overflow to new lines
+public class Row extends Widget {
+
+    float gap = 6;
+    boolean wrap;
+    float align = 0f; // cross-axis: 0 start, 0.5 center, 1 end
+
+    public Row gap(float g) { gap = g; return this; }
+    public Row wrap(boolean w) { wrap = w; return this; }
+    public Row alignStart() { align = 0f; return this; }
+    public Row alignCenter() { align = 0.5f; return this; }
+    public Row alignEnd() { align = 1f; return this; }
+
+    @Override
+    protected float contentWidth() {
+        float total = 0;
+        int n = 0;
+        for (Widget c : children) {
+            if (!c.visible) continue;
+            total += c.measureWidth();
+            n++;
+        }
+        return total + Math.max(0, n - 1) * gap;
+    }
+
+    @Override
+    protected float contentHeight(float forWidth) {
+        // account for wrapping by simulating line breaks
+        float lineH = 0, totalH = 0, lineW = 0;
+        boolean first = true;
+        for (Widget c : children) {
+            if (!c.visible) continue;
+            float cw = c.measureWidth();
+            float ch = c.measureHeight(cw);
+            if (wrap && !first && lineW + gap + cw > forWidth) {
+                totalH += lineH + gap;
+                lineW = 0; lineH = 0; first = true;
+            }
+            lineW += (first ? 0 : gap) + cw;
+            lineH = Math.max(lineH, ch);
+            first = false;
+        }
+        return totalH + lineH;
+    }
+
+    @Override
+    protected void placeChildren() {
+        float cx = x + padding, cy = y + padding;
+        float cw = w - padding * 2, ch = h - padding * 2;
+
+        // measure and distribute grow
+        float fixed = 0, growSum = 0;
+        int n = 0;
+        for (Widget c : children) {
+            if (!c.visible) continue;
+            if (c.grow > 0) growSum += c.grow;
+            else fixed += c.measureWidth();
+            n++;
+        }
+        float leftover = Math.max(0, cw - fixed - Math.max(0, n - 1) * gap);
+
+        float penX = cx, penY = cy, lineH = 0;
+        boolean first = true;
+        for (Widget c : children) {
+            if (!c.visible) continue;
+            float childW = c.grow > 0 ? leftover * (c.grow / growSum) : c.measureWidth();
+            // natural height so align can center, growing children stretch to the row
+            float childH = c.prefH >= 0 ? c.prefH
+                    : c.grow > 0 ? ch
+                    : Math.min(c.measureHeight(childW), ch);
+            if (wrap && !first && penX + gap + childW > cx + cw) {
+                penY += lineH + gap;
+                penX = cx; lineH = 0; first = true;
+            }
+            if (!first) penX += gap;
+            float childY = penY + (ch - childH) * (wrap ? 0 : align);
+            c.layout(penX, wrap ? penY : childY, childW, childH);
+            penX += childW;
+            lineH = Math.max(lineH, childH);
+            first = false;
+        }
+    }
+}
