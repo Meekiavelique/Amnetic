@@ -51,8 +51,15 @@ public final class WorldSurfaceRenderer {
     private final Map<WorldSurface, float[]> pickTris = new HashMap<>();
 
     private boolean attackWasDown;
+    private boolean pointerOverSurface;
 
     private WorldSurfaceRenderer() {}
+
+    // true while the crosshair rests on a pickable surface, the click mixin swallows
+    // attack/use so pressing a panel button never swings or places
+    public boolean isPointerOverSurface() {
+        return pointerOverSurface;
+    }
 
     public void add(WorldSurface surface) {
         surfaces.add(surface);
@@ -124,7 +131,9 @@ public final class WorldSurfaceRenderer {
         Vec3 eye = fc.camera().eye;
 
         // basis: facing is the outward normal, right spans the width, up the height
-        Vector3f n = new Vector3f(s.facingValue().x, 0, s.facingValue().z);
+        Vector3f n = s.billboardValue()
+                ? new Vector3f((float) (eye.x - s.xPos()), 0, (float) (eye.z - s.zPos()))
+                : new Vector3f(s.facingValue().x, 0, s.facingValue().z);
         if (n.lengthSquared() < 1e-6f) n.set(0, 0, -1);
         n.normalize();
         Vector3f right = new Vector3f(-n.z, 0, n.x);
@@ -201,6 +210,7 @@ public final class WorldSurfaceRenderer {
 
     // crosshair ray -> nearest surface hit -> canvas coords, attack press clicks
     private void pick(Minecraft mc) {
+        pointerOverSurface = false;
         if (mc.player == null || mc.screen != null || surfaces.isEmpty()) return;
         Vec3 eye = mc.player.getEyePosition();
         Vec3 look = mc.player.getLookAngle();
@@ -236,6 +246,7 @@ public final class WorldSurfaceRenderer {
             if (s != best) s.internalInput().mouseMoved(-1, -1); // unhover
         }
 
+        pointerOverSurface = best != null;
         boolean attack = GLFW.glfwGetMouseButton(mc.getWindow().handle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
         if (best != null) {
             float mx = bestU * best.canvasW();

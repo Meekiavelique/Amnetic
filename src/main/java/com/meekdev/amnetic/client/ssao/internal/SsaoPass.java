@@ -90,13 +90,17 @@ public final class SsaoPass extends ScreenPass {
         ssao.draw();
         ao.end();
 
-        // 5x5 box blur over the noisy AO to remove the per-pixel rotation pattern
+        // 7x7 normal-aware bilateral blur to remove the per-pixel rotation pattern without smearing
+        // across silhouettes; the normal weight is what stops corner sparkle where a depth-only test starves.
         blurred.begin();
         GlState.bindTexture(0, ao.colorTextureGlId(0));
         GlState.bindTexture(1, capture.depthTextureGlId());
+        GlState.bindTexture(2, hasGBuffer ? GBufferTargets.INSTANCE.normalGlId() : capture.depthTextureGlId());
         blur.begin();
         blur.setSampler("AoSampler", 0);
         blur.setSampler("DepthSampler", 1);
+        blur.setSampler("GNormalSampler", 2);
+        blur.setInt("HasGBuffer", hasGBuffer ? 1 : 0);
         blur.setMatrix4("InvViewProj", cam.invViewProj);
         blur.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
         blur.draw();

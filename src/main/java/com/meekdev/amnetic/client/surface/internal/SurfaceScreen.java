@@ -40,17 +40,20 @@ public final class SurfaceScreen extends Screen {
     @Override
     public void mouseMoved(double mx, double my) {
         owner.internalInput().mouseMoved((float) mx, (float) my);
+        SurfaceRenderer.INSTANCE.hudMouseMoved((float) mx, (float) my);
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         if (owner.internalInput().mouseDown((float) event.x(), (float) event.y(), event.button())) return true;
+        if (SurfaceRenderer.INSTANCE.hudMouseDown((float) event.x(), (float) event.y(), event.button())) return true;
         return super.mouseClicked(event, doubled);
     }
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         if (owner.internalInput().mouseUp((float) event.x(), (float) event.y(), event.button())) return true;
+        if (SurfaceRenderer.INSTANCE.hudMouseUp((float) event.x(), (float) event.y(), event.button())) return true;
         return super.mouseReleased(event);
     }
 

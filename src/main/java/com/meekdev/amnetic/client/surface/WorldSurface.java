@@ -15,6 +15,7 @@ public final class WorldSurface {
     private double x, y, z;
     private final Vector3f facing = new Vector3f(0, 0, -1);
     private float curve; // total arc in radians, 0 flat, positive bends edges toward the viewer
+    private boolean billboard;
     private int resolution = 256; // canvas px per meter
     private float maxDistance = 8f;
     private boolean alwaysOnTop;
@@ -40,6 +41,10 @@ public final class WorldSurface {
     }
 
     public WorldSurface curve(float radians) { curve = radians; return this; }
+
+    // always face the camera instead of the fixed facing
+    public WorldSurface billboard(boolean b) { billboard = b; return this; }
+    public boolean billboardValue() { return billboard; }
     public WorldSurface resolution(int pxPerMeter) { resolution = Math.max(16, pxPerMeter); return this; }
     public WorldSurface maxDistance(float meters) { maxDistance = meters; return this; }
     public WorldSurface alwaysOnTop(boolean top) { alwaysOnTop = top; return this; }

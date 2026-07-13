@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.Surfaces;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Effect;
@@ -116,4 +117,15 @@ public class Text extends Widget {
         if (binding != null) binding.dispose();
         super.remove();
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public Text size(float w, float h) { super.size(w, h); return this; }
+    @Override public Text width(float w) { super.width(w); return this; }
+    @Override public Text height(float h) { super.height(h); return this; }
+    @Override public Text grow(float g) { super.grow(g); return this; }
+    @Override public Text anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public Text offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public Text padding(float p) { super.padding(p); return this; }
+    @Override public Text visible(boolean v) { super.visible(v); return this; }
+    @Override public Text opacity(float o) { super.opacity(o); return this; }
 }

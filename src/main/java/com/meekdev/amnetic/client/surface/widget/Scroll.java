@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 
 // vertical scroll container: children flow like a column, overflow clips, wheel scrolls
@@ -59,4 +60,15 @@ public class Scroll extends Column {
         scrollY -= amount * 24;
         return true;
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public Scroll size(float w, float h) { super.size(w, h); return this; }
+    @Override public Scroll width(float w) { super.width(w); return this; }
+    @Override public Scroll height(float h) { super.height(h); return this; }
+    @Override public Scroll grow(float g) { super.grow(g); return this; }
+    @Override public Scroll anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public Scroll offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public Scroll padding(float p) { super.padding(p); return this; }
+    @Override public Scroll visible(boolean v) { super.visible(v); return this; }
+    @Override public Scroll opacity(float o) { super.opacity(o); return this; }
 }

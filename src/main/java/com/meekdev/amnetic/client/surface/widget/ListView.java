@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import java.util.HashMap;
 import java.util.List;
@@ -89,4 +90,15 @@ public class ListView<T> extends Widget {
         scrollY -= amount * 24;
         return true;
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public ListView<T> size(float w, float h) { super.size(w, h); return this; }
+    @Override public ListView<T> width(float w) { super.width(w); return this; }
+    @Override public ListView<T> height(float h) { super.height(h); return this; }
+    @Override public ListView<T> grow(float g) { super.grow(g); return this; }
+    @Override public ListView<T> anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public ListView<T> offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public ListView<T> padding(float p) { super.padding(p); return this; }
+    @Override public ListView<T> visible(boolean v) { super.visible(v); return this; }
+    @Override public ListView<T> opacity(float o) { super.opacity(o); return this; }
 }

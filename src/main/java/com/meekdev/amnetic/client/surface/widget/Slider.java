@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
+import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 import java.util.function.Consumer;
@@ -65,4 +66,15 @@ public class Slider extends Widget {
     private static float clamp(float v) {
         return Math.min(Math.max(v, 0f), 1f);
     }
+
+    // fluent overrides so chains keep the subtype
+    @Override public Slider size(float w, float h) { super.size(w, h); return this; }
+    @Override public Slider width(float w) { super.width(w); return this; }
+    @Override public Slider height(float h) { super.height(h); return this; }
+    @Override public Slider grow(float g) { super.grow(g); return this; }
+    @Override public Slider anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public Slider offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public Slider padding(float p) { super.padding(p); return this; }
+    @Override public Slider visible(boolean v) { super.visible(v); return this; }
+    @Override public Slider opacity(float o) { super.opacity(o); return this; }
 }
