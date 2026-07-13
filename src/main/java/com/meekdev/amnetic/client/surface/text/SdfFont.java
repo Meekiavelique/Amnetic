@@ -57,6 +57,17 @@ public final class SdfFont {
     public float bakePx() { return BAKE_PX; }
     public float ascentPx() { return ascent; }
 
+    // real cap height measured off the H glyph, ascent overshoots it and miscenters labels
+    public float capPx() {
+        if (capHeight == 0) {
+            Glyph h = glyph('H');
+            capHeight = (h != null && h.ah() > 0) ? h.ah() - PADDING * 2 : ascent * 0.72f;
+        }
+        return capHeight;
+    }
+
+    private float capHeight;
+
     // bakes the codepoint on first request, render thread only
     public Glyph glyph(int codepoint) {
         Glyph g = glyphs.get(codepoint);
@@ -99,7 +110,7 @@ public final class SdfFont {
                 return g;
             }
             int gw = w.get(0), gh = h.get(0);
-            if (penX + gw >= ATLAS) { penX = 0; penY += rowH + 1; rowH = 0; }
+            if (penX + gw >= ATLAS) { penX = 0; penY += rowH + 2; rowH = 0; }
             if (penY + gh >= ATLAS) {
                 stbtt_FreeSDF(sdf);
                 if (!atlasFull) {
@@ -112,13 +123,17 @@ public final class SdfFont {
             }
 
             GlState.bindTexture(0, texture); // raw + cache sync, keeps vanilla's next bind honest
+            // reset every unpack param, vanilla leaves skip/row offsets behind and a partial
+            // reset uploads glyphs from the wrong byte offsets (garbled atlas rows)
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
             GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
+            GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
+            GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
             GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, penX, penY, gw, gh, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, sdf);
 
             Glyph g = new Glyph(penX, penY, gw, gh, xo.get(0), yo.get(0), advance);
             glyphs.put(cp, g);
-            penX += gw + 1;
+            penX += gw + 2; // 2px gap so bilinear sampling never bleeds a neighbour in
             rowH = Math.max(rowH, gh);
             stbtt_FreeSDF(sdf);
             return g;
@@ -147,7 +162,13 @@ public final class SdfFont {
             int tex = GL11.glGenTextures();
             GlState.bindTexture(0, tex);
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R8, ATLAS, ATLAS, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null);
+            GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
+            GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
+            GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
+            // zero-filled, null data leaves undefined vram that bleeds around glyph edges
+            ByteBuffer zeros = MemoryUtil.memCalloc(ATLAS * ATLAS);
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R8, ATLAS, ATLAS, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, zeros);
+            MemoryUtil.memFree(zeros);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL13.GL_CLAMP_TO_EDGE);

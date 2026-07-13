@@ -2,55 +2,69 @@ package com.meekdev.amnetic.client.surface.internal;
 
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
+import com.meekdev.amnetic.client.surface.material.SurfaceMaterial;
+import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
 import java.nio.FloatBuffer;
 
-// one interleaved stream for every surface primitive, split into segments on texture change
-// vertex: pos2 uv2 color4 params4 extra2 = 14 floats
+// one interleaved stream for every surface primitive, split into segments on texture change,
+// material draws flush what came before so painter's order always holds
+// vertex: pos2 uv2 color4 params4 extra2 clip4 = 18 floats
 // params = mode(0 rect sdf, 1 glyph, 2 textured), radius, halfW, halfH; extra = borderW, softness
 public final class UiBatcher {
 
     public static final UiBatcher INSTANCE = new UiBatcher();
 
-    private static final int FLOATS = 14;
+    private static final int FLOATS = 18;
     private static final int MAX_SEGMENTS = 256;
 
     private ShaderProgram program;
     private int vao, vbo;
     private FloatBuffer verts = BufferUtils.createFloatBuffer(8192 * FLOATS);
     private final Matrix4f ortho = new Matrix4f();
+    private float guiW, guiH;
 
-    // segment ring: texture id (0 = none) + vert count, in submission order
     private final int[] segTexture = new int[MAX_SEGMENTS];
     private final int[] segCount = new int[MAX_SEGMENTS];
     private int segments;
-    private int currentTexture = -1;
+
+    // active clip in gui px, x1 <= 0 means none
+    private float clipX0, clipY0, clipX1, clipY1;
 
     private UiBatcher() {}
 
     public void begin(float guiW, float guiH) {
+        this.guiW = guiW;
+        this.guiH = guiH;
         ortho.setOrtho(0, guiW, guiH, 0, -1000, 1000);
         verts.clear();
         segments = 0;
-        currentTexture = -1;
+        clearClip();
+    }
+
+    public void setClip(float x0, float y0, float x1, float y1) {
+        clipX0 = x0; clipY0 = y0; clipX1 = x1; clipY1 = y1;
+    }
+
+    public void clearClip() {
+        clipX0 = 0; clipY0 = 0; clipX1 = -1; clipY1 = -1;
     }
 
     private void segment(int texture) {
         if (segments > 0 && segTexture[segments - 1] == texture) return;
-        if (segments == MAX_SEGMENTS) return; // silently merge into the last, better than crashing
+        if (segments == MAX_SEGMENTS) return; // merge into the last, better than crashing
         segTexture[segments] = texture;
         segCount[segments] = 0;
         segments++;
-        currentTexture = texture;
     }
 
     private void grow(int needed) {
@@ -66,22 +80,36 @@ public final class UiBatcher {
                       float mode, float radius, float hw, float hh,
                       float borderW, float softness) {
         verts.put(x).put(y).put(u).put(v).put(r).put(g).put(b).put(a)
-             .put(mode).put(radius).put(hw).put(hh).put(borderW).put(softness);
+             .put(mode).put(radius).put(hw).put(hh).put(borderW).put(softness)
+             .put(clipX0).put(clipY0).put(clipX1).put(clipY1);
         if (segments > 0) segCount[segments - 1] += 1;
     }
 
     // sdf rounded rect, uv carries the pixel offset from the rect center
     public void rect(float x, float y, float w, float h, float radius,
                      float borderW, float softness, int argb) {
+        rectGradient(x, y, w, h, radius, borderW, softness, argb, argb);
+    }
+
+    // vertical gradient comes free from per-vertex color interpolation
+    public void rectGradient(float x, float y, float w, float h, float radius,
+                             float borderW, float softness, int topArgb, int bottomArgb) {
         segment(0);
         grow(6 * FLOATS);
-        float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
-        float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+        float tr = ((topArgb >> 16) & 0xFF) / 255f, tg = ((topArgb >> 8) & 0xFF) / 255f;
+        float tb = (topArgb & 0xFF) / 255f, ta = ((topArgb >>> 24) & 0xFF) / 255f;
+        float br = ((bottomArgb >> 16) & 0xFF) / 255f, bg = ((bottomArgb >> 8) & 0xFF) / 255f;
+        float bb = (bottomArgb & 0xFF) / 255f, ba = ((bottomArgb >>> 24) & 0xFF) / 255f;
         float hw = w * 0.5f, hh = h * 0.5f;
         float cx = x + hw, cy = y + hh;
-        // expand the quad by the softness so shadow feather isn't clipped at the geometry edge
-        float e = softness + 1f;
-        quad(cx, cy, hw + e, hh + e, r, g, b, a, 0f, radius, hw, hh, borderW, softness);
+        float e = softness + 1f; // expand so shadow feather is not clipped by the geometry
+        float ew = hw + e, eh = hh + e;
+        vert(cx - ew, cy - eh, -ew, -eh, tr, tg, tb, ta, 0f, radius, hw, hh, borderW, softness);
+        vert(cx - ew, cy + eh, -ew,  eh, br, bg, bb, ba, 0f, radius, hw, hh, borderW, softness);
+        vert(cx + ew, cy - eh,  ew, -eh, tr, tg, tb, ta, 0f, radius, hw, hh, borderW, softness);
+        vert(cx + ew, cy - eh,  ew, -eh, tr, tg, tb, ta, 0f, radius, hw, hh, borderW, softness);
+        vert(cx - ew, cy + eh, -ew,  eh, br, bg, bb, ba, 0f, radius, hw, hh, borderW, softness);
+        vert(cx + ew, cy + eh,  ew,  eh, br, bg, bb, ba, 0f, radius, hw, hh, borderW, softness);
     }
 
     // sdf glyph quad, uv is atlas uv
@@ -112,28 +140,51 @@ public final class UiBatcher {
         vert(x + w, y + h, 1, 1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
-    private void quad(float cx, float cy, float ew, float eh,
-                      float r, float g, float b, float a,
-                      float mode, float radius, float hw, float hh, float borderW, float softness) {
-        vert(cx - ew, cy - eh, -ew, -eh, r, g, b, a, mode, radius, hw, hh, borderW, softness);
-        vert(cx - ew, cy + eh, -ew,  eh, r, g, b, a, mode, radius, hw, hh, borderW, softness);
-        vert(cx + ew, cy - eh,  ew, -eh, r, g, b, a, mode, radius, hw, hh, borderW, softness);
-        vert(cx + ew, cy - eh,  ew, -eh, r, g, b, a, mode, radius, hw, hh, borderW, softness);
-        vert(cx - ew, cy + eh, -ew,  eh, r, g, b, a, mode, radius, hw, hh, borderW, softness);
-        vert(cx + ew, cy + eh,  ew,  eh, r, g, b, a, mode, radius, hw, hh, borderW, softness);
+    // custom-material rect: flush what came before, then draw this quad with the material's
+    // program so painter's order is preserved
+    public void material(SurfaceMaterial mat, float x, float y, float w, float h, float radius,
+                         float hover, float pressed, float focus, int argb) {
+        flush();
+        if (!mat.beginDraw(ortho, guiW, guiH, Reactive.clock().peek(), hover, pressed, focus)) {
+            // broken material falls back to an obvious flat fill so layout stays debuggable
+            rect(x, y, w, h, radius, 0, 0, 0xFF3A2A3A);
+            return;
+        }
+        segment(0);
+        grow(6 * FLOATS);
+        float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
+        float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+        float hw = w * 0.5f, hh = h * 0.5f;
+        float cx = x + hw, cy = y + hh;
+        vert(cx - hw, cy - hh, -hw, -hh, r, g, b, a, 0f, radius, hw, hh, 0, 0);
+        vert(cx - hw, cy + hh, -hw,  hh, r, g, b, a, 0f, radius, hw, hh, 0, 0);
+        vert(cx + hw, cy - hh,  hw, -hh, r, g, b, a, 0f, radius, hw, hh, 0, 0);
+        vert(cx + hw, cy - hh,  hw, -hh, r, g, b, a, 0f, radius, hw, hh, 0, 0);
+        vert(cx - hw, cy + hh, -hw,  hh, r, g, b, a, 0f, radius, hw, hh, 0, 0);
+        vert(cx + hw, cy + hh,  hw,  hh, r, g, b, a, 0f, radius, hw, hh, 0, 0);
+
+        applyBlend(mat.blend());
+        drawPending(); // program already bound by beginDraw
+        applyBlend(SurfaceMaterial.Blend.MIX);
     }
 
     public void flush() {
         if (segments == 0 || verts.position() == 0) return;
         ensureGl();
-        verts.flip();
-
         program.begin();
         program.setMatrix4("Ortho", ortho);
         program.setSampler("Tex", 0);
+        drawPending();
+        GlStateManager._glUseProgram(0);
+    }
 
+    private void drawPending() {
+        if (segments == 0 || verts.position() == 0) return;
+        ensureGl();
+        verts.flip();
         GlStateManager._glBindVertexArray(vao);
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo); // raw too, cached bind can be stale
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, verts, GL15.GL_STREAM_DRAW);
 
         int offset = 0;
@@ -146,9 +197,25 @@ public final class UiBatcher {
         }
 
         GlStateManager._glBindVertexArray(0);
-        GlStateManager._glUseProgram(0);
         verts.clear();
         segments = 0;
+    }
+
+    private void applyBlend(SurfaceMaterial.Blend blend) {
+        switch (blend) {
+            case ADD -> {
+                GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
+                GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
+            }
+            case PREMUL -> {
+                GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+                GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            }
+            default -> {
+                GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+                GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            }
+        }
     }
 
     private void ensureGl() {
@@ -162,6 +229,7 @@ public final class UiBatcher {
         GlStateManager._glBindVertexArray(vao);
         vbo = GL15.glGenBuffers();
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
         int stride = FLOATS * 4;
         GL20.glEnableVertexAttribArray(0);
         GL20.glVertexAttribPointer(0, 2, GL11.GL_FLOAT, false, stride, 0);
@@ -173,6 +241,8 @@ public final class UiBatcher {
         GL20.glVertexAttribPointer(3, 4, GL11.GL_FLOAT, false, stride, 32);
         GL20.glEnableVertexAttribArray(4);
         GL20.glVertexAttribPointer(4, 2, GL11.GL_FLOAT, false, stride, 48);
+        GL20.glEnableVertexAttribArray(5);
+        GL20.glVertexAttribPointer(5, 4, GL11.GL_FLOAT, false, stride, 56);
         GlStateManager._glBindVertexArray(0);
     }
 }

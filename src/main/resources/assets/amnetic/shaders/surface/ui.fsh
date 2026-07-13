@@ -2,8 +2,10 @@
 
 in vec2 vUv;
 in vec4 vColor;
+in vec2 vPos;
 flat in vec4 vParams; // mode, radius, halfW, halfH
 flat in vec2 vExtra;  // borderW, softness
+flat in vec4 vClip;   // clip rect in gui px, x1 <= 0 means none
 
 uniform sampler2D Tex;
 
@@ -16,6 +18,8 @@ float roundedBox(vec2 p, vec2 halfSize, float radius) {
 }
 
 void main() {
+    if (vClip.z > 0.0 && (vPos.x < vClip.x || vPos.y < vClip.y || vPos.x > vClip.z || vPos.y > vClip.w)) discard;
+
     int mode = int(vParams.x + 0.5);
 
     if (mode == 1) { // sdf glyph, screen-space aa keeps the edge ~1px at every size
@@ -40,13 +44,11 @@ void main() {
 
     float cov;
     if (softness > 0.0) {
-        // soft shadow, feather outward from the edge
-        cov = 1.0 - smoothstep(-softness, softness, d);
+        cov = 1.0 - smoothstep(-softness, softness, d); // shadow feather
     } else if (border > 0.0) {
-        // ring: outside coverage minus inside coverage
         float outer = 1.0 - smoothstep(-aa, aa, d);
         float inner = 1.0 - smoothstep(-aa, aa, d + border);
-        cov = outer - inner;
+        cov = outer - inner; // ring
     } else {
         cov = 1.0 - smoothstep(-aa, aa, d);
     }
