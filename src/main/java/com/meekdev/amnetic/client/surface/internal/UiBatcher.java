@@ -147,14 +147,23 @@ public final class UiBatcher {
     public void glyph(int atlasTexture, float x0, float y0, float x1, float y1,
                       float u0, float v0, float u1, float v1,
                       float r, float g, float b, float a) {
+        glyph(atlasTexture, x0, y0, x1, y1, u0, v0, u1, v1, r, g, b, a, 0f, 0f);
+    }
+
+    // styled variant: edgeOffset grows/shrinks the glyph edge (outlines), softness widens
+    // the coverage band (glow/blur), both in normalized sdf units (the bake spread is ~0.5)
+    public void glyph(int atlasTexture, float x0, float y0, float x1, float y1,
+                      float u0, float v0, float u1, float v1,
+                      float r, float g, float b, float a,
+                      float edgeOffset, float softness) {
         segment(atlasTexture);
         grow(6 * FLOATS);
-        vert(x0, y0, u0, v0, r, g, b, a, 1f, 0, 0, 0, 0, 0);
-        vert(x0, y1, u0, v1, r, g, b, a, 1f, 0, 0, 0, 0, 0);
-        vert(x1, y0, u1, v0, r, g, b, a, 1f, 0, 0, 0, 0, 0);
-        vert(x1, y0, u1, v0, r, g, b, a, 1f, 0, 0, 0, 0, 0);
-        vert(x0, y1, u0, v1, r, g, b, a, 1f, 0, 0, 0, 0, 0);
-        vert(x1, y1, u1, v1, r, g, b, a, 1f, 0, 0, 0, 0, 0);
+        vert(x0, y0, u0, v0, r, g, b, a, 1f, edgeOffset, softness, 0, 0, 0);
+        vert(x0, y1, u0, v1, r, g, b, a, 1f, edgeOffset, softness, 0, 0, 0);
+        vert(x1, y0, u1, v0, r, g, b, a, 1f, edgeOffset, softness, 0, 0, 0);
+        vert(x1, y0, u1, v0, r, g, b, a, 1f, edgeOffset, softness, 0, 0, 0);
+        vert(x0, y1, u0, v1, r, g, b, a, 1f, edgeOffset, softness, 0, 0, 0);
+        vert(x1, y1, u1, v1, r, g, b, a, 1f, edgeOffset, softness, 0, 0, 0);
     }
 
     // frosted glass: samples the blurred scene behind the rect, masked by the rounded sdf

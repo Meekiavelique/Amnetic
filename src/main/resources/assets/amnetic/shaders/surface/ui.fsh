@@ -24,9 +24,13 @@ void main() {
     int mode = int(vParams.x + 0.5);
 
     if (mode == 1) { // sdf glyph, screen-space aa keeps the edge ~1px at every size
+        // vParams.y is edge offset in sdf units (positive grows the glyph: outlines),
+        // vParams.z is softness (wide transition band: glow/blur), both compose freely
         float d = texture(Tex, vUv).r;
         float aa = fwidth(d);
-        float cov = smoothstep(0.5 - aa, 0.5 + aa, d);
+        float off = vParams.y;
+        float soft = vParams.z;
+        float cov = smoothstep(0.5 - off - aa - soft, 0.5 - off + aa + soft, d);
         if (cov <= 0.0) discard;
         FragColor = vec4(vColor.rgb, vColor.a * cov);
         return;
