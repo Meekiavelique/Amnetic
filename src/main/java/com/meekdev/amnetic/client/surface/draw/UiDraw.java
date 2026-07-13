@@ -80,6 +80,15 @@ public final class UiDraw {
         return this;
     }
 
+    // flush what's recorded, run arbitrary rendering (offscreen model views etc), then
+    // restore the pass state so recording can continue in painter's order
+    public UiDraw interrupt(Runnable outsideRendering) {
+        batcher.flush();
+        outsideRendering.run();
+        batcher.restorePassState();
+        return this;
+    }
+
     public UiDraw rect(float x, float y, float w, float h, int argb) {
         batcher.rect(x, y, w, h, 0f, 0f, 0f, argb);
         return this;

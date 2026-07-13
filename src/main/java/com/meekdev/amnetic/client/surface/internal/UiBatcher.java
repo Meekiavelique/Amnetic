@@ -263,6 +263,17 @@ public final class UiBatcher {
         segments = 0;
     }
 
+    // re-establish the standard surface pass state after outside rendering (viewports,
+    // offscreen model renders) changed it mid-pass
+    public void restorePassState() {
+        GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        applyBlend(SurfaceMaterial.Blend.MIX);
+        GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GlStateManager._depthMask(false); GL11.glDepthMask(false);
+        GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
+    }
+
     private void applyBlend(SurfaceMaterial.Blend blend) {
         switch (blend) {
             case ADD -> {
