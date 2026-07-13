@@ -118,8 +118,8 @@ public final class WorldSurfaceRenderer {
 
         batcher.begin(w, h);
         UiDraw draw = new UiDraw(batcher, w, h);
-        s.root().layout(0, 0, w, h);
-        s.root().draw(draw, 1f);
+        s.internalTree().layout(0, 0, w, h);
+        s.internalTree().draw(draw, 1f);
         batcher.flush();
 
         GlStateManager._depthMask(true); GL11.glDepthMask(true);

@@ -9,8 +9,10 @@ import org.joml.Vector3f;
 // drawn as a (optionally curved) panel, hover/click picked from the crosshair ray
 public final class WorldSurface {
 
+    private final Stack outer = new Stack();
     private final Stack root = new Stack();
-    private final InputRouter input = new InputRouter(root);
+    private final Stack overlay = new Stack();
+    private final InputRouter input = new InputRouter(outer);
     private final float widthM, heightM;
     private double x, y, z;
     private final Vector3f facing = new Vector3f(0, 0, -1);
@@ -25,6 +27,18 @@ public final class WorldSurface {
     WorldSurface(float widthM, float heightM) {
         this.widthM = widthM;
         this.heightM = heightM;
+        outer.add(root);
+        outer.add(overlay);
+    }
+
+    // floating layer for popups, tooltips, menus and toasts
+    public Stack overlay() {
+        return overlay;
+    }
+
+    // engine-side: the full tree including the overlay
+    public Stack internalTree() {
+        return outer;
     }
 
     public Stack root() { return root; }

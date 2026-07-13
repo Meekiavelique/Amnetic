@@ -64,6 +64,22 @@ public final class UiDraw {
         return this;
     }
 
+    private final Deque<float[]> transforms = new ArrayDeque<>();
+
+    // translate + uniform scale + rotation around a pivot, applies to everything until pop,
+    // the generic hook every motion effect drives (shake, bounce, pop-in, spin, whatever)
+    public UiDraw pushTransform(float pivotX, float pivotY, float dx, float dy, float scale, float rotation) {
+        transforms.push(batcher.transform());
+        batcher.composeTransform(pivotX, pivotY, dx, dy, scale, rotation);
+        return this;
+    }
+
+    public UiDraw popTransform() {
+        float[] prev = transforms.poll();
+        if (prev != null) batcher.setTransform(prev);
+        return this;
+    }
+
     public UiDraw rect(float x, float y, float w, float h, int argb) {
         batcher.rect(x, y, w, h, 0f, 0f, 0f, argb);
         return this;

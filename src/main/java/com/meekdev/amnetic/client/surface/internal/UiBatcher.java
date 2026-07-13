@@ -40,7 +40,36 @@ public final class UiBatcher {
     // active clip in gui px, x1 <= 0 means none
     private float clipX0, clipY0, clipX1, clipY1;
 
+    // current affine transform applied to vertex positions cpu-side, identity by default
+    // sdf params stay in local space so rotated/scaled shapes and glyphs remain crisp
+    private float m00 = 1, m01, m10, m11 = 1, m02, m12;
+
     private UiBatcher() {}
+
+    public float[] transform() {
+        return new float[]{m00, m01, m10, m11, m02, m12};
+    }
+
+    public void setTransform(float[] t) {
+        m00 = t[0]; m01 = t[1]; m10 = t[2]; m11 = t[3]; m02 = t[4]; m12 = t[5];
+    }
+
+    // compose translate + uniform scale + rotation around a pivot onto the current transform
+    public void composeTransform(float pivotX, float pivotY, float dx, float dy, float scale, float rotation) {
+        float cos = (float) Math.cos(rotation) * scale;
+        float sin = (float) Math.sin(rotation) * scale;
+        // local: p' = pivot + d + R*S*(p - pivot)
+        float a00 = cos, a01 = -sin, a10 = sin, a11 = cos;
+        float a02 = pivotX + dx - (a00 * pivotX + a01 * pivotY);
+        float a12 = pivotY + dy - (a10 * pivotX + a11 * pivotY);
+        float n00 = m00 * a00 + m01 * a10;
+        float n01 = m00 * a01 + m01 * a11;
+        float n10 = m10 * a00 + m11 * a10;
+        float n11 = m10 * a01 + m11 * a11;
+        float n02 = m00 * a02 + m01 * a12 + m02;
+        float n12 = m10 * a02 + m11 * a12 + m12;
+        m00 = n00; m01 = n01; m10 = n10; m11 = n11; m02 = n02; m12 = n12;
+    }
 
     public void begin(float guiW, float guiH) {
         this.guiW = guiW;
@@ -79,7 +108,9 @@ public final class UiBatcher {
                       float r, float g, float b, float a,
                       float mode, float radius, float hw, float hh,
                       float borderW, float softness) {
-        verts.put(x).put(y).put(u).put(v).put(r).put(g).put(b).put(a)
+        float tx = m00 * x + m01 * y + m02;
+        float ty = m10 * x + m11 * y + m12;
+        verts.put(tx).put(ty).put(u).put(v).put(r).put(g).put(b).put(a)
              .put(mode).put(radius).put(hw).put(hh).put(borderW).put(softness)
              .put(clipX0).put(clipY0).put(clipX1).put(clipY1);
         if (segments > 0) segCount[segments - 1] += 1;

@@ -9,8 +9,10 @@ import net.minecraft.client.Minecraft;
 // visuals render through the surface pass, widgets live under root()
 public final class ScreenSurface {
 
+    private final Stack outer = new Stack();
     private final Stack root = new Stack();
-    private final InputRouter input = new InputRouter(root);
+    private final Stack overlay = new Stack();
+    private final InputRouter input = new InputRouter(outer);
     private final String name;
     private boolean pausesGame;
     private int dim = 0x90000000;
@@ -18,6 +20,18 @@ public final class ScreenSurface {
 
     ScreenSurface(String name) {
         this.name = name;
+        outer.add(root);
+        outer.add(overlay); // drawn above and hit-tested first
+    }
+
+    // floating layer for popups, tooltips, menus and toasts
+    public Stack overlay() {
+        return overlay;
+    }
+
+    // engine-side: the full tree including the overlay
+    public Stack internalTree() {
+        return outer;
     }
 
     public Stack root() {

@@ -104,8 +104,8 @@ public final class SurfaceRenderer {
         for (HudSurface hud : huds) {
             if (!hud.isVisible()) continue;
             try {
-                hud.root().layout(0, 0, w, h);
-                hud.root().draw(draw, 1f);
+                hud.internalTree().layout(0, 0, w, h);
+                hud.internalTree().draw(draw, 1f);
                 if (hud.internalDrawCallback() != null) hud.internalDrawCallback().accept(draw);
             } catch (Exception e) {
                 // one broken hud never takes the frame or its neighbours down
@@ -118,8 +118,8 @@ public final class SurfaceRenderer {
             if (!screen.isOpen()) continue;
             try {
                 if ((screen.dimValue() >>> 24) != 0) draw.rect(0, 0, w, h, screen.dimValue());
-                screen.root().layout(0, 0, w, h);
-                screen.root().draw(draw, 1f);
+                screen.internalTree().layout(0, 0, w, h);
+                screen.internalTree().draw(draw, 1f);
                 // drag ghost rides the cursor, next frame's layout puts the widget back
                 var dragging = screen.internalInput().dragging();
                 if (dragging != null) {

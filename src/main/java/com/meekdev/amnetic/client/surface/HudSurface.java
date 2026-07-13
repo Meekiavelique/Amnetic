@@ -10,14 +10,29 @@ import java.util.function.Consumer;
 // build a widget tree under root() or draw immediately via onDraw, both compose
 public final class HudSurface {
 
+    private final Stack outer = new Stack();
     private final Stack root = new Stack();
-    private final InputRouter input = new InputRouter(root);
+    private final Stack overlay = new Stack();
+    private final InputRouter input = new InputRouter(outer);
     private Consumer<UiDraw> drawCallback;
     private boolean visible = true;
     private boolean interactive;
     private boolean removed;
 
-    HudSurface() {}
+    HudSurface() {
+        outer.add(root);
+        outer.add(overlay);
+    }
+
+    // floating layer for popups, tooltips, menus and toasts
+    public Stack overlay() {
+        return overlay;
+    }
+
+    // engine-side: the full tree including the overlay
+    public Stack internalTree() {
+        return outer;
+    }
 
     public Stack root() {
         return root;

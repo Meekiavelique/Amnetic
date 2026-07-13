@@ -22,6 +22,7 @@ public class Motion<T> {
     private float velocity;
     private Effect clockDriver; // non-null only while in flight
     private Effect followEffect;
+    private Runnable onSettle;
 
     private Motion(T initial, float duration, EasingFunction easing, Interpolator<T> lerp,
                    boolean springMode, float stiffness, float damping) {
@@ -70,6 +71,12 @@ public class Motion<T> {
         followEffect = new Effect(() -> target(goal.get()));
     }
 
+    // runs every time the motion settles on its target
+    public Motion<T> onSettle(Runnable callback) {
+        this.onSettle = callback;
+        return this;
+    }
+
     private void attach() {
         if (clockDriver != null) return;
         // skip the effect's synchronous first run, only real ticks advance time
@@ -85,6 +92,7 @@ public class Motion<T> {
         if (clockDriver != null) {
             clockDriver.dispose();
             clockDriver = null;
+            if (onSettle != null) onSettle.run();
         }
     }
 
