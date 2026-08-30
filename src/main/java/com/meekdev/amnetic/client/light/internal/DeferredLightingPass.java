@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.light.internal;
 
+import com.meekdev.amnetic.client.material.internal.MaterialParams;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
@@ -114,7 +115,9 @@ public final class DeferredLightingPass extends ScreenPass {
                 GL33.glBindSampler(8, 0);
                 GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             }
+            GlState.bindTexture(9, levelLightmapGlId());
             lightBuffer.bind(0);
+            MaterialParams.INSTANCE.bind(1);
 
             program.begin();
             program.setSampler("AlbedoSampler", 0);
@@ -124,6 +127,7 @@ public final class DeferredLightingPass extends ScreenPass {
             program.setSampler("SpotShadowAtlas", 4);
             program.setSampler("PointShadowArray", 5);
             program.setSampler("SpotShadowColor", 6);
+            program.setSampler("LightmapSampler", 9);
             program.setInt("ShadowActive", shadows ? 1 : 0);
             if (shadows) {
                 ShadowSettings ss = ShadowSettings.defaults();
@@ -189,6 +193,7 @@ public final class DeferredLightingPass extends ScreenPass {
             GlState.bindTexture(4, 0);
             GlState.bindTexture(6, 0);
             GlState.bindTexture(7, 0);
+            GlState.bindTexture(9, 0);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
             GL11.glBindTexture(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, 0);
             GL33.glBindSampler(5, 0);
@@ -208,6 +213,13 @@ public final class DeferredLightingPass extends ScreenPass {
     }
 
     private final Set<Identifier> loadedCookies = new HashSet<>();
+
+    private static int levelLightmapGlId() {
+        var renderer = Minecraft.getInstance().gameRenderer;
+        if (renderer == null) return 0;
+        var view = renderer.levelLightmap();
+        return (view != null && view.texture() instanceof GlTexture gl) ? gl.glId() : 0;
+    }
 
     private int cookieGlId(Identifier id) {
         if (id == null) return 0;

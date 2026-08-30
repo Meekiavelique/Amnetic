@@ -56,7 +56,7 @@ public final class LightBuffer implements AutoCloseable {
             scratch.put(l.cosInner()).put(l.cosOuter()).put((float) l.falloffId()).put(l.falloffParam());
             scratch.put(l.areaW()).put(l.areaH()).put(l.tubeLen()).put(l.shadowStrength());
             scratch.put(l.tanX()).put(l.tanY()).put(l.tanZ()).put((float) l.shadowRef());
-            scratch.put(l.cookie() ? 1f : 0f).put((float) l.iesProfile()).put(l.godray()).put(0f);
+            scratch.put(l.cookie() ? 1f : 0f).put((float) l.iesProfile()).put(l.godray()).put((float) l.style());
             scratch.put((float) l.godraySteps()).put(l.godrayDensity()).put(l.godrayAniso()).put(l.godrayShadows() ? 1f : 0f);
             count++;
         }
