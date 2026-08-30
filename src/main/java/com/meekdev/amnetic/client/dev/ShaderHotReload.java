@@ -29,14 +29,11 @@ public final class ShaderHotReload {
 
     private static final List<Runnable> RELOAD_CALLBACKS = new ArrayList<>();
     private static final ConcurrentLinkedQueue<Path> DIRTY = new ConcurrentLinkedQueue<>();
-    // watched source roots -> matching classpath (build) roots, for the copy step
     private static final Map<Path, Path> ROOTS = new HashMap<>();
-    // dirty file -> tick it was last seen, sync waits one quiet tick so mid-write saves settle
     private static final Map<Path, Long> PENDING = new HashMap<>();
     private static WatchService watcher;
     private static boolean tickHooked;
     private static long tick;
-    // bumped after every reload batch, lets failure guards revive when new source arrives
     private static volatile long generation;
 
     public static long generation() {
@@ -45,14 +42,25 @@ public final class ShaderHotReload {
 
     private ShaderHotReload() {}
 
-    // safe to call always, does nothing outside dev runs
     public static synchronized void watchMod(String modId) {
         if (!FabricLoader.getInstance().isDevelopmentEnvironment()) return;
+        ModContainer mod = FabricLoader.getInstance().getModContainer(modId).orElse(null);
+        if (mod == null) return;
+        watchContainer(modId, mod);
+        hookTick();
+    }
+
+    public static synchronized void watchAllDevMods() {
+        if (!FabricLoader.getInstance().isDevelopmentEnvironment()) return;
+        for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
+            watchContainer(mod.getMetadata().getId(), mod);
+        }
+        hookTick();
+    }
+
+    private static void watchContainer(String modId, ModContainer mod) {
         try {
-            ModContainer mod = FabricLoader.getInstance().getModContainer(modId).orElse(null);
-            if (mod == null) return;
             for (Path root : mod.getRootPaths()) {
-                // dev classpath roots are plain directories (build/resources/main), jars are not hot-editable
                 if (!"file".equals(root.toUri().getScheme()) || !Files.isDirectory(root)) continue;
                 Path src = sourceRootFor(root);
                 if (src == null || ROOTS.containsKey(src)) continue;
@@ -60,18 +68,15 @@ public final class ShaderHotReload {
                 registerTreeWatch(src);
                 LOG.info("watching {} shaders: {}", modId, src);
             }
-            hookTick();
         } catch (Exception e) {
             LOG.warn("shader hot reload unavailable for {}: {}", modId, e.toString());
         }
     }
 
-    // callback fires on the render thread after changed shader sources have been synced
     public static synchronized void onReload(Runnable callback) {
         RELOAD_CALLBACKS.add(callback);
     }
 
-    // build/resources/main -> src/main/resources (standard gradle layout), null if absent
     private static Path sourceRootFor(Path buildResources) {
         Path p = buildResources.toAbsolutePath().normalize();
         if (!p.endsWith(Path.of("build", "resources", "main"))) return null;
@@ -87,7 +92,6 @@ public final class ShaderHotReload {
             t.setDaemon(true);
             t.start();
         }
-        // watch every directory under the source root (WatchService is not recursive by itself)
         registerDirs(srcRoot);
     }
 
@@ -108,7 +112,7 @@ public final class ShaderHotReload {
                     if (!(ev.context() instanceof Path rel)) continue;
                     Path file = dir.resolve(rel);
                     if (Files.isDirectory(file)) {
-                        registerDirs(file); // shader directory created at runtime, watch it too
+                        registerDirs(file);
                         continue;
                     }
                     String name = file.getFileName().toString();
@@ -135,7 +139,6 @@ public final class ShaderHotReload {
             while ((p = DIRTY.poll()) != null) PENDING.put(p, tick);
             if (PENDING.isEmpty()) return;
 
-            // only sync files that were quiet this tick, editors saving in chunks settle first
             int synced = 0;
             var it = PENDING.entrySet().iterator();
             while (it.hasNext()) {
@@ -147,7 +150,6 @@ public final class ShaderHotReload {
             if (synced == 0) return;
 
             generation++;
-            // ShaderPrograms recompile lazily on next use, raw-GL systems rebuild via their callbacks
             ShaderProgram.invalidateAll();
             for (Runnable cb : RELOAD_CALLBACKS) {
                 try {
@@ -160,7 +162,6 @@ public final class ShaderHotReload {
         });
     }
 
-    // copy a changed source file to its classpath (build) twin so the ResourceManager reads the new content
     private static Path sync(Path srcFile) {
         for (Map.Entry<Path, Path> e : ROOTS.entrySet()) {
             Path srcRoot = e.getKey();
