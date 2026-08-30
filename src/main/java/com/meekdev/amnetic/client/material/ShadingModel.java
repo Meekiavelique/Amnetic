@@ -2,6 +2,9 @@ package com.meekdev.amnetic.client.material;
 
 import com.meekdev.amnetic.client.material.internal.ShadingModelRegistry;
 import com.meekdev.amnetic.client.model.ModelMaterial;
+import com.meekdev.amnetic.client.render.ShaderProgram;
+import java.util.function.Supplier;
+import net.minecraft.resources.Identifier;
 
 /**
  * a shading model assignable to a {@link ModelMaterial}. the built-in
@@ -10,24 +13,56 @@ import com.meekdev.amnetic.client.model.ModelMaterial;
  * a dispatch case keyed on a unique material ID assigned at registration time
  */
 public final class ShadingModel {
+    private enum Base { PBR, FLAT }
 
-    public static final ShadingModel DEFAULT_PBR = new ShadingModel(0);
+    private static final ShadingModel PBR =
+            new ShadingModel(0, Base.PBR, false);
+    private static final ShadingModel FLAT =
+            new ShadingModel(ShadingModelRegistry.FLAT_ID, Base.FLAT, false);
 
     private final int id;
+    private final Base base;
 
-    private ShadingModel(int id) {
+    private final boolean owned;
+
+    private ShadingModel(int id, Base base, boolean owned) {
         this.id = id;
+        this.base = base;
+        this.owned = owned;
     }
 
-    /**
-     * registers a custom shading snippet: the body of a function receiving a {@code GBufferSample s}
-     * (fields: albedo, normal, fragPos, roughness, metallic, radiance) that must {@code return} a vec3
-     * color. registering a new snippet triggers a one-time relink of the deferred lighting shader on
-     * the next frame it runs
-     */
-    public static ShadingModel custom(String glslSnippetBody) {
-        int id = ShadingModelRegistry.INSTANCE.register(glslSnippetBody);
-        return new ShadingModel(id);
+    public static ShadingModel pbr() {
+        return PBR;
+    }
+
+    public static ShadingModel flat() {
+        return FLAT;
+    }
+
+    public ShadingModel fragment(Identifier snippet) {
+        return register(() -> ShaderProgram.readSource(snippet));
+    }
+
+    public ShadingModel fragment(String glslBody) {
+        return register(() -> glslBody);
+    }
+
+    public ShadingModel vertex(Identifier vertexSnippet) {
+        ShadingModel target = owned ? this : register(this::passthrough);
+        ShadingModelRegistry.INSTANCE.attachVertex(
+                target.id, () -> ShaderProgram.readSource(vertexSnippet));
+        return target;
+    }
+
+    private ShadingModel register(Supplier<String> body) {
+        int newId = base == Base.FLAT
+                ? ShadingModelRegistry.INSTANCE.registerFlatShaded(body)
+                : ShadingModelRegistry.INSTANCE.register(body);
+        return new ShadingModel(newId, base, true);
+    }
+
+    private String passthrough() {
+        return base == Base.FLAT ? "return s.albedo;" : "return s.radiance;";
     }
 
     public int id() {
