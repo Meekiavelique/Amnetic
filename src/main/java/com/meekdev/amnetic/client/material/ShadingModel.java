@@ -6,12 +6,6 @@ import com.meekdev.amnetic.client.render.ShaderProgram;
 import java.util.function.Supplier;
 import net.minecraft.resources.Identifier;
 
-/**
- * a shading model assignable to a {@link ModelMaterial}. the built-in
- * {@link #DEFAULT_PBR} uses the normal Cook-Torrance path in the deferred lighting shader. custom models
- * register a GLSL snippet via {@link #custom(String)} which gets baked into the deferred uber-shader as
- * a dispatch case keyed on a unique material ID assigned at registration time
- */
 public final class ShadingModel {
     private enum Base { PBR, FLAT }
 
