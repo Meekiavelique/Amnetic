@@ -185,3 +185,10 @@ The following areas are planned for future releases. None of them are available 
 | [Shader Hot Reload](Shader-Hot-Reload) | Dev-only shader hot reloading and the `onReload` contract |
 
 ---
+
+---
+
+## Credits
+
+- **[bb4j](https://github.com/Danrus1100/bb4j)** by [Danrus1100](https://github.com/Danrus1100) - the Blockbench `.bbmodel` parser behind Amnetic's Blockbench model loading.
+- **[Veil](https://github.com/FoundryMC/Veil)** by [FoundryMC](https://github.com/FoundryMC) - a big source of inspiration for the shape of this library, particularly the deferred rendering and framebuffer work.
