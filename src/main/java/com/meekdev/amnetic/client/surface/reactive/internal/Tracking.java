@@ -3,7 +3,6 @@ package com.meekdev.amnetic.client.surface.reactive.internal;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-// stack of the computation currently running, Signal.get() records edges against it
 public final class Tracking {
 
     public interface Computation {

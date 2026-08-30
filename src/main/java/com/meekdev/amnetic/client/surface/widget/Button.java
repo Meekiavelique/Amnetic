@@ -10,7 +10,6 @@ import com.meekdev.amnetic.client.surface.text.SdfFont;
 import com.meekdev.amnetic.client.surface.Surfaces;
 import net.minecraft.resources.Identifier;
 
-// clickable rounded button, hover rides a spring so the highlight glides instead of snapping
 public class Button extends Widget {
 
     String label;
@@ -22,7 +21,7 @@ public class Button extends Widget {
     float borderWidth = 1f;
     int borderColor = 0x30FFFFFF;
     int borderHover = 0x30FFFFFF;
-    int labelShadow; // 0 = off, classic mc text look when set
+    int labelShadow;
     Identifier fontId;
     SurfaceMaterial material;
     Runnable onClick;
@@ -98,7 +97,6 @@ public class Button extends Widget {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Button size(float w, float h) { super.size(w, h); return this; }
     @Override public Button width(float w) { super.width(w); return this; }
     @Override public Button height(float h) { super.height(h); return this; }

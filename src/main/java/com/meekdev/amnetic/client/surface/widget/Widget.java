@@ -5,14 +5,13 @@ import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Motion;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
-// retained node of a surface tree, gui-scaled pixel space, layout runs top down each frame
 public abstract class Widget {
 
     Widget parent;
     final List<Widget> children = new ArrayList<>();
 
-    // requested geometry, -1 means derive from content
     float prefW = -1, prefH = -1;
     float grow;
     Anchor anchor;
@@ -21,13 +20,10 @@ public abstract class Widget {
     boolean visible = true;
     float opacity = 1f;
 
-    // computed rect
     public float x, y, w, h;
 
     public boolean hovered, pressed, focused;
 
-    // generic transform channels around the widget center, drive them with anything:
-    // a spring on scale is a bounce, clock noise on translate is a shake, and so on
     float channelDx, channelDy, channelScale = 1f, channelRotation;
 
     public Widget translate(float dx, float dy) { channelDx = dx; channelDy = dy; return this; }
@@ -42,8 +38,6 @@ public abstract class Widget {
         return channelDx != 0 || channelDy != 0 || channelScale != 1f || channelRotation != 0;
     }
 
-    // layout animation: when enabled the widget springs to new layout positions
-    // instead of teleporting, one switch that works inside every container
     boolean animateLayout;
     float layoutStiffness = 60, layoutDamping = 9;
     private Motion<Float> layoutMx, layoutMy;
@@ -91,7 +85,6 @@ public abstract class Widget {
 
     public boolean isVisible() { return visible; }
 
-    // content-derived size when pref is -1, containers override
     protected float contentWidth() { return 0; }
     protected float contentHeight(float forWidth) { return 0; }
 
@@ -103,7 +96,6 @@ public abstract class Widget {
         return prefH >= 0 ? prefH : contentHeight(forWidth - padding * 2) + padding * 2;
     }
 
-    // place self at the given rect then lay out children, containers override placeChildren
     public final void layout(float x, float y, float w, float h) {
         if (animateLayout && laidOutOnce) {
             if (layoutMx == null) {
@@ -123,7 +115,6 @@ public abstract class Widget {
         placeChildren();
     }
 
-    // default free placement: anchored children inside the content box
     protected void placeChildren() {
         float cx = x + padding, cy = y + padding;
         float cw = w - padding * 2, ch = h - padding * 2;
@@ -152,15 +143,11 @@ public abstract class Widget {
 
     protected void drawSelf(UiDraw d, float alpha) {}
 
-    // runs after the subtree, panels pop their clip here
     public void drawAfterChildren(UiDraw d) {}
 
-    // topmost interactive descendant containing the point, null if none
-    // draggables and drop targets count as hittable even when otherwise passive
     public Widget hitTest(float mx, float my) {
         if (!visible) return null;
         if (hasTransform()) {
-            // inverse of the draw transform so the pointer follows shakes/scales/rotations
             float cx = x + w * 0.5f, cy = y + h * 0.5f;
             float px = mx - cx - channelDx, py = my - cy - channelDy;
             float inv = 1f / Math.max(channelScale, 1e-4f);
@@ -179,10 +166,8 @@ public abstract class Widget {
     protected boolean interactive() { return false; }
     protected boolean focusable() { return false; }
 
-    // engine-side check, not for api users
     public final boolean isFocusableWidget() { return focusable(); }
 
-    // input hooks, coordinates are gui-scaled, return true to consume
     public boolean onMouseDown(float mx, float my, int button) { return interactive(); }
     public void onMouseUp(float mx, float my, int button) {}
     public void onMouseDrag(float mx, float my) {}
@@ -191,18 +176,16 @@ public abstract class Widget {
     public boolean onKey(int key, int modifiers) { return false; }
     public void onFocusLost() {}
 
-    // drag and drop: a draggable carries a payload, a drop target consumes one
     Object dragPayload;
-    java.util.function.Consumer<Object> dropHandler;
+    Consumer<Object> dropHandler;
 
     public Widget draggable(Object payload) { dragPayload = payload; return this; }
-    public Widget dropTarget(java.util.function.Consumer<Object> onDrop) { dropHandler = onDrop; return this; }
+    public Widget dropTarget(Consumer<Object> onDrop) { dropHandler = onDrop; return this; }
 
     public Object dragPayloadValue() { return dragPayload; }
-    public java.util.function.Consumer<Object> dropHandlerValue() { return dropHandler; }
+    public Consumer<Object> dropHandlerValue() { return dropHandler; }
     public Widget parentWidget() { return parent; }
 
-    // multiply an argb's alpha by a factor
     protected static int fade(int argb, float alpha) {
         int a = (int) (((argb >>> 24) & 0xFF) * alpha);
         return (a << 24) | (argb & 0xFFFFFF);

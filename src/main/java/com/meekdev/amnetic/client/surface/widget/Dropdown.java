@@ -13,8 +13,6 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// closed state shows the current option plus a chevron, clicking opens a popup of
-// option rows mounted on an overlay stack so it floats above everything else
 public class Dropdown extends Widget {
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
@@ -51,7 +49,6 @@ public class Dropdown extends Widget {
         this.overlay = overlayLayer;
     }
 
-    // the popup needs somewhere above the rest of the tree to live
     public Dropdown rounding(float r) { rounding = r; return this; }
     public Dropdown accent(int argb) { accent = argb; return this; }
 
@@ -101,11 +98,9 @@ public class Dropdown extends Widget {
             d.popClip();
             if (prev != null) d.font(prev);
         }
-        // chevron flips upward as the popup opens
         drawChevron(d, x + w - 12, y + h * 0.5f, openT.value().peek() * (float) Math.PI, fade(0xB0FFFFFF, alpha));
     }
 
-    // small v built from two rotated bars, extraRotation spins the whole glyph
     static void drawChevron(UiDraw d, float cx, float cy, float extraRotation, int argb) {
         d.pushTransform(cx, cy, 0, 0, 1, extraRotation);
         d.pushTransform(cx - 2f, cy, 0, 0, 1, 0.7854f);
@@ -145,7 +140,6 @@ public class Dropdown extends Widget {
         float pw = Math.min(Math.max(w, widest + 24), ow);
         float ph = Math.min(options.size() * rowH + 8, oh);
 
-        // below the widget, flip above when there is no room, clamp to the surface
         float popX = Math.min(Math.max(x, ox), ox + ow - pw);
         float popY = y + h + 2;
         if (popY + ph > oy + oh) popY = y - ph - 2;
@@ -188,7 +182,6 @@ public class Dropdown extends Widget {
         super.remove();
     }
 
-    // one popup entry, hover glides like a button
     private final class OptionRow extends Widget {
 
         private final int index;
@@ -236,7 +229,6 @@ public class Dropdown extends Widget {
         }
     }
 
-    // invisible full-overlay pane behind the popup, any click on it closes
     static final class Catcher extends Widget {
 
         private final Runnable onDown;
@@ -255,7 +247,6 @@ public class Dropdown extends Widget {
         }
     }
 
-    // popup chrome with the house pop-in: a spring on the scale channel
     static final class PopPanel extends Panel {
 
         private final Motion<Float> pop = Motion.spring(0.85f, 60f, 9f);
@@ -278,7 +269,6 @@ public class Dropdown extends Widget {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Dropdown size(float w, float h) { super.size(w, h); return this; }
     @Override public Dropdown width(float w) { super.width(w); return this; }
     @Override public Dropdown height(float h) { super.height(h); return this; }

@@ -4,7 +4,6 @@ import com.meekdev.amnetic.client.surface.reactive.internal.Tracking;
 import java.util.ArrayList;
 import java.util.List;
 
-// side effect that reruns (batched, on the next flush) when any signal it read changes
 public class Effect implements Tracking.Computation {
 
     private final Runnable body;

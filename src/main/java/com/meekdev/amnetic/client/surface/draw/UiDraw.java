@@ -8,13 +8,11 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import net.minecraft.resources.Identifier;
 
-// immediate drawing surface handed to draw callbacks and widgets, coordinates are
-// gui-scaled pixels like GuiGraphics
 public final class UiDraw {
 
     private final UiBatcher batcher;
     private final float width, height;
-    private final int sceneTexture; // 0 when no capture is available this frame
+    private final int sceneTexture;
     private Identifier font;
     private final Deque<float[]> clips = new ArrayDeque<>();
 
@@ -32,7 +30,6 @@ public final class UiDraw {
     public float width() { return width; }
     public float height() { return height; }
 
-    // font used by the text calls until changed
     public UiDraw font(Identifier fontId) {
         this.font = fontId;
         return this;
@@ -42,7 +39,6 @@ public final class UiDraw {
         return font;
     }
 
-    // nested clips intersect, pop restores the previous one
     public UiDraw pushClip(float x, float y, float w, float h) {
         float x0 = x, y0 = y, x1 = x + w, y1 = y + h;
         float[] prev = clips.peek();
@@ -66,8 +62,6 @@ public final class UiDraw {
 
     private final Deque<float[]> transforms = new ArrayDeque<>();
 
-    // translate + uniform scale + rotation around a pivot, applies to everything until pop,
-    // the generic hook every motion effect drives (shake, bounce, pop-in, spin, whatever)
     public UiDraw pushTransform(float pivotX, float pivotY, float dx, float dy, float scale, float rotation) {
         transforms.push(batcher.transform());
         batcher.composeTransform(pivotX, pivotY, dx, dy, scale, rotation);
@@ -80,8 +74,6 @@ public final class UiDraw {
         return this;
     }
 
-    // flush what's recorded, run arbitrary rendering (offscreen model views etc), then
-    // restore the pass state so recording can continue in painter's order
     public UiDraw interrupt(Runnable outsideRendering) {
         batcher.flush();
         outsideRendering.run();
@@ -109,7 +101,6 @@ public final class UiDraw {
         return this;
     }
 
-    // soft shape, offset it yourself for a drop shadow
     public UiDraw shadow(float x, float y, float w, float h, float radius, float softness, int argb) {
         batcher.rect(x, y, w, h, radius, 0f, softness, argb);
         return this;
@@ -120,13 +111,11 @@ public final class UiDraw {
         return this;
     }
 
-    // frosted glass over the scene, falls back to a translucent fill without a capture
     public UiDraw blurBehind(float x, float y, float w, float h, float radius, float blurPx, int tint) {
         batcher.blurBehind(sceneTexture, x, y, w, h, radius, blurPx, tint);
         return this;
     }
 
-    // surface material fill, hover/pressed/focus feed the shader built-ins
     public UiDraw material(SurfaceMaterial mat, float x, float y, float w, float h, float radius,
                            float hover, float pressed, float focus, int tint) {
         batcher.material(mat, x, y, w, h, radius, hover, pressed, focus, tint);
@@ -137,32 +126,29 @@ public final class UiDraw {
         return material(mat, x, y, w, h, radius, 0f, 0f, 0f, 0xFFFFFFFF);
     }
 
-    // baseline-left text at cap height px
     public UiDraw text(String s, float x, float y, float px, int argb) {
         SdfFont f = resolveFont();
         if (f == null) return this;
+        ensureBaked(f, s);
         emit(f, s, x, y + f.ascentPx() * (px / f.bakePx()), px, argb, 0f, 0f);
         return this;
     }
 
-    // styled text at an explicit baseline: edgeOffset grows/shrinks the glyph edge in gui px
-    // (positive = fatter, an outline pass), softness feathers the edge in gui px (glow/blur),
-    // reach tops out around px/8 where the baked sdf spread ends
     public UiDraw textStyled(String s, float x, float baselineY, float px, int argb,
                              float edgeOffset, float softness) {
         SdfFont f = resolveFont();
         if (f == null) return this;
+        ensureBaked(f, s);
         float u = f.sdfUnitsPerGuiPx(px);
         emit(f, s, x, baselineY, px, argb, edgeOffset * u, softness * u);
         return this;
     }
 
-    // emits one styled glyph at the pen position and returns its advance in gui px,
-    // kerning is the caller's job (SdfFont.kern), this is the per-glyph fx building block
     public float glyph(int codepoint, float penX, float baselineY, float px, int argb,
                        float edgeOffset, float softness) {
         SdfFont f = resolveFont();
         if (f == null) return 0f;
+        ensureBaked(f, codepoint);
         SdfFont.Glyph gl = f.glyph(codepoint);
         if (gl == null) return 0f;
         float scale = px / f.bakePx();
@@ -184,17 +170,18 @@ public final class UiDraw {
     public UiDraw textCentered(String s, float cx, float cy, float px, int argb) {
         SdfFont f = resolveFont();
         if (f == null) return this;
+        ensureBaked(f, s);
         float scale = px / f.bakePx();
         float x = cx - f.width(s, px) * 0.5f;
-        float baseline = cy + f.capPx() * scale * 0.5f; // center the cap block, not the ascent
+        float baseline = cy + f.capPx() * scale * 0.5f;
         emit(f, s, x, baseline, px, argb, 0f, 0f);
         return this;
     }
 
-    // left-aligned, vertically centered on cy, for fields and rows
     public UiDraw textLeftCentered(String s, float x, float cy, float px, int argb) {
         SdfFont f = resolveFont();
         if (f == null) return this;
+        ensureBaked(f, s);
         float baseline = cy + f.capPx() * (px / f.bakePx()) * 0.5f;
         emit(f, s, x, baseline, px, argb, 0f, 0f);
         return this;
@@ -202,7 +189,9 @@ public final class UiDraw {
 
     public float textWidth(String s, float px) {
         SdfFont f = resolveFont();
-        return f == null ? 0f : f.width(s, px);
+        if (f == null) return 0f;
+        ensureBaked(f, s);
+        return f.width(s, px);
     }
 
     public float lineHeight(float px) {
@@ -210,11 +199,22 @@ public final class UiDraw {
         return f == null ? px : f.ascentPx() * (px / f.bakePx()) * 1.35f;
     }
 
+    private void ensureBaked(SdfFont f, String s) {
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            i += Character.charCount(cp);
+            f.glyph(cp);
+        }
+    }
+
+    private void ensureBaked(SdfFont f, int codepoint) {
+        f.glyph(codepoint);
+    }
+
     private SdfFont resolveFont() {
         return font == null ? null : Fonts.get(font);
     }
 
-    // edgeOffset/softness already converted to sdf units here
     private void emit(SdfFont f, String s, float penX, float baseline, float px, int argb,
                       float edgeOffset, float softness) {
         float scale = px / f.bakePx();

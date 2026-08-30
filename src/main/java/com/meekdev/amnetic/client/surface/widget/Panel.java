@@ -4,12 +4,10 @@ import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.material.SurfaceMaterial;
 
-// styled free-placement container: rounded fill or gradient or custom material,
-// optional border and drop shadow, optional content clip
 public class Panel extends Stack {
 
     int background = 0xE0141820;
-    int backgroundBottom; // 0 means no gradient
+    int backgroundBottom;
     float rounding = 10f;
     float borderWidth;
     int borderColor = 0x40FFFFFF;
@@ -27,10 +25,8 @@ public class Panel extends Stack {
     public Panel shadow(float softness, int argb) { shadowSoftness = softness; shadowColor = argb; return this; }
     public Panel clipContent(boolean clip) { clipContent = clip; return this; }
 
-    // frosted glass: blur radius in scene pixels, the background color becomes the tint
     public Panel blurBehind(float blurPx) { blurBehind = blurPx; return this; }
 
-    // surface shader material replaces the flat fill
     public Panel material(SurfaceMaterial mat) { material = mat; return this; }
 
     @Override
@@ -59,7 +55,6 @@ public class Panel extends Stack {
         if (clipContent) d.popClip();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Panel size(float w, float h) { super.size(w, h); return this; }
     @Override public Panel width(float w) { super.width(w); return this; }
     @Override public Panel height(float h) { super.height(h); return this; }

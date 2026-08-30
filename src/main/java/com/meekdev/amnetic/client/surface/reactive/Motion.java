@@ -3,7 +3,6 @@ package com.meekdev.amnetic.client.surface.reactive;
 import com.meekdev.amnetic.client.anim.EasingFunction;
 import com.meekdev.amnetic.client.anim.Interpolator;
 
-// drives a value toward a target, attached to the frame clock only while moving
 public class Motion<T> {
 
     private static final float SETTLE_EPS = 1e-4f;
@@ -20,7 +19,7 @@ public class Motion<T> {
     private T target;
     private float elapsed;
     private float velocity;
-    private Effect clockDriver; // non-null only while in flight
+    private Effect clockDriver;
     private Effect followEffect;
     private Runnable onSettle;
 
@@ -71,7 +70,6 @@ public class Motion<T> {
         followEffect = new Effect(() -> target(goal.get()));
     }
 
-    // runs every time the motion settles on its target
     public Motion<T> onSettle(Runnable callback) {
         this.onSettle = callback;
         return this;
@@ -79,7 +77,6 @@ public class Motion<T> {
 
     private void attach() {
         if (clockDriver != null) return;
-        // skip the effect's synchronous first run, only real ticks advance time
         boolean[] primed = {false};
         clockDriver = new Effect(() -> {
             Reactive.clock().get();
@@ -117,7 +114,7 @@ public class Motion<T> {
         float t = Math.min(elapsed / duration, 1f);
         value.set(lerp.interpolate(from, target, easing.apply(t)));
         if (t >= 1f) {
-            value.set(target); // exact snap
+            value.set(target);
             detach();
         }
     }

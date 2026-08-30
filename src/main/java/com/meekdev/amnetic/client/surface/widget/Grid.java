@@ -6,8 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-// fixed-column grid: children fill left to right then wrap, cells share the width
-// evenly, each row is as tall as its tallest child, spans widen a child over columns
 public class Grid extends Widget {
 
     final int cols;
@@ -20,13 +18,11 @@ public class Grid extends Widget {
 
     public Grid gap(float g) { gap = g; return this; }
 
-    // widen a child over colSpan columns, clamped to the column count
     public Grid span(Widget child, int colSpan) {
         spans.put(child, colSpan);
         return this;
     }
 
-    // add sugar that sets the span in the same call
     public Grid add(Widget child, int colSpan) {
         spans.put(child, colSpan);
         add(child);
@@ -40,7 +36,6 @@ public class Grid extends Widget {
 
     @Override
     protected float contentWidth() {
-        // wide enough that the widest child fits its span at the shared cell width
         float cell = 0;
         for (Widget c : children) {
             if (!c.visible) continue;
@@ -77,7 +72,7 @@ public class Grid extends Widget {
         float cell = (cw - gap * (cols - 1)) / cols;
 
         List<Widget> rowBuf = new ArrayList<>();
-        List<float[]> rowRects = new ArrayList<>(); // x, w per buffered child
+        List<float[]> rowRects = new ArrayList<>();
         float penY = cy, rowH = 0;
         int col = 0;
         for (Widget c : children) {
@@ -108,7 +103,6 @@ public class Grid extends Widget {
         return penY + rowH;
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Grid size(float w, float h) { super.size(w, h); return this; }
     @Override public Grid width(float w) { super.width(w); return this; }
     @Override public Grid height(float h) { super.height(h); return this; }

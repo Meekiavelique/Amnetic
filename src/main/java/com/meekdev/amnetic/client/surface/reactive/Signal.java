@@ -6,7 +6,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 
-// mutable reactive state, get() inside an Effect/Computed subscribes it automatically
 public class Signal<T> {
 
     private T value;
@@ -24,7 +23,6 @@ public class Signal<T> {
         return value;
     }
 
-    // read without creating a dependency edge
     public T peek() {
         return value;
     }
@@ -32,7 +30,6 @@ public class Signal<T> {
     public void set(T newValue) {
         if (Objects.equals(value, newValue)) return;
         value = newValue;
-        // copy, subscribers resubscribe while rerunning
         for (Tracking.Computation c : subscribers.toArray(new Tracking.Computation[0])) {
             c.invalidate();
         }

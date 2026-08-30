@@ -14,32 +14,27 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.resources.Identifier;
 
-// sdf text with greedy word wrap, value can be bound to a signal
 public class Text extends Widget {
 
     String value;
     float px = 14;
     int color = 0xFFFFFFFF;
-    float align = 0f; // 0 left, 0.5 center, 1 right
+    float align = 0f;
     boolean wrap;
     boolean ellipsis;
     Identifier fontId;
     Effect binding;
 
-    // extra passes drawn under the main glyphs, each is just an offset/edge/softness tuple,
-    // shadow/outline/glow are the same primitive with different knobs
     private record Layer(float dx, float dy, float edgeOffset, float softness, int color) {}
     private List<Layer> layers;
 
     GlyphFx fx;
     private final GlyphPose pose = new GlyphPose();
 
-    // wrap cache
     private final List<String> lines = new ArrayList<>(1);
     private float linesForWidth = -1;
     private String linesForValue;
 
-    // ellipsis cache
     private String ellipsized;
     private float ellipsisForWidth = -1;
     private String ellipsisForValue;
@@ -66,17 +61,14 @@ public class Text extends Widget {
     public Text wrap(boolean w) { wrap = w; invalidate(); return this; }
     public Text font(Identifier id) { fontId = id; invalidate(); return this; }
 
-    // non-wrap text wider than the widget truncates with "..."
     public Text ellipsis(boolean e) { ellipsis = e; ellipsisForWidth = -1; return this; }
 
-    // per-glyph pose hook, null clears it
     public Text glyphFx(GlyphFx fx) { this.fx = fx; return this; }
 
     public Text outline(float width, int color) { return layer(0, 0, width, 0, color); }
     public Text glow(float radius, int color) { return layer(0, 0, 0, radius, color); }
     public Text textShadow(float dx, float dy, int color) { return layer(dx, dy, 0, 0, color); }
 
-    // the generic underlayer everything above sugars into
     public Text layer(float dx, float dy, float edgeOffset, float softness, int color) {
         if (layers == null) layers = new ArrayList<>(1);
         layers.add(new Layer(dx, dy, edgeOffset, softness, color));
@@ -128,7 +120,6 @@ public class Text extends Widget {
         }
     }
 
-    // ellipsis-truncated value for the current width, non-wrap only
     private String displayed(SdfFont f) {
         if (!ellipsis || wrap) return value;
         if (ellipsisForWidth == w && value.equals(ellipsisForValue)) return ellipsized;
@@ -174,7 +165,6 @@ public class Text extends Widget {
             ls = List.of(displayed(f));
         }
 
-        // layers under, main glyphs on top, every pass shares the fx so effects stay attached
         if (layers != null) {
             for (Layer l : layers) {
                 drawPass(d, f, ls, l.dx(), l.dy(), l.edgeOffset(), l.softness(), fade(l.color(), alpha));
@@ -205,7 +195,6 @@ public class Text extends Widget {
         }
     }
 
-    // glyph-by-glyph emission with the pose applied, glyph index runs across the whole text
     private int emitFxLine(UiDraw d, SdfFont f, String s, float x, float baselineY,
                            int c, float edgeOffset, float softness, float time, int glyphIndex) {
         float scale = px / f.bakePx();
@@ -224,7 +213,6 @@ public class Text extends Widget {
             if (scaled) {
                 SdfFont.Glyph g = f.glyph(cp);
                 float adv = g == null ? 0 : g.advance() * scale;
-                // pivot at the advance midpoint on the cap midline so pops stay centered
                 d.pushTransform(gx + adv * 0.5f, gy - f.capPx() * scale * 0.5f, 0, 0, pose.scale, 0);
             }
             float adv = d.glyph(cp, gx, gy, px, gc, edgeOffset, softness);
@@ -242,7 +230,6 @@ public class Text extends Widget {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Text size(float w, float h) { super.size(w, h); return this; }
     @Override public Text width(float w) { super.width(w); return this; }
     @Override public Text height(float h) { super.height(h); return this; }

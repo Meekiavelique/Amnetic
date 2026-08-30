@@ -4,12 +4,10 @@ import com.meekdev.amnetic.client.model.Model;
 import com.meekdev.amnetic.client.model.ModelView;
 import com.meekdev.amnetic.client.surface.Anchor;
 
-// one-model turntable preset over Viewport: drag orbits, scroll zooms, the offscreen
-// render rides the existing ModelView machinery
 public class ModelViewport extends Viewport {
 
     final ModelView view;
-    float autoSpin; // degrees per second, 0 = manual orbit only
+    float autoSpin;
 
     public ModelViewport(Model model, int renderSize) {
         super(30f, 0.35f, 2.2f);
@@ -38,7 +36,6 @@ public class ModelViewport extends Viewport {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public ModelViewport size(float w, float h) { super.size(w, h); return this; }
     @Override public ModelViewport width(float w) { super.width(w); return this; }
     @Override public ModelViewport height(float h) { super.height(h); return this; }

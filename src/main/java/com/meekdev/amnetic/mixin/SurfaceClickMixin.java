@@ -8,8 +8,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-// swallow attack/use while the crosshair is on a world surface so clicking a panel
-// button doesn't also swing the arm or place a block
 @Mixin(Minecraft.class)
 public abstract class SurfaceClickMixin {
 

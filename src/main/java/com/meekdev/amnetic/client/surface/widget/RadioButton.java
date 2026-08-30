@@ -9,9 +9,7 @@ import com.meekdev.amnetic.client.surface.text.Fonts;
 import com.meekdev.amnetic.client.surface.text.SdfFont;
 import net.minecraft.resources.Identifier;
 
-// circle with a springing dot, exclusive selection comes from the owning RadioGroup,
-// standalone it just toggles itself
-public class Radio extends Widget {
+public class RadioButton extends Widget {
 
     String label;
     float circle = 16;
@@ -27,15 +25,15 @@ public class Radio extends Widget {
     private final Signal<Float> target = new Signal<>(0f);
     private final Motion<Float> dot = Motion.spring(0f, 60f, 9f);
 
-    public Radio(String label) {
+    public RadioButton(String label) {
         this.label = label;
         dot.follow(target);
     }
 
-    public Radio label(String l) { label = l; return this; }
-    public Radio px(float p) { px = p; return this; }
-    public Radio colors(int ring, int active) { ringColor = ring; activeColor = active; return this; }
-    public Radio textColor(int argb) { textColor = argb; return this; }
+    public RadioButton label(String l) { label = l; return this; }
+    public RadioButton px(float p) { px = p; return this; }
+    public RadioButton colors(int ring, int active) { ringColor = ring; activeColor = active; return this; }
+    public RadioButton textColor(int argb) { textColor = argb; return this; }
 
     @Override
     protected boolean interactive() { return true; }
@@ -100,14 +98,13 @@ public class Radio extends Widget {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
-    @Override public Radio size(float w, float h) { super.size(w, h); return this; }
-    @Override public Radio width(float w) { super.width(w); return this; }
-    @Override public Radio height(float h) { super.height(h); return this; }
-    @Override public Radio grow(float g) { super.grow(g); return this; }
-    @Override public Radio anchor(Anchor a) { super.anchor(a); return this; }
-    @Override public Radio offset(float dx, float dy) { super.offset(dx, dy); return this; }
-    @Override public Radio padding(float p) { super.padding(p); return this; }
-    @Override public Radio visible(boolean v) { super.visible(v); return this; }
-    @Override public Radio opacity(float o) { super.opacity(o); return this; }
+    @Override public RadioButton size(float w, float h) { super.size(w, h); return this; }
+    @Override public RadioButton width(float w) { super.width(w); return this; }
+    @Override public RadioButton height(float h) { super.height(h); return this; }
+    @Override public RadioButton grow(float g) { super.grow(g); return this; }
+    @Override public RadioButton anchor(Anchor a) { super.anchor(a); return this; }
+    @Override public RadioButton offset(float dx, float dy) { super.offset(dx, dy); return this; }
+    @Override public RadioButton padding(float p) { super.padding(p); return this; }
+    @Override public RadioButton visible(boolean v) { super.visible(v); return this; }
+    @Override public RadioButton opacity(float o) { super.opacity(o); return this; }
 }

@@ -5,7 +5,6 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// batched scheduler plus the frame clock, tick() runs once per client frame
 public final class Reactive {
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
@@ -39,7 +38,6 @@ public final class Reactive {
         int iterations = 0;
         while (!PENDING.isEmpty()) {
             if (++iterations > MAX_FLUSH_ITERATIONS) {
-                // a cycle, kill whatever is still dirty so the frame survives
                 for (Effect e : PENDING.toArray(new Effect[0])) {
                     LOG.warn("reactive cycle detected, disabling effect {}", e);
                     e.dispose();

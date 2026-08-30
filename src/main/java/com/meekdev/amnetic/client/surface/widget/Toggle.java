@@ -6,7 +6,6 @@ import com.meekdev.amnetic.client.surface.reactive.Motion;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 import java.util.function.Consumer;
 
-// on/off switch, the knob glides on a spring
 public class Toggle extends Widget {
 
     public final Signal<Boolean> value;
@@ -61,7 +60,6 @@ public class Toggle extends Widget {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Toggle size(float w, float h) { super.size(w, h); return this; }
     @Override public Toggle width(float w) { super.width(w); return this; }
     @Override public Toggle height(float h) { super.height(h); return this; }

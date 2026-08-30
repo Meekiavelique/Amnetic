@@ -13,8 +13,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-// single-line text input with focus, per-glyph caret, selection, clipboard and a blink
-// driven by the reactive clock
 public class TextField extends Widget {
 
     public final Signal<String> value;
@@ -29,7 +27,7 @@ public class TextField extends Widget {
     Consumer<String> onSubmit;
 
     private int caret;
-    private int selAnchor = -1; // char index the selection grows from, -1 when none
+    private int selAnchor = -1;
 
     public TextField(String initial) {
         value = new Signal<>(initial);
@@ -70,7 +68,6 @@ public class TextField extends Widget {
 
     private float textX() { return x + 8; }
 
-    // nearest glyph boundary to a gui x, walks advances with kerning
     private int indexAt(float mx) {
         SdfFont f = font();
         String s = value.peek();
@@ -132,9 +129,9 @@ public class TextField extends Widget {
     public boolean onMouseDown(float mx, float my, int button) {
         int idx = indexAt(mx);
         if (shiftHeld()) {
-            if (selAnchor == -1) selAnchor = caret; // shift+click extends from the old caret
+            if (selAnchor == -1) selAnchor = caret;
         } else {
-            selAnchor = idx; // anchor here so a drag grows a selection
+            selAnchor = idx;
         }
         caret = idx;
         return true;
@@ -147,10 +144,9 @@ public class TextField extends Widget {
 
     @Override
     public void onMouseUp(float mx, float my, int button) {
-        if (selAnchor == caret) selAnchor = -1; // plain click, no selection
+        if (selAnchor == caret) selAnchor = -1;
     }
 
-    // removes the selected range, caret lands at its start
     private String deleteSelection(String s) {
         String out = s.substring(0, selStart()) + s.substring(selEnd());
         caret = selStart();
@@ -177,7 +173,6 @@ public class TextField extends Widget {
         selAnchor = -1;
     }
 
-    // shift extends the selection from the current caret, no shift collapses it
     private void moveCaret(int to, boolean shift) {
         if (shift) {
             if (selAnchor == -1) selAnchor = caret;
@@ -216,7 +211,7 @@ public class TextField extends Widget {
                 case GLFW.GLFW_KEY_V -> {
                     String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
                     if (clip != null && !clip.isEmpty()) {
-                        insert(clip.replace("\r", "").replace('\n', ' ')); // single line
+                        insert(clip.replace("\r", "").replace('\n', ' '));
                     }
                     return true;
                 }
@@ -245,7 +240,7 @@ public class TextField extends Widget {
             }
             case GLFW.GLFW_KEY_LEFT -> {
                 int to = caret > 0 ? caret - Character.charCount(s.codePointBefore(caret)) : 0;
-                if (!shift && hasSelection()) to = selStart(); // collapse to the edge
+                if (!shift && hasSelection()) to = selStart();
                 moveCaret(to, shift);
                 return true;
             }
@@ -270,7 +265,6 @@ public class TextField extends Widget {
         selAnchor = -1;
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public TextField size(float w, float h) { super.size(w, h); return this; }
     @Override public TextField width(float w) { super.width(w); return this; }
     @Override public TextField height(float h) { super.height(h); return this; }

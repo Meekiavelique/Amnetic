@@ -10,7 +10,6 @@ import com.meekdev.amnetic.client.surface.text.SdfFont;
 import java.util.function.Consumer;
 import net.minecraft.resources.Identifier;
 
-// checkable box, the inner mark springs scale 0 to 1 so it pops in
 public class Checkbox extends Widget {
 
     public final Signal<Boolean> value;
@@ -69,7 +68,6 @@ public class Checkbox extends Widget {
         int bg = lerpColor(boxColor, checkedColor, Math.min(Math.max(t, 0f), 1f));
         d.roundedRect(x, by, box, box, 4, fade(bg, alpha));
         d.border(x, by, box, box, 4, 1f, fade(0x30FFFFFF, alpha));
-        // the mark is a rect scaling out from the box center, overshoot reads as a bounce
         float inner = (box - 8) * t;
         if (inner > 0.5f) {
             float cx = x + box * 0.5f, cy = by + box * 0.5f;
@@ -103,7 +101,6 @@ public class Checkbox extends Widget {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Checkbox size(float w, float h) { super.size(w, h); return this; }
     @Override public Checkbox width(float w) { super.width(w); return this; }
     @Override public Checkbox height(float h) { super.height(h); return this; }

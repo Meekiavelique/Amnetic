@@ -4,8 +4,6 @@ import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 import java.util.function.Consumer;
 
-// column that owns exclusive selection: every Radio added gets the next index,
-// non-radio children pass through untouched so labels and dividers can interleave
 public class RadioGroup extends Column {
 
     public final Signal<Integer> selected;
@@ -18,14 +16,13 @@ public class RadioGroup extends Column {
 
     public RadioGroup onChange(Consumer<Integer> c) { onChange = c; return this; }
 
-    // sugar: append a labeled radio in one call
     public RadioGroup option(String label) {
-        return add(new Radio(label));
+        return add(new RadioButton(label));
     }
 
     @Override
     public RadioGroup add(Widget child) {
-        if (child instanceof Radio r) {
+        if (child instanceof RadioButton r) {
             r.group = this;
             r.index = radioCount++;
         }
@@ -39,7 +36,6 @@ public class RadioGroup extends Column {
         if (onChange != null) onChange.accept(index);
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public RadioGroup gap(float g) { super.gap(g); return this; }
     @Override public RadioGroup size(float w, float h) { super.size(w, h); return this; }
     @Override public RadioGroup width(float w) { super.width(w); return this; }

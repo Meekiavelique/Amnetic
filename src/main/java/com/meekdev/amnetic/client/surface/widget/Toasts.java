@@ -3,8 +3,6 @@ package com.meekdev.amnetic.client.surface.widget;
 import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.Fx;
 
-// corner toast manager: entries live in an animated column so survivors glide
-// into place when one fades out
 public final class Toasts {
 
     private final Column column = new Column().gap(8);
@@ -19,7 +17,6 @@ public final class Toasts {
 
     public Toasts width(float w) { width = w; return this; }
 
-    // direct access for styling or manual cleanup
     public Column column() {
         return column;
     }
@@ -28,7 +25,6 @@ public final class Toasts {
         content.animateLayout(true);
         column.add(content);
         Fx.fadeIn(content, 0.25f);
-        // slide in from the anchored side, vertical for centered columns
         float dx = corner.fx > 0.5f ? 40 : corner.fx < 0.5f ? -40 : 0;
         float dy = dx == 0 ? (corner.fy > 0.5f ? 24 : -24) : 0;
         if (dx != 0) Fx.spring(v -> content.translate(v, 0), dx, 60f, 9f).target(0f);

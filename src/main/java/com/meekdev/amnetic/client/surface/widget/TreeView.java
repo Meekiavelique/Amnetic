@@ -13,11 +13,8 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.resources.Identifier;
 
-// collapsible tree: visible nodes flatten into a column of rows each layout like
-// ListView does, rows glide via animateLayout and the chevron rotates on a spring
 public class TreeView extends Column {
 
-    // a node holds either a plain label or an arbitrary widget as its row content
     public static class TreeNode {
 
         final String label;
@@ -68,7 +65,6 @@ public class TreeView extends Column {
     public TreeView rowHeight(float h) { rowHeight = h; return this; }
     public TreeView textColor(int argb) { textColor = argb; return this; }
 
-    // remount the visible slice, cached rows keep their springs and expansion feel
     private void rebuild() {
         children.clear();
         for (TreeNode root : roots) mount(root, 0);
@@ -107,7 +103,6 @@ public class TreeView extends Column {
         super.placeChildren();
     }
 
-    // one visible node: indent, chevron when it has children, label or mounted content
     private final class NodeRow extends Widget {
 
         private final TreeNode node;
@@ -161,7 +156,6 @@ public class TreeView extends Column {
 
             if (toggleable) {
                 openTarget.set(node.expanded.peek() ? 1f : 0f);
-                // points right when collapsed, springs a quarter turn down when open
                 float rot = -0.5f * (float) Math.PI + openT.value().peek() * 0.5f * (float) Math.PI;
                 Dropdown.drawChevron(d, x + depth * indent + 5, y + h * 0.5f, rot, fade(0xB0FFFFFF, alpha));
             }
@@ -194,7 +188,6 @@ public class TreeView extends Column {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public TreeView size(float w, float h) { super.size(w, h); return this; }
     @Override public TreeView width(float w) { super.width(w); return this; }
     @Override public TreeView height(float h) { super.height(h); return this; }

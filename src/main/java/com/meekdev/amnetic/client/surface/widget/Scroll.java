@@ -3,7 +3,6 @@ package com.meekdev.amnetic.client.surface.widget;
 import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 
-// vertical scroll container: children flow like a column, overflow clips, wheel scrolls
 public class Scroll extends Column {
 
     float scrollY;
@@ -21,7 +20,7 @@ public class Scroll extends Column {
     protected void placeChildren() {
         float cx = x + padding, cy = y + padding;
         float cw = w - padding * 2, ch = h - padding * 2;
-        contentH = contentHeight(cw - 6); // reserve scrollbar lane
+        contentH = contentHeight(cw - 6);
         float maxScroll = Math.max(0, contentH - ch);
         scrollY = Math.min(Math.max(scrollY, 0), maxScroll);
 
@@ -61,7 +60,6 @@ public class Scroll extends Column {
         return true;
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Scroll size(float w, float h) { super.size(w, h); return this; }
     @Override public Scroll width(float w) { super.width(w); return this; }
     @Override public Scroll height(float h) { super.height(h); return this; }

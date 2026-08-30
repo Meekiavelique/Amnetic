@@ -5,8 +5,6 @@ import com.meekdev.amnetic.client.surface.Fx;
 import com.meekdev.amnetic.client.surface.ScreenSurface;
 import java.util.function.Consumer;
 
-// modal helpers over a screen surface's overlay: a click-swallowing dim panel
-// with a centered card, any action tears the whole thing down
 public final class Dialog {
 
     private Dialog() {}
@@ -19,7 +17,7 @@ public final class Dialog {
         col.add(new Text(title).px(16));
         col.add(new Text(message).px(13).color(0xC0FFFFFF).wrap(true));
         Row actions = new Row().gap(8);
-        actions.add(new Stack().grow(1)); // spacer pushes the buttons right
+        actions.add(new Stack().grow(1));
         actions.add(new Button("No").onClick(() -> {
             close(dim);
             if (onNo != null) onNo.run();
@@ -76,7 +74,6 @@ public final class Dialog {
         Fx.fadeOut(dim, 0.12f);
     }
 
-    // fills the overlay, eats every click outside the card, clicking it dismisses
     private static final class Dim extends Panel {
 
         private final Runnable onDismiss;
@@ -100,7 +97,6 @@ public final class Dialog {
         }
     }
 
-    // interactive so clicks on the card body never fall through to the dim
     private static final class Card extends Panel {
 
         @Override

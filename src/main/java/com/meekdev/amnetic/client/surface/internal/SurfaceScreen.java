@@ -9,8 +9,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
-// thin vanilla screen: input capture and pause semantics only, all pixels come from the
-// surface pass so the sdf renderer keeps drawing them, not GuiGraphics
 public final class SurfaceScreen extends Screen {
 
     private final ScreenSurface owner;
@@ -25,8 +23,6 @@ public final class SurfaceScreen extends Screen {
         return owner.pausesGameValue();
     }
 
-    // vanilla's blur and dim run during the gui phase, after the surface pass, so they
-    // would smear and darken our widgets - draw nothing here, the pass dims underneath
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float partialTick) {
     }
@@ -77,7 +73,6 @@ public final class SurfaceScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        // a focused text field eats everything except escape so typing never triggers keybinds
         if (event.key() != GLFW.GLFW_KEY_ESCAPE) {
             if (owner.internalInput().keyPressed(event.key(), event.modifiers())) return true;
             if (owner.internalInput().focused() != null && event.key() != GLFW.GLFW_KEY_TAB) return true;

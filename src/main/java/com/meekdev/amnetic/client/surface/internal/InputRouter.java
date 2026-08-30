@@ -5,14 +5,11 @@ import java.util.ArrayList;
 import java.util.List;
 import org.lwjgl.glfw.GLFW;
 
-// pointer/keyboard routing for one widget tree: hover enter/leave, press/click, drag,
-// scroll bubbling, drag-and-drop and focus with tab cycling, coordinates gui-scaled
 public final class InputRouter {
 
     private final Widget root;
     private Widget hovered, pressed, focused;
 
-    // drag and drop state
     private Widget dragSource, dragging;
     private float dragX, dragY, pressX, pressY;
 
@@ -46,7 +43,6 @@ public final class InputRouter {
         setFocus(hit != null && hit.isFocusableWidget() ? hit : null);
         if (hit == null) return false;
 
-        // nearest draggable ancestor becomes the drag candidate
         for (Widget wgt = hit; wgt != null; wgt = wgt.parentWidget()) {
             if (wgt.dragPayloadValue() != null) {
                 dragSource = wgt;
@@ -74,7 +70,7 @@ public final class InputRouter {
                 }
             }
             if (pressed != null) pressed.pressed = false;
-            pressed = null; // a completed drag is not a click
+            pressed = null;
         } else if (pressed != null) {
             pressed.pressed = false;
             pressed.onMouseUp(mx, my, button);
@@ -97,7 +93,6 @@ public final class InputRouter {
         return true;
     }
 
-    // bubbles from the hit widget up so a button inside a scroll still scrolls it
     public boolean scroll(float mx, float my, float amount) {
         for (Widget wgt = root.hitTest(mx, my); wgt != null; wgt = wgt.parentWidget()) {
             if (wgt.onScroll(amount)) return true;

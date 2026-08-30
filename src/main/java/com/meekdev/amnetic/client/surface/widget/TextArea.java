@@ -12,10 +12,6 @@ import java.util.List;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-// multiline text input: greedy word wrap like Text but index-accurate so the caret maps
-// to a line/column, click to place, arrows move by line keeping the column, internal
-// vertical scroll when content overflows, keybind suppression comes free from SurfaceScreen
-// selection is omitted here, the single-line TextField covers select/copy flows for now
 public class TextArea extends Widget {
 
     public final Signal<String> value;
@@ -28,9 +24,8 @@ public class TextArea extends Widget {
 
     private int caret;
     private float scrollY;
-    private float preferredX = -1; // remembered caret x for up/down runs, gui px from textX
+    private float preferredX = -1;
 
-    // wrap cache: [start, end) into the value per visual line, break chars consumed
     private final List<int[]> lineRanges = new ArrayList<>();
     private float rangesForWidth = -1;
     private String rangesForValue;
@@ -75,7 +70,6 @@ public class TextArea extends Widget {
                 + (g == null ? 0 : g.advance() * scale);
     }
 
-    // greedy word wrap that keeps original string indices, same visual result as Text
     private void rewrap(SdfFont f, float maxW) {
         String s = value.peek();
         if (rangesForWidth == maxW && s.equals(rangesForValue)) return;
@@ -100,9 +94,9 @@ public class TextArea extends Widget {
             if (pen + adv > maxW && i > lineStart) {
                 if (lastSpace > lineStart) {
                     lineRanges.add(new int[]{lineStart, lastSpace});
-                    i = lastSpace + 1; // the break space is consumed
+                    i = lastSpace + 1;
                 } else {
-                    lineRanges.add(new int[]{lineStart, i}); // hard break inside a long word
+                    lineRanges.add(new int[]{lineStart, i});
                 }
                 lineStart = i;
                 pen = 0; prev = -1; lastSpace = -1;
@@ -116,7 +110,6 @@ public class TextArea extends Widget {
         lineRanges.add(new int[]{lineStart, s.length()});
     }
 
-    // first line whose range can hold the caret
     private int caretLine() {
         for (int li = 0; li < lineRanges.size(); li++) {
             if (caret <= lineRanges.get(li)[1]) return li;
@@ -124,7 +117,6 @@ public class TextArea extends Widget {
         return lineRanges.size() - 1;
     }
 
-    // nearest glyph boundary on a line to a gui x offset from textX
     private int indexInLine(SdfFont f, int li, float targetX) {
         int[] range = lineRanges.get(li);
         String s = value.peek();
@@ -181,7 +173,7 @@ public class TextArea extends Widget {
         } else {
             for (int li = 0; li < lineRanges.size(); li++) {
                 float top = textY + li * lh - scrollY;
-                if (top + lh < y || top > y + h) continue; // off-view lines skip the batcher
+                if (top + lh < y || top > y + h) continue;
                 int[] r = lineRanges.get(li);
                 d.text(s.substring(r[0], r[1]), textX, top, px, fade(textColor, alpha));
             }
@@ -233,7 +225,6 @@ public class TextArea extends Widget {
         return true;
     }
 
-    // moves the caret one line up or down, keeping the remembered x column
     private void moveLine(SdfFont f, int dir) {
         rewrap(f, w - 16);
         if (preferredX < 0) preferredX = caretX(f);
@@ -288,7 +279,6 @@ public class TextArea extends Widget {
         return true;
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public TextArea size(float w, float h) { super.size(w, h); return this; }
     @Override public TextArea width(float w) { super.width(w); return this; }
     @Override public TextArea height(float h) { super.height(h); return this; }

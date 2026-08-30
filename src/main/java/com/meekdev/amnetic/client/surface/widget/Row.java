@@ -1,12 +1,11 @@
 package com.meekdev.amnetic.client.surface.widget;
 
 import com.meekdev.amnetic.client.surface.Anchor;
-// horizontal flex container: gap, per-child grow shares leftover, wrap moves overflow to new lines
 public class Row extends Widget {
 
     float gap = 6;
     boolean wrap;
-    float align = 0f; // cross-axis: 0 start, 0.5 center, 1 end
+    float align = 0f;
 
     public Row gap(float g) { gap = g; return this; }
     public Row wrap(boolean w) { wrap = w; return this; }
@@ -28,7 +27,6 @@ public class Row extends Widget {
 
     @Override
     protected float contentHeight(float forWidth) {
-        // account for wrapping by simulating line breaks
         float lineH = 0, totalH = 0, lineW = 0;
         boolean first = true;
         for (Widget c : children) {
@@ -51,7 +49,6 @@ public class Row extends Widget {
         float cx = x + padding, cy = y + padding;
         float cw = w - padding * 2, ch = h - padding * 2;
 
-        // measure and distribute grow
         float fixed = 0, growSum = 0;
         int n = 0;
         for (Widget c : children) {
@@ -67,7 +64,6 @@ public class Row extends Widget {
         for (Widget c : children) {
             if (!c.visible) continue;
             float childW = c.grow > 0 ? leftover * (c.grow / growSum) : c.measureWidth();
-            // natural height so align can center, growing children stretch to the row
             float childH = c.prefH >= 0 ? c.prefH
                     : c.grow > 0 ? ch
                     : Math.min(c.measureHeight(childW), ch);
@@ -84,7 +80,6 @@ public class Row extends Widget {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Row size(float w, float h) { super.size(w, h); return this; }
     @Override public Row width(float w) { super.width(w); return this; }
     @Override public Row height(float h) { super.height(h); return this; }

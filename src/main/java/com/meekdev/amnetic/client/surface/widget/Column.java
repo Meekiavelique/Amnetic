@@ -1,11 +1,10 @@
 package com.meekdev.amnetic.client.surface.widget;
 
 import com.meekdev.amnetic.client.surface.Anchor;
-// vertical flex container: gap, per-child grow shares leftover height
 public class Column extends Widget {
 
     float gap = 6;
-    float align = 0f; // cross-axis: 0 start, 0.5 center, 1 end
+    float align = 0f;
 
     public Column gap(float g) { gap = g; return this; }
     public Column alignStart() { align = 0f; return this; }
@@ -62,7 +61,6 @@ public class Column extends Widget {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Column size(float w, float h) { super.size(w, h); return this; }
     @Override public Column width(float w) { super.width(w); return this; }
     @Override public Column height(float h) { super.height(h); return this; }
