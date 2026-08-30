@@ -98,11 +98,20 @@ Full reference are in the [wiki](../../wiki):
 - [Scene Capture](../../wiki/Scene-Capture) - virtual cameras and planar reflections
 - [Entity Effects](../../wiki/Entity-Effects) - custom shaders over entities, texture overrides
 - [Mesh Tap](../../wiki/Mesh-Tap) - reading a posed entity's vertices
+- [Shading Models](../../wiki/Shading-Models) - lighting bases and custom GLSL shading snippets
+- [Subsurface Scattering](../../wiki/Subsurface-Scattering) - Burley diffusion and transmission
+- [Light Styles](../../wiki/Light-Styles) - GLSL snippets that customise a single light
+- [Surface UI](../../wiki/Surface-UI) - widgets, layout, reactivity, and SDF text
 
 ---
 
 ## IA USAGE
 The only things i used ia for in this project is to correct my spelling and coherence in the wiki
+
+## Credits
+
+- **[bb4j](https://github.com/Danrus1100/bb4j)** by [Danrus1100](https://github.com/Danrus1100) - the Blockbench `.bbmodel` parser Amnetic uses to load Blockbench models. Bundled in `libs/bb4j.jar`.
+- **[Veil](https://github.com/FoundryMC/Veil)** by [FoundryMC](https://github.com/FoundryMC) - a big source of inspiration for the shape of this library, particularly the deferred rendering and framebuffer work.
 
 ## License
 

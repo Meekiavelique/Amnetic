@@ -5,7 +5,13 @@ import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.model.internal.OffscreenModelRenderer;
+import com.meekdev.amnetic.client.render.GlState;
+import com.meekdev.amnetic.client.render.ShaderProgram;
+import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.resources.Identifier;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL45;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -110,8 +116,34 @@ public final class ModelView {
         framebuffer.begin();
         framebuffer.clear(0f, 0f, 0f, 0f);
         renderer.draw(model.internalGpu(), projView, IDENTITY, pose, blockLight, skyLight, emissiveStrength);
+        resolveAlphaFromDepth();
         framebuffer.end();
         return this;
+    }
+
+    private static ShaderProgram alphaResolve;
+
+    private void resolveAlphaFromDepth() {
+        int depthTex = framebuffer.depthTextureGlId();
+        if (depthTex == 0) return;
+        if (alphaResolve == null) {
+            alphaResolve = new ShaderProgram(
+                    Identifier.fromNamespaceAndPath("amnetic", "shaders/util/fullscreen.vsh"),
+                    Identifier.fromNamespaceAndPath("amnetic", "shaders/model/viewport_alpha.fsh"));
+        }
+        GL45.glTextureBarrier();
+        GlStateManager._depthMask(false); GL11.glDepthMask(false);
+        GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
+        GL11.glColorMask(false, false, false, true);
+        alphaResolve.begin();
+        alphaResolve.setSampler("DepthSampler", 0);
+        GlState.bindTexture(0, depthTex);
+        alphaResolve.draw();
+        GlStateManager._glUseProgram(0);
+        GL11.glColorMask(true, true, true, true);
+        GlStateManager._depthMask(true); GL11.glDepthMask(true);
+        GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
     }
 
     public int textureId() {
@@ -173,9 +205,8 @@ public final class ModelView {
         float far = distance + radius * 2f;
         float aspect = (float) width / (float) height;
 
-        // match the device clip convention (0..1 depth on MC 26) or depth breaks, see SceneView
         Matrix4f proj = new Matrix4f().perspective(fov, aspect, near, far,
-                com.mojang.blaze3d.systems.RenderSystem.getDevice().isZZeroToOne());
+                RenderSystem.getDevice().isZZeroToOne());
         Matrix4f view = new Matrix4f().lookAt(eye, center, UP);
         return proj.mul(view);
     }

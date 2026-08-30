@@ -4,6 +4,7 @@ import com.meekdev.amnetic.client.anim.Animations;
 import com.meekdev.amnetic.client.bloom.Bloom;
 import com.meekdev.amnetic.client.compute.ComputeCapabilities;
 import com.meekdev.amnetic.client.decal.Decals;
+import com.meekdev.amnetic.client.dev.PostShaderReload;
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.entityfx.EntityTextureOverride;
 import com.meekdev.amnetic.client.entityfx.internal.EntityEffectRegistry;
@@ -12,47 +13,51 @@ import com.meekdev.amnetic.client.entityfx.internal.TextureOverrideRegistry;
 import com.meekdev.amnetic.client.framebuffer.internal.FramebufferRegistry;
 import com.meekdev.amnetic.client.gbuffer.GBuffer;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferNormalFill;
-import com.meekdev.amnetic.client.ibl.internal.EnvProbe;
 import com.meekdev.amnetic.client.geometry.EntityMeshTap;
-import com.meekdev.amnetic.client.grade.ColorGrade;
 import com.meekdev.amnetic.client.geometry.internal.MeshTapRegistry;
+import com.meekdev.amnetic.client.grade.ColorGrade;
+import com.meekdev.amnetic.client.ibl.internal.EnvProbe;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
+import com.meekdev.amnetic.client.light.LightStyles;
 import com.meekdev.amnetic.client.light.Lights;
 import com.meekdev.amnetic.client.light.internal.DeferredLightingPass;
 import com.meekdev.amnetic.client.light.internal.VolumetricPass;
+import com.meekdev.amnetic.client.material.internal.ShadingModelRegistry;
 import com.meekdev.amnetic.client.model.HandModels;
-import com.meekdev.amnetic.client.model.ViewModels;
-import com.meekdev.amnetic.client.render.Geometry;
-import com.meekdev.amnetic.client.render.ImageOps;
 import com.meekdev.amnetic.client.model.ItemModels;
 import com.meekdev.amnetic.client.model.Model;
+import com.meekdev.amnetic.client.model.ViewModels;
 import com.meekdev.amnetic.client.model.WorldModels;
 import com.meekdev.amnetic.client.model.internal.GlUploadQueue;
 import com.meekdev.amnetic.client.model.internal.ModelRegistry;
 import com.meekdev.amnetic.client.model.internal.ammesh.AmmeshScanner;
+import com.meekdev.amnetic.client.particle.ParticleSimulation;
+import com.meekdev.amnetic.client.particle.Particles;
+import com.meekdev.amnetic.client.particle.SceneDepth;
 import com.meekdev.amnetic.client.pipeline.FrameContext;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderStage;
 import com.meekdev.amnetic.client.pipeline.internal.LayerSystem;
-import com.meekdev.amnetic.client.particle.ParticleSimulation;
-import com.meekdev.amnetic.client.particle.Particles;
-import com.meekdev.amnetic.client.particle.SceneDepth;
 import com.meekdev.amnetic.client.post.RenderPhase;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
-import net.minecraft.client.Minecraft;
 import com.meekdev.amnetic.client.render.AmneticResources;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
+import com.meekdev.amnetic.client.render.Geometry;
+import com.meekdev.amnetic.client.render.ImageOps;
 import com.meekdev.amnetic.client.render.OverlayRender;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
 import com.meekdev.amnetic.client.shadow.Shadows;
 import com.meekdev.amnetic.client.shadow.internal.ShadowMapPass;
 import com.meekdev.amnetic.client.ssao.Ssao;
+import com.meekdev.amnetic.client.subsurface.Subsurface;
 import com.meekdev.amnetic.client.ssgi.Ssgi;
 import com.meekdev.amnetic.client.ssr.Ssr;
+import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.taa.Taa;
 import com.meekdev.amnetic.client.ui.AmneticEditorBridge;
+import net.minecraft.client.Minecraft;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -102,6 +107,7 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> ShadowMapPass.INSTANCE.render(ctx.camera()));
         Pipeline.add(RenderStage.LIGHTING, 20, "Deferred Lighting", ctx -> DeferredLightingPass.INSTANCE.renderSurface());
 
+        Pipeline.add(RenderStage.SCREEN_SPACE, 5, "Subsurface", ctx -> Subsurface.render());
         Pipeline.add(RenderStage.SCREEN_SPACE, 10, "SSAO", ctx -> Ssao.render());
         Pipeline.add(RenderStage.SCREEN_SPACE, 20, "SSGI", ctx -> Ssgi.render());
         Pipeline.add(RenderStage.SCREEN_SPACE, 30, "SSR", ctx -> Ssr.render());
@@ -120,7 +126,11 @@ public class AmneticClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ShaderHotReload.watchMod("amnetic");
+        LightStyles.touch();
+        ShadingModelRegistry.touch();
+
+        ShaderHotReload.watchAllDevMods();
+        PostShaderReload.install();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             ComputeCapabilities.probeOnce();
             EntityEffectRegistry.INSTANCE.tick();
@@ -187,8 +197,9 @@ public class AmneticClient implements ClientModInitializer {
             pendingPostCtx = null;
             if (CaptureManager.INSTANCE.isCapturing()) return;
             ModelRegistry.INSTANCE.warmup();
-            GlUploadQueue.drain(2_000_000L); // ~2 ms/frame
+            GlUploadQueue.drain(2_000_000L);
             Animations.update();
+            Reactive.tick(surfaceDt());
             GBuffer.beginFrame();
             FrameContext fc = new FrameContext(CameraSnapshot.current(), ctx, SceneDepth.snapshotDepthGlId());
             Pipeline.runStage(RenderStage.GEOMETRY, fc);
@@ -212,5 +223,14 @@ public class AmneticClient implements ClientModInitializer {
                     }
                 }
         );
+    }
+
+    private static long surfaceLastNano;
+
+    private static float surfaceDt() {
+        long now = System.nanoTime();
+        float dt = surfaceLastNano == 0L ? 0f : (now - surfaceLastNano) / 1.0e9f;
+        surfaceLastNano = now;
+        return dt;
     }
 }

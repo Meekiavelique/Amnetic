@@ -26,6 +26,7 @@ final class CompiledShader implements AutoCloseable {
     private final int timeLoc;
     private final int sunDirLoc;
     private final int cameraPosLoc;
+    private final int worldSpaceLoc;
 
     private CompiledShader(int program) {
         this.program = program;
@@ -36,6 +37,7 @@ final class CompiledShader implements AutoCloseable {
         this.timeLoc = GlStateManager._glGetUniformLocation(program, "Time");
         this.sunDirLoc = GlStateManager._glGetUniformLocation(program, "SunDir");
         this.cameraPosLoc = GlStateManager._glGetUniformLocation(program, "CameraPos");
+        this.worldSpaceLoc = GlStateManager._glGetUniformLocation(program, "WorldSpace");
     }
 
     static CompiledShader load(InstancedMesh<?> mesh) {
@@ -139,6 +141,10 @@ final class CompiledShader implements AutoCloseable {
 
     void uploadCameraPos(double x, double y, double z) {
         if (cameraPosLoc != -1) GL20.glUniform3f(cameraPosLoc, (float) x, (float) y, (float) z);
+    }
+
+    void uploadWorldSpace(boolean worldSpace) {
+        if (worldSpaceLoc != -1) GL20.glUniform1i(worldSpaceLoc, worldSpace ? 1 : 0);
     }
 
     void uploadSamplerUnit(String uniformName, int unit) {

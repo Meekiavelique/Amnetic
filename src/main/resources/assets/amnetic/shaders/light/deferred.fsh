@@ -6,7 +6,8 @@ out vec4 FragColor;
 uniform sampler2D AlbedoSampler;
 uniform sampler2D DepthSampler;
 uniform sampler2D GNormalSampler;
-uniform sampler2D GMaterialSampler; // r = roughness, g = metallic, b = materialId/255, a = unused
+uniform sampler2D GMaterialSampler; // r = roughness, g = metallic, b = materialId/255, a = (blockLevel*16 + skyLevel)/255
+uniform sampler2D LightmapSampler;
 uniform int HasGBuffer;
 
 uniform mat4 InvViewProj;
@@ -29,10 +30,10 @@ uniform sampler2D CookieSampler;
 uniform int HasCookie;
 
 layout(std430, binding = 0) readonly buffer LightData { vec4 lights[]; };
+layout(std430, binding = 1) readonly buffer MaterialParamData { vec4 materialParams[]; };
 
 #include "amnetic:shaders/common/screen.glsl"
 #include "amnetic:shaders/common/shadowmap.glsl"
-#include "amnetic:shaders/material/custom_ladder.glsl"
 
 float iesProfile(int id, float c) {
     c = clamp(c, 0.0, 1.0);
@@ -95,6 +96,8 @@ vec3 closestSegment(vec3 p, vec3 a, vec3 b) {
     return a + ab * t;
 }
 
+#include "amnetic:shaders/light/styles.glsl"
+
 vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f0, inout vec3 specOut, inout float sunShadowOut) {
     vec3 pos = lights[i * 8 + 0].xyz;
     float range = lights[i * 8 + 0].w;
@@ -113,6 +116,14 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     int shadowRef = int(lights[i * 8 + 5].w);
     float cookieFlag = lights[i * 8 + 6].x;
     int iesId = int(lights[i * 8 + 6].y + 0.5);
+    int style = int(lights[i * 8 + 6].w + 0.5);
+
+    vec3 lp = fragPos;
+    if (style > 0) {
+        float unusedAtten = 1.0;
+        vec3 unusedColor = vec3(1.0);
+        amneticLightStyle(style, AMNETIC_STYLE_POINT, lp, unusedAtten, unusedColor, pos, dir);
+    }
 
     vec3 L;
     float atten;
@@ -124,26 +135,26 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
         if (type == 3) { // rect: clamp to the light's local uv extent
             vec3 u = normalize(tangent);
             vec3 v = normalize(cross(dir, u));
-            vec3 d = fragPos - pos;
+            vec3 d = lp - pos;
             src = pos + u * clamp(dot(d, u), -areaW, areaW) + v * clamp(dot(d, v), -areaH, areaH);
         } else if (type == 4) { // disc: clamp to radius
             vec3 n = normalize(dir);
-            vec3 d = fragPos - pos;
+            vec3 d = lp - pos;
             vec3 proj = d - n * dot(d, n);
             float pl = length(proj);
             if (pl > areaW) proj *= areaW / pl;
             src = pos + proj;
         } else if (type == 5) { // tube: nearest point along the capsule axis
             vec3 u = normalize(tangent);
-            src = closestSegment(fragPos, pos - u * tubeL * 0.5, pos + u * tubeL * 0.5);
+            src = closestSegment(lp, pos - u * tubeL * 0.5, pos + u * tubeL * 0.5);
         }
-        vec3 toL = src - fragPos;
+        vec3 toL = src - lp;
         float dist = length(toL);
         if (dist > range) return vec3(0.0);
         L = toL / max(dist, 1e-4);
         atten = falloff(dist, range, curve, param);
         if (type == 1) { // spot cone attenuation
-            vec3 Lc = normalize(pos - fragPos);
+            vec3 Lc = normalize(pos - lp);
             float cd = dot(-Lc, normalize(dir));
             atten *= clamp((cd - cosOut) / max(cosIn - cosOut, 1e-4), 0.0, 1.0);
         }
@@ -158,6 +169,10 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     vec3 lcol = color;
     if (type == 1 && HasCookie == 1 && cookieFlag > 0.5) {
         lcol *= cookieTint(fragPos, pos, dir, cosOut, tangent);
+    }
+    if (style > 0) {
+        amneticLightStyle(style, AMNETIC_STYLE_SHADE, lp, atten, lcol, pos, dir);
+        if (atten <= 0.0) return vec3(0.0);
     }
 
     vec3 vis = shadowVisibility(shadowRef, fragPos, N, pos, range);
@@ -209,6 +224,8 @@ float bayerDither() {
     int y = int(mod(gl_FragCoord.y, 4.0));
     return (BAYER4[y * 4 + x] + 0.5) / 16.0;
 }
+
+const float SKY_RAY_DISTANCE = 8192.0;
 
 vec3 volumetric(vec3 fragPos) {
     float segLen = length(fragPos);
@@ -279,12 +296,21 @@ vec3 volumetric(vec3 fragPos) {
     return max(result * 6.0, vec3(0.0)); // small global gain so per-light strengths land in a usable range
 }
 
+#include "amnetic:shaders/material/custom_ladder.glsl"
+
 void main() {
     float depth = texture(DepthSampler, vUV).r;
 
     if (VolumetricOnly == 1) {
-        if (depth >= 1.0) { FragColor = vec4(0.0, 0.0, 0.0, depth); return; } // sky pixel, no god-rays
-        vec3 fp = reconstruct(vUV, depth);
+        vec3 fp;
+        if (depth >= 1.0) {
+            vec3 rd = reconstruct(vUV, 0.5);
+            float rl = length(rd);
+            if (rl < 1e-5) { FragColor = vec4(0.0, 0.0, 0.0, depth); return; }
+            fp = rd * (SKY_RAY_DISTANCE / rl);
+        } else {
+            fp = reconstruct(vUV, depth);
+        }
         FragColor = vec4(volumetric(fp), depth);
         return;
     }
@@ -297,6 +323,7 @@ void main() {
     float f0 = 0.04;
     float metallic = 0.0;
     int materialId = 0;
+    vec2 lightUV = vec2(0.0);
     if (HasGBuffer == 1) {
         vec4 gn = texture(GNormalSampler, vUV);
         N = (gn.a > 0.5) ? normalize(gn.xyz) : betterNormal(vUV, fragPos);
@@ -306,6 +333,10 @@ void main() {
             metallic = gm.y;
             f0 = mix(0.04, 1.0, metallic);
             materialId = int(gm.z * 255.0 + 0.5);
+            float packedLight = gm.w * 255.0;
+            float blockIdx = floor(packedLight / 16.0 + 0.5);
+            float skyIdx = packedLight - blockIdx * 16.0;
+            lightUV = vec2((blockIdx + 0.5) / 16.0, (clamp(skyIdx, 0.0, 15.0) + 0.5) / 16.0);
         }
     } else {
         N = betterNormal(vUV, fragPos);
@@ -340,7 +371,8 @@ void main() {
     if (materialId != 0) {
         bool handled;
         vec3 custom = shadeCustomMaterial(materialId,
-                GBufferSample(albedo, N, fragPos, rough, metallic, outColor), handled);
+                GBufferSample(albedo, N, fragPos, rough, metallic, outColor,
+                        texture(LightmapSampler, lightUV).rgb), handled);
         if (handled) outColor = custom;
     }
 

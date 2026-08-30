@@ -15,27 +15,38 @@ public final class InstanceLayout {
 
     private final List<AttributeSpec> attributes;
     private final int stride;
+    private final int divisor;
 
-    private InstanceLayout(List<AttributeSpec> attributes, int stride) {
+    private InstanceLayout(List<AttributeSpec> attributes, int stride, int divisor) {
         this.attributes = attributes;
         this.stride = stride;
+        this.divisor = divisor;
     }
 
     public int stride() { return stride; }
+
+    public int divisor() { return divisor; }
 
     public void setupVaoAttributes() {
         for (AttributeSpec spec : attributes) {
             GlStateManager._vertexAttribPointer(spec.location, spec.components, GL11.GL_FLOAT, false, stride, spec.byteOffset);
             GlStateManager._enableVertexAttribArray(spec.location);
-            GL33.glVertexAttribDivisor(spec.location, 1);
+            GL33.glVertexAttribDivisor(spec.location, divisor);
         }
     }
 
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() { return new Builder(1); }
+
+    public static Builder perVertex() { return new Builder(0); }
 
     public static final class Builder {
         private final List<AttributeSpec> attributes = new ArrayList<>();
+        private final int divisor;
         private int offset = 0;
+
+        private Builder(int divisor) {
+            this.divisor = divisor;
+        }
 
         public Builder mat4(int startLocation) {
             for (int i = 0; i < 4; i++) {
@@ -70,7 +81,7 @@ public final class InstanceLayout {
         }
 
         public InstanceLayout build() {
-            return new InstanceLayout(List.copyOf(attributes), offset);
+            return new InstanceLayout(List.copyOf(attributes), offset, divisor);
         }
     }
 

@@ -47,6 +47,8 @@ dependencies {
     include implementation("com.fasterxml.jackson.core:jackson-core:2.13.4")
     include implementation("com.fasterxml.jackson.core:jackson-annotations:2.13.4")
 
+    implementation files("libs/bb4j.jar")
+
     implementation "org.lwjgl:lwjgl-assimp:${project.lwjgl_version}"
     include "org.lwjgl:lwjgl-assimp:${project.lwjgl_version}"
     ["natives-windows", "natives-linux", "natives-macos", "natives-macos-arm64"].each { platform ->

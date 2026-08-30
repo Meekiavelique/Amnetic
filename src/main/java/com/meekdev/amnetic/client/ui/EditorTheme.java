@@ -15,7 +15,7 @@ public final class EditorTheme {
     public static final int AXIS_Y = 0xFF4DF26A;
     public static final int AXIS_Z = 0xFFF2A04D;
 
-    static void apply() {
+    public static void apply() {
         ImGuiStyle s = ImGui.getStyle();
 
         s.setWindowPadding(10f, 8f);

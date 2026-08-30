@@ -11,6 +11,7 @@ uniform mat4 InvViewProj;
 uniform vec3 EyeDelta;
 uniform int ZeroToOne;
 uniform float Feedback;
+uniform float ClipSigma; // neighbourhood clip width, in standard deviations
 
 vec3 reconstruct(vec2 uv, float depth) {
     float z = (ZeroToOne == 1) ? depth : depth * 2.0 - 1.0;
@@ -80,8 +81,6 @@ void main() {
     vec2 texSize = vec2(textureSize(ColorSampler, 0));
     vec3 hist = sampleHistory(puv, texSize);
 
-    // 3x3 neighbourhood variance box in YCoCg, one sigma keeps ghosting invisible while
-    // still letting the accumulation converge
     ivec2 ip = ivec2(gl_FragCoord.xy);
     ivec2 maxIp = ivec2(texSize) - 1;
     vec3 m1 = vec3(0.0), m2 = vec3(0.0);
@@ -94,7 +93,8 @@ void main() {
     }
     vec3 mu = m1 / 9.0;
     vec3 sigma = sqrt(max(m2 / 9.0 - mu * mu, 0.0));
-    hist = ycocg2rgb(clipAABB(mu - sigma, mu + sigma, rgb2ycocg(hist)));
+    vec3 box = sigma * ClipSigma;
+    hist = ycocg2rgb(clipAABB(mu - box, mu + box, rgb2ycocg(hist)));
 
     float velPx = length((vUV - puv) * texSize);
     float f = Feedback * (1.0 - clamp(velPx / 80.0, 0.0, 0.5));
