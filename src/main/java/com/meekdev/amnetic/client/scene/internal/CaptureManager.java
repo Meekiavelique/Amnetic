@@ -118,8 +118,12 @@ public final class CaptureManager {
         obliqueProj.set(baseProj);
         if (view.hasClip()) {
             Vector3f cn = view.clipNormal();
-            ReflectionMath.obliqueProjection(obliqueProj, baseProj, view.viewRotation(), eye,
-                    cn.x, cn.y, cn.z, view.clipD());
+            float side = cn.x * (float) eye.x + cn.y * (float) eye.y + cn.z * (float) eye.z
+                    + view.clipD();
+            if (side > 1.0e-4f) {
+                ReflectionMath.obliqueProjection(obliqueProj, baseProj, view.viewRotation(), eye,
+                        cn.x, cn.y, cn.z, view.clipD());
+            }
         }
         Frustum frustum = new Frustum(view.viewRotation(), obliqueProj);
         frustum.prepare(eye.x, eye.y, eye.z);
