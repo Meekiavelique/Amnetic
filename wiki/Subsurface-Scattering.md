@@ -88,6 +88,7 @@ Subsurface.disable();               // skip the screen-space pass entirely
 Subsurface.enable();
 Subsurface.isEnabled();
 Subsurface.settings().enabled(false);
+Subsurface.dispose();               // release the pass buffers and programs
 ```
 
 The pass is registered at `RenderStage.SCREEN_SPACE` priority 5, ahead of SSAO, so the diffused result is what the later screen-space effects see. It skips itself when no material has a non-zero `strength`, so the cost is genuinely zero until you use it.

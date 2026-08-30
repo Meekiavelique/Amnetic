@@ -8,15 +8,21 @@ Two modifiers compose on top of either base. `fragment(...)` replaces the shadin
 
 ```java
 import com.meekdev.amnetic.client.material.ShadingModel;
+import net.minecraft.resources.Identifier;
 
-ShadingModel.pbr()                        // Cook-Torrance
-ShadingModel.flat()                       // block-authored look
+// snippets live in your resources as .glsl files
+Identifier sway  = Identifier.fromNamespaceAndPath("mymod", "shaders/material/sway.glsl");
+Identifier sheen = Identifier.fromNamespaceAndPath("mymod", "shaders/material/sheen.glsl");
+Identifier snippet = sheen;
 
-ShadingModel.pbr().vertex(sway)           // lit normally, geometry moves
-ShadingModel.flat().vertex(sway)          // block-authored art that sways
-ShadingModel.flat().fragment(sheen)       // stylised pass over the flat result
-ShadingModel.pbr().fragment(snippet)      // custom BRDF
-ShadingModel.pbr().fragment(a).vertex(b)  // both
+ShadingModel plain    = ShadingModel.pbr();                       // Cook-Torrance
+ShadingModel blocky   = ShadingModel.flat();                      // block-authored look
+
+ShadingModel swaying  = ShadingModel.pbr().vertex(sway);          // lit normally, geometry moves
+ShadingModel grass    = ShadingModel.flat().vertex(sway);         // block-authored art that sways
+ShadingModel sheened  = ShadingModel.flat().fragment(sheen);      // stylised over the flat result
+ShadingModel custom   = ShadingModel.pbr().fragment(snippet);     // custom BRDF
+ShadingModel both     = ShadingModel.pbr().fragment(sheen).vertex(sway);
 ```
 
 A fragment snippet is the body of a function. It receives a `GBufferSample s` and must `return` a `vec3` colour.
