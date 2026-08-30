@@ -84,14 +84,10 @@ public final class SsaoPass extends ScreenPass {
         ssao.setFloat("Intensity", s.intensity());
         ssao.setFloat("Bias", s.bias());
         ssao.setFloat("Power", s.power());
-        // advance the kernel rotation per frame only when temporal accumulation can integrate it,
-        // held at 0 otherwise so the pattern stays stable and doesn't flicker
         ssao.setInt("Frame", s.temporal() ? frame : 0);
         ssao.draw();
         ao.end();
 
-        // 7x7 normal-aware bilateral blur to remove the per-pixel rotation pattern without smearing
-        // across silhouettes; the normal weight is what stops corner sparkle where a depth-only test starves.
         blurred.begin();
         GlState.bindTexture(0, ao.colorTextureGlId(0));
         GlState.bindTexture(1, capture.depthTextureGlId());
@@ -113,7 +109,6 @@ public final class SsaoPass extends ScreenPass {
             hCurr.begin();
             GlState.bindTexture(0, blurred.colorTextureGlId(0));
             GlState.bindTexture(1, capture.depthTextureGlId());
-            // hPrev isn't allocated yet on the first temporal frame, fall back to the raw AO buffer
             GlState.bindTexture(2, (historyValid && hPrev.isAllocated() ? hPrev : blurred).colorTextureGlId(0));
             temporal.begin();
             temporal.setSampler("AoRaw", 0);
@@ -135,7 +130,6 @@ public final class SsaoPass extends ScreenPass {
         }
         prevViewProj.set(cam.viewProj);
         prevEyeX = cam.eye.x; prevEyeY = cam.eye.y; prevEyeZ = cam.eye.z;
-        // wrap well within float's exact-integer range so fract(Frame * 0.618) stays precise
         frame = (frame + 1) & 1023;
 
         int prevFbo = MainTargetFramebuffer.bind();
@@ -175,8 +169,6 @@ public final class SsaoPass extends ScreenPass {
         if (blurred != null) blurred.dispose();
         if (historyA != null) historyA.dispose();
         if (historyB != null) historyB.dispose();
-        // depth matched to the AO trace's own scale so a lowered SSAO resolution also saves
-        // the blit cost, instead of always blitting a full-res depth copy
         capture = Framebuffers.screen("SSAO Capture", scale, FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
         ao = Framebuffers.screen("SSAO Occlusion", scale, FramebufferSpec.builder().color(ColorFormat.RGBA8).build());
         blurred = Framebuffers.screen("SSAO Blur", scale, FramebufferSpec.builder().color(ColorFormat.RGBA8).build());

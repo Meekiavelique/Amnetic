@@ -3,16 +3,15 @@
 in vec2 vUv;
 in vec4 vColor;
 in vec2 vPos;
-flat in vec4 vParams; // mode, radius, halfW, halfH
-flat in vec2 vExtra;  // borderW, softness
-flat in vec4 vClip;   // clip rect in gui px, x1 <= 0 means none
+flat in vec4 vParams;
+flat in vec2 vExtra;
+flat in vec4 vClip;
 
 uniform sampler2D Tex;
-uniform vec2 ScreenSize; // gui-scaled dims, matches vPos space
+uniform vec2 ScreenSize;
 
 out vec4 FragColor;
 
-// analytic rounded box, crisp at any scale without an atlas
 float roundedBox(vec2 p, vec2 halfSize, float radius) {
     vec2 q = abs(p) - halfSize + radius;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
@@ -23,9 +22,7 @@ void main() {
 
     int mode = int(vParams.x + 0.5);
 
-    if (mode == 1) { // sdf glyph, screen-space aa keeps the edge ~1px at every size
-        // vParams.y is edge offset in sdf units (positive grows the glyph: outlines),
-        // vParams.z is softness (wide transition band: glow/blur), both compose freely
+    if (mode == 1) {
         float d = texture(Tex, vUv).r;
         float aa = fwidth(d);
         float off = vParams.y;
@@ -36,12 +33,12 @@ void main() {
         return;
     }
 
-    if (mode == 2) { // plain textured
+    if (mode == 2) {
         FragColor = texture(Tex, vUv) * vColor;
         return;
     }
 
-    if (mode == 3) { // frosted glass, Tex is the scene capture, extra.y is blur radius
+    if (mode == 3) {
         vec2 suv = vec2(vPos.x / ScreenSize.x, 1.0 - vPos.y / ScreenSize.y);
         vec2 px = vExtra.y / vec2(textureSize(Tex, 0));
         vec3 acc = vec3(0.0);
@@ -55,13 +52,11 @@ void main() {
         float aa3 = max(fwidth(d3), 1e-4);
         float cov3 = 1.0 - smoothstep(-aa3, aa3, d3);
         if (cov3 <= 0.0) discard;
-        // tint multiplies, alpha mixes tint over the blurred scene
         vec3 tinted = mix(acc, acc * vColor.rgb, vColor.a);
         FragColor = vec4(tinted, cov3);
         return;
     }
 
-    // rect sdf, uv is the pixel offset from the rect center
     float d = roundedBox(vUv, vParams.zw, vParams.y);
     float border = vExtra.x;
     float softness = vExtra.y;
@@ -69,11 +64,11 @@ void main() {
 
     float cov;
     if (softness > 0.0) {
-        cov = 1.0 - smoothstep(-softness, softness, d); // shadow feather
+        cov = 1.0 - smoothstep(-softness, softness, d);
     } else if (border > 0.0) {
         float outer = 1.0 - smoothstep(-aa, aa, d);
         float inner = 1.0 - smoothstep(-aa, aa, d + border);
-        cov = outer - inner; // ring
+        cov = outer - inner;
     } else {
         cov = 1.0 - smoothstep(-aa, aa, d);
     }

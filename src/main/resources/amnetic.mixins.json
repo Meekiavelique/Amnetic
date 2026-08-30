@@ -12,6 +12,7 @@
     "WindowGlContextMixin",
     "CameraStateMixin",
     "SurfaceClickMixin",
+    "SurfaceKeyboardMixin",
     "CameraMixin",
     "LevelRendererBlockChangeMixin",
     "WeatherEffectRendererMixin",
