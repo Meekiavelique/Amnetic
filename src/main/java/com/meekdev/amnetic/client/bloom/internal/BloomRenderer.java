@@ -1,6 +1,10 @@
 package com.meekdev.amnetic.client.bloom.internal;
 
 import com.meekdev.amnetic.client.bloom.BloomSettings;
+import com.meekdev.amnetic.client.emissive.EmissiveContext;
+import com.meekdev.amnetic.client.emissive.EmissiveSources;
+import com.meekdev.amnetic.client.render.CameraSnapshot;
+import net.minecraft.client.Minecraft;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
@@ -45,8 +49,10 @@ public final class BloomRenderer {
     public void render(LevelRenderContext ctx, BloomSettings s) {
         if (!s.isEnabled()) return;
         boolean instEmissive = InstanceMeshRegistry.INSTANCE.hasEmissive(PHASE, s.isAll());
+        boolean hookEmissive = !EmissiveSources.isEmpty();
+        boolean gbufferEmissive = GBufferTargets.INSTANCE.isPopulated();
         boolean sceneBloom = s.threshold() > 0.0f;
-        if (!instEmissive && !sceneBloom) return;
+        if (!instEmissive && !hookEmissive && !gbufferEmissive && !sceneBloom) return;
 
         ensureChain(s.scale(), s.levels(), s.isOcclude());
 
@@ -57,7 +63,7 @@ public final class BloomRenderer {
         }
         GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, brightQuery);
         try {
-            renderSources(ctx, s, instEmissive, sceneBloom);
+            renderSources(ctx, s, instEmissive, hookEmissive, gbufferEmissive, sceneBloom);
         } finally {
             GL15.glEndQuery(GL33.GL_ANY_SAMPLES_PASSED);
         }
@@ -66,19 +72,25 @@ public final class BloomRenderer {
         runPyramidAndComposite(s);
     }
 
-    private void renderSources(LevelRenderContext ctx, BloomSettings s, boolean instEmissive, boolean sceneBloom) {
+    private void renderSources(LevelRenderContext ctx, BloomSettings s, boolean instEmissive,
+                               boolean hookEmissive, boolean gbufferEmissive, boolean sceneBloom) {
         emissiveBuf.begin();
         emissiveBuf.clear(0f, 0f, 0f, 0f);
         emissiveBuf.end();
-        if (instEmissive) {
+        if (instEmissive || hookEmissive) {
             if (s.isOcclude()) {
                 emissiveBuf.blitDepthFromMain();
                 GL11.glDepthFunc(GL11.GL_LEQUAL); // visible surfaces (equal depth) bloom
             }
-            InstanceMeshRegistry.INSTANCE.renderEmissive(PHASE, ctx, emissiveBuf, s.isAll());
+            if (instEmissive) {
+                InstanceMeshRegistry.INSTANCE.renderEmissive(PHASE, ctx, emissiveBuf, s.isAll());
+            }
+            if (hookEmissive) {
+                emitRegisteredSources();
+            }
         }
 
-        if (sceneBloom) {
+        if (sceneBloom || gbufferEmissive) {
             sceneCapture.blitColorFromMain();
             sceneCapture.blitDepthFromMain();
             emissiveBuf.begin();
@@ -99,6 +111,24 @@ public final class BloomRenderer {
             prefilter.draw();
             emissiveBuf.end();
             restoreState();
+        }
+    }
+
+    // lets any renderer (entities, GeckoLib, a third-party mod) draw into the emissive buffer
+    // without Amnetic depending on it
+    private void emitRegisteredSources() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        CameraSnapshot cam = CameraSnapshot.current();
+        if (cam == null) return;
+        emissiveBuf.begin();
+        try {
+            EmissiveSources.emitAll(new EmissiveContext(
+                    mc.level, cam.eye, cam.view, cam.projection,
+                    mc.getDeltaTracker().getGameTimeDeltaPartialTick(false),
+                    emissiveBuf.width(), emissiveBuf.height()));
+        } finally {
+            emissiveBuf.end();
         }
     }
 
