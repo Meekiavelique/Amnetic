@@ -48,7 +48,12 @@ public final class WorldModels {
         private double y;
         private double z;
         private float yaw;
+        private float pitch;
+        private float roll;
         private float scale = 1f;
+        private float blockLight = Float.NaN;
+        private float skyLight = Float.NaN;
+        private float emissive = Float.NaN;
         private boolean removed;
         private Animator animator;
 
@@ -73,8 +78,55 @@ public final class WorldModels {
             return play(model.firstClip());
         }
 
+        public Animator animator() {
+            if (animator == null) {
+                animator = model.createAnimator();
+            }
+            return animator;
+        }
+
+        public boolean hasAnimator() {
+            return animator != null;
+        }
+
+        public Placement stopAnimator() {
+            animator = null;
+            return this;
+        }
+
         public Placement yaw(float degrees) {
             this.yaw = degrees;
+            return this;
+        }
+
+        public Placement rotation(float pitchDegrees, float yawDegrees, float rollDegrees) {
+            this.pitch = pitchDegrees;
+            this.yaw = yawDegrees;
+            this.roll = rollDegrees;
+            return this;
+        }
+
+        public Placement position(double x, double y, double z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            return this;
+        }
+
+        public Placement light(float block, float sky) {
+            this.blockLight = block;
+            this.skyLight = sky;
+            return this;
+        }
+
+        public Placement autoLight() {
+            this.blockLight = Float.NaN;
+            this.skyLight = Float.NaN;
+            return this;
+        }
+
+        public Placement emissive(float strength) {
+            this.emissive = strength;
             return this;
         }
 
@@ -105,17 +157,19 @@ public final class WorldModels {
             Matrix4f world = new Matrix4f()
                     .translation((float) x, (float) y, (float) z)
                     .rotateY((float) Math.toRadians(yaw))
+                    .rotateX((float) Math.toRadians(pitch))
+                    .rotateZ((float) Math.toRadians(roll))
                     .scale(scale);
-            if (animator != null && animator.current() != null) {
+            if (animator != null && (animator.current() != null || animator.hasOverrides())) {
                 animator.update(dt);
                 Matrix4f[] pose = animator.pose();
                 Matrix4f[] copy = new Matrix4f[pose.length];
                 for (int i = 0; i < pose.length; i++) {
                     copy[i] = new Matrix4f(pose[i]);
                 }
-                model.renderPosed(world, copy);
+                model.renderPosed(world, copy, blockLight, skyLight, emissive);
             } else {
-                model.render(world);
+                model.render(world, blockLight, skyLight, emissive);
             }
         }
     }

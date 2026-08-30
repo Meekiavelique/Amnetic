@@ -8,6 +8,7 @@ import com.meekdev.amnetic.client.model.internal.OffscreenModelRenderer;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL45;
@@ -122,8 +123,6 @@ public final class ModelView {
 
     private static ShaderProgram alphaResolve;
 
-    // material alpha is wrong for ui compositing (glass writes ~0), coverage comes from
-    // the depth buffer instead: alpha becomes 1 wherever the model wrote depth
     private void resolveAlphaFromDepth() {
         int depthTex = framebuffer.depthTextureGlId();
         if (depthTex == 0) return;
@@ -132,7 +131,7 @@ public final class ModelView {
                     Identifier.fromNamespaceAndPath("amnetic", "shaders/util/fullscreen.vsh"),
                     Identifier.fromNamespaceAndPath("amnetic", "shaders/model/viewport_alpha.fsh"));
         }
-        GL45.glTextureBarrier(); // depth was just written and is sampled next, same fbo
+        GL45.glTextureBarrier();
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
@@ -206,9 +205,8 @@ public final class ModelView {
         float far = distance + radius * 2f;
         float aspect = (float) width / (float) height;
 
-        // match the device clip convention (0..1 depth on MC 26) or depth breaks, see SceneView
         Matrix4f proj = new Matrix4f().perspective(fov, aspect, near, far,
-                com.mojang.blaze3d.systems.RenderSystem.getDevice().isZZeroToOne());
+                RenderSystem.getDevice().isZZeroToOne());
         Matrix4f view = new Matrix4f().lookAt(eye, center, UP);
         return proj.mul(view);
     }

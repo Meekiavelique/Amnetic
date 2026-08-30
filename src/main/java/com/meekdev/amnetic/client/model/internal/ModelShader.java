@@ -1,15 +1,12 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.model.ModelLighting;
-import java.io.InputStream;
 import java.nio.FloatBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
 
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.Resource;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
@@ -36,7 +33,12 @@ final class ModelShader implements AutoCloseable {
     private final int hasEmissiveLoc;
     private final int materialIdLoc;
     private final int skinnedLoc;
-    private final int jointMatricesLoc;
+    private final int jointCountLoc;
+    private final int cameraPosLoc;
+    private final int worldSpaceLoc;
+    private final int sourceIndexedLoc;
+
+    static final int JOINT_UNIT = 6;
     private final int hasEnvCubeLoc;
     private final int envMaxLodLoc;
     private final int sunDirectionLoc;
@@ -64,7 +66,10 @@ final class ModelShader implements AutoCloseable {
         this.hasEmissiveLoc = uniform("HasEmissive");
         this.materialIdLoc = uniform("MaterialId");
         this.skinnedLoc = uniform("Skinned");
-        this.jointMatricesLoc = uniform("JointMatrices");
+        this.jointCountLoc = uniform("JointCount");
+        this.cameraPosLoc = uniform("CameraPos");
+        this.worldSpaceLoc = uniform("WorldSpace");
+        this.sourceIndexedLoc = uniform("SourceIndexed");
         this.hasEnvCubeLoc = uniform("HasEnvCube");
         this.envMaxLodLoc = uniform("EnvMaxLod");
         this.sunDirectionLoc = uniform("SunDirection");
@@ -82,10 +87,6 @@ final class ModelShader implements AutoCloseable {
         return loadResolved(VSH, FSH);
     }
 
-    // custom per-model program (see ModelConfig.shaders). path convention matches the instancing
-    // shaders: raw id "ns:foo" resolves to "ns:shaders/foo.vsh" / ".fsh". shares the built-in
-    // attribute/uniform contract (declared uniforms get uploaded, the rest are ignored) and its
-    // fragment stage writes the gbuffer
     static ModelShader loadCustom(Identifier rawVsh, Identifier rawFsh) {
         return loadResolved(shaderPath(rawVsh, ".vsh"), shaderPath(rawFsh, ".fsh"));
     }
@@ -152,7 +153,6 @@ final class ModelShader implements AutoCloseable {
         }
     }
 
-    // animation time in seconds, custom model shaders may read a Time uniform
     void uploadTime(float seconds) {
         if (timeLoc != -1) {
             GL20.glUniform1f(timeLoc, seconds);
@@ -165,17 +165,27 @@ final class ModelShader implements AutoCloseable {
         }
     }
 
-    void uploadJointMatrices(Matrix4f[] palette, int count) {
-        if (jointMatricesLoc == -1 || count <= 0) {
-            return;
+    void setCameraPos(double x, double y, double z) {
+        if (cameraPosLoc != -1) {
+            GL20.glUniform3f(cameraPosLoc, (float) x, (float) y, (float) z);
         }
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            FloatBuffer buf = stack.mallocFloat(count * 16);
-            for (int i = 0; i < count; i++) {
-                palette[i].get(i * 16, buf);
-            }
-            buf.position(0).limit(count * 16);
-            GL20.glUniformMatrix4fv(jointMatricesLoc, false, buf);
+    }
+
+    void setWorldSpace(boolean worldSpace) {
+        if (worldSpaceLoc != -1) {
+            GL20.glUniform1i(worldSpaceLoc, worldSpace ? 1 : 0);
+        }
+    }
+
+    void setSourceIndexed(boolean sourceIndexed) {
+        if (sourceIndexedLoc != -1) {
+            GL20.glUniform1i(sourceIndexedLoc, sourceIndexed ? 1 : 0);
+        }
+    }
+
+    void setJointCount(int count) {
+        if (jointCountLoc != -1) {
+            GL20.glUniform1i(jointCountLoc, count);
         }
     }
 
@@ -222,6 +232,7 @@ final class ModelShader implements AutoCloseable {
         setSampler("OrmSampler", 2);
         setSampler("EmissiveSampler", 3);
         setSampler("EnvCube", 5);
+        setSampler("JointMatrixTex", JOINT_UNIT);
         GlStateManager._glUseProgram(0);
     }
 
@@ -250,15 +261,7 @@ final class ModelShader implements AutoCloseable {
     }
 
     private static String loadSource(Identifier id) {
-        Optional<Resource> opt = Minecraft.getInstance().getResourceManager().getResource(id);
-        if (opt.isEmpty()) {
-            throw new RuntimeException("Model shader not found: " + id);
-        }
-        try (InputStream is = opt.get().open()) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to read model shader " + id, e);
-        }
+        return ShaderProgram.readSource(id);
     }
 
     @Override

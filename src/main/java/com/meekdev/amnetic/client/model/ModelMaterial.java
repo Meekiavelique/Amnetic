@@ -102,6 +102,16 @@ public final class ModelMaterial {
         return this;
     }
 
+    public ModelMaterial setBaseColorGlTexture(int glId) {
+        return setBaseColorGlTexture(glId, TextureFilter.LINEAR);
+    }
+
+    public ModelMaterial setBaseColorGlTexture(int glId, TextureFilter filter) {
+        mat.baseColorGlId = glId;
+        mat.baseColorFilter = filter;
+        return this;
+    }
+
     public ModelMaterial setEmissiveGlTexture(int glId) {
         mat.emissiveGlId = glId;
         mat.emissiveTexture = null;
