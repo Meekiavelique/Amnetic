@@ -31,22 +31,6 @@ Developers should depend on it with `modImplementation` (not `include`) and add 
 
 ---
 
-## Installation
-
-Amnetic is a **standalone mod**: install it as a separate mod (e.g. from Modrinth)
-alongside any mod that uses it. **Do not bundle it (Jar-in-Jar) inside another mod.**
-
-A single shared install is supportable, whereas many bundled copies are not  - and when
-several mods each ship their own copy, Fabric loads one and shadows the rest, causing
-version mismatches and compatibility conflicts. Amnetic logs a warning if it detects it
-was loaded as a nested jar.
-
-Developers should depend on it with `modImplementation` (not `include`) and add an
-`"amnetic"` entry to their `fabric.mod.json` `depends`. See the README and
-[Getting Started](Getting-Started) for the build snippet.
-
----
-
 ## Current scope
 
 **Post-processing effects**
@@ -108,6 +92,18 @@ Projected box decals: give `Decals` a texture, a center, and a surface normal, a
 **Custom shading models**
 
 Register a GLSL snippet as a `ShadingModel` and assign it to a model material. The snippet is baked into the deferred lighting shader as a dispatch case, so your geometry responds to Amnetic lights with a fully custom BRDF instead of the default Cook-Torrance path. See [Shading Models](Shading-Models).
+
+**Subsurface scattering**
+
+Light that enters a surface, scatters inside it, and leaves somewhere else: red backlit skin, glowing leaves, soft wax. A per-fragment transmission term in the deferred pass plus a screen-space Burley diffusion gather, driven by tunable profiles with `skin()`, `wax()`, `foliage()`, and `marble()` presets. See [Subsurface Scattering](Subsurface-Scattering).
+
+**Light styles**
+
+Register a GLSL snippet against a `Light` to customise the light itself rather than the surface: displace where it appears to come from, scale or tint its contribution, or mask it to a region. See [Light Styles](Light-Styles).
+
+**Surface UI**
+
+A retained-mode UI toolkit drawn through Amnetic's renderer: HUD overlays, modal screens, and panels in the world. SDF text with per-glyph effects, shader materials with blur-behind, spring-animated layout, a full widget catalogue, and a fine-grained reactive core of signals, computed values, and effects. See [Surface UI](Surface-UI).
 
 **Quality presets**
 
@@ -176,7 +172,10 @@ The following areas are planned for future releases. None of them are available 
 | [TAA](TAA) | `Taa` and `TaaSettings` for temporal anti-aliasing and the CAS sharpen pass |
 | [Color Grading](Color-Grading) | `ColorGrade` and `ColorGradeSettings` for the final-frame grading post pass |
 | [Decals](Decals) | `Decals` factory and `Decal` handles for projected box decals and gbuffer relighting |
-| [Shading Models](Shading-Models) | `ShadingModel` custom GLSL shading snippets for deferred-lit materials |
+| [Shading Models](Shading-Models) | `ShadingModel` lighting bases, fragment and vertex GLSL snippets for deferred-lit materials |
+| [Subsurface Scattering](Subsurface-Scattering) | `Subsurface` profiles, the Burley diffusion pass, and transmission |
+| [Light Styles](Light-Styles) | `LightStyles` GLSL snippets that customise how a single light is evaluated |
+| [Surface UI](Surface-UI) | `Surfaces`, widgets, layout, the reactive core, SDF text, and surface materials |
 | [Quality](Quality) | `Quality` one-call presets for the screen-space effect stack |
 | [Models](Models) | `Models`/`Model`/`ModelInstance`, PBR materials, and the `Animator` |
 | [Scene Capture](Scene-Capture) | `PerspectiveCapture`, `PerspectiveView`, and `PlanarReflection` mirrors |
