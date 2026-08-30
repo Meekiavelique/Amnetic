@@ -29,6 +29,8 @@ public final class InstanceMeshRegistry {
     private final CopyOnWriteArrayList<InstanceMeshEntry<?>> entries = new CopyOnWriteArrayList<>();
     private final Map<InstancePhase, CopyOnWriteArrayList<Consumer<InstanceRenderContext>>> prePhase =
             new EnumMap<>(InstancePhase.class);
+    private final Map<InstancePhase, CopyOnWriteArrayList<Consumer<InstanceRenderContext>>> postPhase =
+            new EnumMap<>(InstancePhase.class);
 
     private InstanceMeshRegistry() {
         // dev hot reload for per-mesh instanced shaders
@@ -66,6 +68,19 @@ public final class InstanceMeshRegistry {
         prePhase.computeIfAbsent(phase, p -> new CopyOnWriteArrayList<>()).add(callback);
     }
 
+    public void addPostPhaseCallback(InstancePhase phase, Consumer<InstanceRenderContext> callback) {
+        postPhase.computeIfAbsent(phase, p -> new CopyOnWriteArrayList<>()).add(callback);
+    }
+
+    public void render(Identifier id, InstanceRenderContext ctx) {
+        for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.id().equals(id)) {
+                entry.render(ctx);
+                return;
+            }
+        }
+    }
+
     public void renderAll(InstancePhase phase, LevelRenderContext fabricCtx) {
         InstanceRenderContext ctx = buildContext(fabricCtx);
         if (ctx == null) return;
@@ -87,6 +102,7 @@ public final class InstanceMeshRegistry {
         try {
             for (InstanceMeshEntry<?> entry : entries) {
                 if (entry.mesh().phase() != phase) continue;
+                if (entry.mesh().manual()) continue;
                 if (!all && !entry.mesh().isEmissive()) continue;
                 try {
                     entry.render(ctx);
@@ -115,6 +131,7 @@ public final class InstanceMeshRegistry {
 
     public boolean hasEmissive(InstancePhase phase, boolean all) {
         for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.mesh().manual()) continue;
             if (entry.mesh().phase() == phase && (all || entry.mesh().isEmissive())) return true;
         }
         return false;
@@ -140,11 +157,22 @@ public final class InstanceMeshRegistry {
             }
         }
         for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.mesh().manual()) continue;
             if (entry.mesh().phase() == phase && !entry.mesh().writeGBuffer()) {
                 try {
                     entry.render(ctx);
                 } catch (Exception e) {
                     LOGGER.error("Amnetic: error rendering instanced mesh {}", entry.id(), e);
+                }
+            }
+        }
+        var after = postPhase.get(phase);
+        if (after != null) {
+            for (Consumer<InstanceRenderContext> cb : after) {
+                try {
+                    cb.accept(ctx);
+                } catch (Exception e) {
+                    LOGGER.error("Amnetic: error in post-phase callback for {}", phase, e);
                 }
             }
         }
@@ -157,6 +185,7 @@ public final class InstanceMeshRegistry {
 
         boolean any = false;
         for (InstanceMeshEntry<?> entry : entries) {
+            if (entry.mesh().manual()) continue;
             if (entry.mesh().phase() == phase && entry.mesh().writeGBuffer()) { any = true; break; }
         }
         if (!any) return;

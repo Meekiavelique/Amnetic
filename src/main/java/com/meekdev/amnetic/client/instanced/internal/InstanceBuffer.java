@@ -22,15 +22,20 @@ final class InstanceBuffer implements AutoCloseable {
 
     int id() { return id; }
 
+    void ensureCapacity(int instances) {
+        if (instances <= capacityInstances) return;
+        int newCapacity = Math.max(instances, capacityInstances * 2);
+        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, id);
+        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, (long) stride * newCapacity, GL15.GL_STREAM_DRAW);
+        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        capacityInstances = newCapacity;
+    }
+
     void upload(ByteBuffer data, int instanceCount) {
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, id);
-        if (instanceCount > capacityInstances) {
-            int newCapacity = Math.max(instanceCount, capacityInstances * 2);
-            GlStateManager._glBufferData(GL15.GL_ARRAY_BUFFER, (long) stride * newCapacity, GL15.GL_STREAM_DRAW);
-            capacityInstances = newCapacity;
-        }
-        GlStateManager._glBufferSubData(GL15.GL_ARRAY_BUFFER, 0, data);
+        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, data, GL15.GL_STREAM_DRAW);
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        if (instanceCount > capacityInstances) capacityInstances = instanceCount;
     }
 
     @Override

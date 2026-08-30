@@ -1,0 +1,60 @@
+#version 430
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 0) readonly buffer Bounds {
+    vec4 bounds[];
+};
+
+layout(std430, binding = 1) readonly buffer PayloadIn {
+    uint payloadIn[];
+};
+
+layout(std430, binding = 2) writeonly buffer PayloadOut {
+    uint payloadOut[];
+};
+
+layout(std430, binding = 3) buffer DrawCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    uint baseVertex;
+    uint baseInstance;
+} cmd;
+
+uniform int Count;
+uniform int StrideUints;
+uniform vec3 CamPos;
+uniform vec4 Planes[6];
+
+bool insideFrustum(vec3 center, float radius) {
+    for (int i = 0; i < 6; i++) {
+        vec4 plane = Planes[i];
+        if (dot(plane.xyz, center) + plane.w < -radius) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= uint(Count)) {
+        return;
+    }
+
+    vec4 sphere = bounds[index];
+    vec3 cameraRelative = sphere.xyz - CamPos;
+    if (!insideFrustum(cameraRelative, sphere.w)) {
+        return;
+    }
+
+    uint slot = atomicAdd(cmd.instanceCount, 1u);
+
+    uint stride = uint(StrideUints);
+    uint source = index * stride;
+    uint destination = slot * stride;
+    for (uint offset = 0u; offset < stride; offset++) {
+        payloadOut[destination + offset] = payloadIn[source + offset];
+    }
+}

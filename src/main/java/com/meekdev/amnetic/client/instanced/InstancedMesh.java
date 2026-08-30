@@ -10,6 +10,7 @@ import net.minecraft.resources.Identifier;
 public final class InstancedMesh<T> {
 
     final MeshData geometry;
+    final InstanceLayout vertexLayout;
     final InstanceLayout layout;
     final InstanceWriter<T> writer;
     final BuiltinShader<?> builtinShader;
@@ -25,10 +26,14 @@ public final class InstancedMesh<T> {
     final boolean writeGBuffer;
     final boolean castsShadow;
     final boolean staticInstances;
+    final boolean gpuCull;
+    final boolean worldSpace;
+    final boolean manual;
     final BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
     private InstancedMesh(Builder<T> b) {
         this.geometry = Objects.requireNonNull(b.geometry, "geometry must be set");
+        this.vertexLayout = b.vertexLayout;
         this.layout = b.layout;
         this.writer = b.writer;
         this.builtinShader = b.builtinShader;
@@ -44,6 +49,9 @@ public final class InstancedMesh<T> {
         this.writeGBuffer = b.writeGBuffer;
         this.castsShadow = b.castsShadow;
         this.staticInstances = b.staticInstances;
+        this.gpuCull = b.gpuCull;
+        this.worldSpace = b.worldSpace;
+        this.manual = b.manual;
         this.onRender = Objects.requireNonNull(b.onRender, "onRender must be set");
     }
 
@@ -66,6 +74,7 @@ public final class InstancedMesh<T> {
     }
 
     public MeshData geometry() { return geometry; }
+    public InstanceLayout vertexLayout() { return vertexLayout; }
     public InstanceLayout layout() { return layout; }
     public InstanceWriter<T> writer() { return writer; }
     public InstancePhase phase() { return phase; }
@@ -75,6 +84,9 @@ public final class InstancedMesh<T> {
     public boolean writeGBuffer() { return writeGBuffer; }
     public boolean castsShadow() { return castsShadow; }
     public boolean staticInstances() { return staticInstances; }
+    public boolean gpuCull() { return gpuCull; }
+    public boolean worldSpace() { return worldSpace; }
+    public boolean manual() { return manual; }
 
     public BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender() { return onRender; }
 
@@ -96,6 +108,7 @@ public final class InstancedMesh<T> {
         private Identifier textureId;
         private final List<ExtraSampler> extraSamplers = new ArrayList<>();
         private MeshData geometry;
+        private InstanceLayout vertexLayout;
         private InstancePhase phase = InstancePhase.WORLD_LAST;
         private RenderState renderState = RenderState.DEFAULT;
         private boolean emissive = false;
@@ -103,11 +116,19 @@ public final class InstancedMesh<T> {
         private boolean writeGBuffer = false;
         private boolean castsShadow = false;
         private boolean staticInstances = false;
+        private boolean gpuCull = false;
+        private boolean worldSpace = false;
+        private boolean manual = false;
         private BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
         private Builder(InstanceLayout layout, InstanceWriter<T> writer) {
             this.layout = layout;
             this.writer = writer;
+        }
+
+        public Builder<T> vertexLayout(InstanceLayout layout) {
+            this.vertexLayout = layout;
+            return this;
         }
 
         public Builder<T> geometry(MeshData geometry) {
@@ -184,6 +205,21 @@ public final class InstancedMesh<T> {
          */
         public Builder<T> staticInstances() {
             this.staticInstances = true;
+            return this;
+        }
+
+        public Builder<T> gpuCull() {
+            this.gpuCull = true;
+            return this;
+        }
+
+        public Builder<T> worldSpace() {
+            this.worldSpace = true;
+            return this;
+        }
+
+        public Builder<T> manual() {
+            this.manual = true;
             return this;
         }
 

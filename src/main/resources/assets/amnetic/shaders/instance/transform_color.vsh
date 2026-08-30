@@ -10,11 +10,16 @@ layout(location = 4) in vec4 InstTransform3;
 layout(location = 5) in vec4 InstColor;
 
 uniform mat4 ProjViewMatrix;
+uniform vec3 CameraPos;
+uniform int WorldSpace;
 
 out vec4 vColor;
 
 void main() {
     mat4 model = mat4(InstTransform0, InstTransform1, InstTransform2, InstTransform3);
+    if (WorldSpace == 1) {
+        model[3].xyz -= CameraPos;
+    }
     gl_Position = ProjViewMatrix * model * vec4(Position, 1.0);
     vColor = InstColor;
 }
