@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -174,11 +176,34 @@ public final class ShaderProgram implements AutoCloseable {
         GlStateManager.glShaderSource(shader, src);
         GlStateManager.glCompileShader(shader);
         if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 512);
+            int len = Math.max(GlStateManager.glGetShaderi(shader, GL20.GL_INFO_LOG_LENGTH), 512);
+            String log = GlStateManager.glGetShaderInfoLog(shader, len);
             GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("Failed to compile shader " + id + ": " + log);
+            String dump = dumpSource(id, src, log);
+            throw new RuntimeException("Failed to compile shader " + id + ": " + log
+                    + (dump == null ? "" : "\nfull source written to " + dump));
         }
         return shader;
+    }
+
+    private static String dumpSource(Identifier id, String src, String log) {
+        try {
+            Path dir = Path.of("amnetic-shader-dumps");
+            Files.createDirectories(dir);
+            Path out = dir.resolve(id.toString().replaceAll("[^A-Za-z0-9._-]", "_") + ".glsl");
+            StringBuilder sb = new StringBuilder();
+            sb.append("// ").append(id).append('\n');
+            for (String line : log.split("\n")) sb.append("// ").append(line).append('\n');
+            sb.append('\n');
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                sb.append(String.format("%5d| %s%n", i + 1, lines[i]));
+            }
+            Files.writeString(out, sb.toString());
+            return out.toAbsolutePath().toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static String loadWithIncludes(Identifier id) {
