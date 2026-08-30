@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-// cached derived value, recomputes on upstream change and equality-filters downstream
 public class Computed<T> implements Tracking.Computation {
 
     private final Supplier<T> fn;

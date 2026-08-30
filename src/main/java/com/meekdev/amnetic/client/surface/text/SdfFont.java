@@ -21,30 +21,22 @@ import org.slf4j.LoggerFactory;
 
 import static org.lwjgl.stb.STBTruetype.*;
 
-// runtime single-channel SDF glyph atlas from a ttf, glyphs bake on demand so any
-// codepoint works without a prebaked charset, one bake size serves every on-screen size,
-// a fallback chain of extra fonts covers codepoints the primary is missing, all sources
-// bake into the same shared atlas
 public final class SdfFont {
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
 
-    // 64px em, big enough that sharp corners survive the distance field
     static final int BAKE_PX = 64;
-    private static final int PADDING = 8; // sdf spread each side of the edge, texels
-    private static final byte ONEDGE = (byte) 128; // atlas value at the edge, shader threshold 0.5
+    private static final int PADDING = 8;
+    private static final byte ONEDGE = (byte) 128;
     private static final float PIXEL_DIST_SCALE = 128f / PADDING;
     private static final int ATLAS = 1024;
 
-    // source tracks which font in the chain resolved the codepoint, kerning only applies
-    // when both codepoints came from the same source
     public record Glyph(int ax, int ay, int aw, int ah, float xoff, float yoff, float advance, int source) {}
 
-    // one font in the chain, data kept alive because stb reads from it on every bake
     private record Source(ByteBuffer data, STBTTFontinfo info, float scale) {}
 
     private final List<Source> sources;
-    private final float ascent; // from the primary
+    private final float ascent;
     private final Map<Integer, Glyph> glyphs = new HashMap<>();
     private final int texture;
 
@@ -62,14 +54,10 @@ public final class SdfFont {
     public float bakePx() { return BAKE_PX; }
     public float ascentPx() { return ascent; }
 
-    // sdf units per gui pixel at the given draw size, converts pixel widths (outline,
-    // glow radius) into the shader's edge-offset/softness space; reach is clamped by the
-    // baked spread, roughly px/8 gui pixels
     public float sdfUnitsPerGuiPx(float px) {
         return (PIXEL_DIST_SCALE / 255f) * (BAKE_PX / px);
     }
 
-    // real cap height measured off the H glyph, ascent overshoots it and miscenters labels
     public float capPx() {
         if (capHeight == 0) {
             Glyph h = glyph('H');
@@ -80,14 +68,28 @@ public final class SdfFont {
 
     private float capHeight;
 
-    // bakes the codepoint on first request, render thread only
+    private static final String PREWARM_EXTRA =
+            "\u2550\u2551\u2552\u2553\u2554\u2555\u2556\u2557\u2558\u2559\u255A\u255B\u255C\u255D"
+            + "\u2500\u2502\u250C\u2510\u2514\u2518\u251C\u2524\u252C\u2534\u253C"
+            + "\u2591\u2592\u2593\u2588\u25CF\u25CB\u25A0\u25A1\u2022\u00B7\u2026\u2190\u2192";
+
+    private void prewarm() {
+        for (int cp = 32; cp < 127; cp++) {
+            glyph(cp);
+        }
+        PREWARM_EXTRA.codePoints().forEach(this::glyph);
+    }
+
+    public boolean baked(int codepoint) {
+        return glyphs.containsKey(codepoint);
+    }
+
     public Glyph glyph(int codepoint) {
         Glyph g = glyphs.get(codepoint);
         if (g != null) return g;
         return bake(codepoint);
     }
 
-    // kerning only makes sense inside one font, cross-source pairs get none
     public float kern(int cp1, int cp2) {
         Glyph g1 = glyph(cp1), g2 = glyph(cp2);
         if (g1 == null || g2 == null || g1.source() != g2.source()) return 0;
@@ -95,7 +97,6 @@ public final class SdfFont {
         return stbtt_GetCodepointKernAdvance(s.info(), cp1, cp2) * s.scale();
     }
 
-    // advance width at target pixel height, kerning included
     public float width(String s, float px) {
         float f = px / BAKE_PX, w = 0;
         int prev = -1;
@@ -112,7 +113,6 @@ public final class SdfFont {
         return w;
     }
 
-    // first source in the chain that actually has a shape for the codepoint, primary if none
     private int pickSource(int cp) {
         for (int i = 0; i < sources.size(); i++) {
             if (stbtt_FindGlyphIndex(sources.get(i).info(), cp) != 0) return i;
@@ -130,7 +130,7 @@ public final class SdfFont {
 
             IntBuffer w = stack.mallocInt(1), h = stack.mallocInt(1), xo = stack.mallocInt(1), yo = stack.mallocInt(1);
             ByteBuffer sdf = stbtt_GetCodepointSDF(src.info(), src.scale(), cp, PADDING, ONEDGE, PIXEL_DIST_SCALE, w, h, xo, yo);
-            if (sdf == null) { // no shape (space etc), advance only
+            if (sdf == null) {
                 Glyph g = new Glyph(0, 0, 0, 0, 0, 0, advance, srcIdx);
                 glyphs.put(cp, g);
                 return g;
@@ -148,9 +148,7 @@ public final class SdfFont {
                 return g;
             }
 
-            GlState.bindTexture(0, texture); // raw + cache sync, keeps vanilla's next bind honest
-            // reset every unpack param, vanilla leaves skip/row offsets behind and a partial
-            // reset uploads glyphs from the wrong byte offsets (garbled atlas rows)
+            GlState.bindTexture(0, texture);
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
             GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
             GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
@@ -159,7 +157,7 @@ public final class SdfFont {
 
             Glyph g = new Glyph(penX, penY, gw, gh, xo.get(0), yo.get(0), advance, srcIdx);
             glyphs.put(cp, g);
-            penX += gw + 2; // 2px gap so bilinear sampling never bleeds a neighbour in
+            penX += gw + 2;
             rowH = Math.max(rowH, gh);
             stbtt_FreeSDF(sdf);
             return g;
@@ -177,7 +175,7 @@ public final class SdfFont {
             if (!stbtt_InitFont(info, fontData)) throw new RuntimeException("stbtt_InitFont failed");
             float scale = stbtt_ScaleForPixelHeight(info, BAKE_PX);
             ByteBuffer kept = fontData;
-            fontData = null; // ownership moves to the source, freed never (lives for the session)
+            fontData = null;
             return new Source(kept, info, scale);
         } catch (Exception e) {
             LOG.warn("sdf font bake failed for {}: {}", fontId, e.getMessage());
@@ -187,7 +185,6 @@ public final class SdfFont {
         }
     }
 
-    // null (logged) if the primary can't be read, failed fallbacks are skipped, render thread
     static SdfFont load(Identifier primary, Identifier... fallbacks) {
         Source first = loadSource(primary);
         if (first == null) return null;
@@ -211,7 +208,6 @@ public final class SdfFont {
         GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
         GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
         GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
-        // zero-filled, null data leaves undefined vram that bleeds around glyph edges
         ByteBuffer zeros = MemoryUtil.memCalloc(ATLAS * ATLAS);
         GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R8, ATLAS, ATLAS, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, zeros);
         MemoryUtil.memFree(zeros);
@@ -220,6 +216,8 @@ public final class SdfFont {
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL13.GL_CLAMP_TO_EDGE);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL13.GL_CLAMP_TO_EDGE);
 
-        return new SdfFont(sources, ascent, tex);
+        SdfFont font = new SdfFont(sources, ascent, tex);
+        font.prewarm();
+        return font;
     }
 }

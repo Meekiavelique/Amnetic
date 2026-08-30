@@ -6,6 +6,7 @@ import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderStage;
 import com.meekdev.amnetic.client.surface.HudSurface;
+import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.surface.ScreenSurface;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.mojang.blaze3d.opengl.GlStateManager;
@@ -16,8 +17,6 @@ import org.lwjgl.opengl.GL14;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// lays out and draws every visible surface just before the vanilla gui, gl state is set
-// up before the trees run so material draws can flush mid-stream in painter's order
 public final class SurfaceRenderer {
 
     public static final SurfaceRenderer INSTANCE = new SurfaceRenderer();
@@ -26,6 +25,7 @@ public final class SurfaceRenderer {
     private final CopyOnWriteArrayList<HudSurface> huds = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<ScreenSurface> screens = new CopyOnWriteArrayList<>();
     private boolean registered;
+    private long menuClockNano;
 
     private SurfaceRenderer() {}
 
@@ -53,7 +53,6 @@ public final class SurfaceRenderer {
         Pipeline.add(RenderStage.BEFORE_GUI, 50, "Surface", ctx -> render());
     }
 
-    // interactive huds get whatever mouse events an open surface screen didn't consume
     public void hudMouseMoved(float mx, float my) {
         for (HudSurface hud : huds) {
             if (hud.isVisible() && hud.isInteractive()) hud.internalInput().mouseMoved(mx, my);
@@ -76,13 +75,24 @@ public final class SurfaceRenderer {
 
     private Framebuffer sceneCapture;
 
+    private void tickMenuClock(Minecraft mc) {
+        if (mc.level != null) {
+            menuClockNano = 0L;
+            return;
+        }
+        long now = System.nanoTime();
+        float dt = menuClockNano == 0L ? 0f : (now - menuClockNano) / 1.0e9f;
+        menuClockNano = now;
+        Reactive.tick(dt);
+    }
+
     private void render() {
         if (huds.isEmpty() && screens.isEmpty()) return;
         Minecraft mc = Minecraft.getInstance();
+        tickMenuClock(mc);
         float w = mc.getWindow().getGuiScaledWidth();
         float h = mc.getWindow().getGuiScaledHeight();
 
-        // scene snapshot for blur-behind panels, taken before any ui lands in the target
         if (sceneCapture == null) sceneCapture = Framebuffers.captureColor();
         sceneCapture.blitColorFromMain();
         int sceneTex = sceneCapture.colorTextureGlId(0);
@@ -91,7 +101,6 @@ public final class SurfaceRenderer {
         batcher.begin(w, h);
         UiDraw draw = new UiDraw(batcher, w, h, sceneTex);
 
-        // state first so material draws can interleave real gl mid-tree
         int prevFbo = MainTargetFramebuffer.bind();
         GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
         GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
@@ -108,7 +117,6 @@ public final class SurfaceRenderer {
                 hud.internalTree().draw(draw, 1f);
                 if (hud.internalDrawCallback() != null) hud.internalDrawCallback().accept(draw);
             } catch (Exception e) {
-                // one broken hud never takes the frame or its neighbours down
                 LOG.warn("hud surface draw failed, hiding it", e);
                 hud.setVisible(false);
             }
@@ -120,7 +128,6 @@ public final class SurfaceRenderer {
                 if ((screen.dimValue() >>> 24) != 0) draw.rect(0, 0, w, h, screen.dimValue());
                 screen.internalTree().layout(0, 0, w, h);
                 screen.internalTree().draw(draw, 1f);
-                // drag ghost rides the cursor, next frame's layout puts the widget back
                 var dragging = screen.internalInput().dragging();
                 if (dragging != null) {
                     dragging.layout(screen.internalInput().dragX() - dragging.w * 0.5f,

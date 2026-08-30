@@ -7,7 +7,6 @@ import com.meekdev.amnetic.client.surface.reactive.Motion;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 import net.minecraft.resources.Identifier;
 
-// non-interactive 0..1 bar, the fill chases the signal on a spring so jumps glide
 public class ProgressBar extends Widget {
 
     public final Signal<Float> value;
@@ -45,7 +44,6 @@ public class ProgressBar extends Widget {
         d.roundedRect(x, y, w, h, rounding, fade(track, alpha));
         float t = Math.min(Math.max(smooth.value().peek(), 0f), 1f);
         if (t > 0.001f) {
-            // never thinner than the pill height so the rounding stays clean
             float fillW = Math.max(w * t, Math.min(h, w));
             d.roundedRect(x, y, fillW, h, rounding, fade(fill, alpha));
         }
@@ -67,7 +65,6 @@ public class ProgressBar extends Widget {
         return Math.min(Math.max(v, 0f), 1f);
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public ProgressBar size(float w, float h) { super.size(w, h); return this; }
     @Override public ProgressBar width(float w) { super.width(w); return this; }
     @Override public ProgressBar height(float h) { super.height(h); return this; }

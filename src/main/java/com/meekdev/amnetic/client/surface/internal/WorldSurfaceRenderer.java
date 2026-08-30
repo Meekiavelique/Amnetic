@@ -31,14 +31,12 @@ import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// renders each world surface's tree into an offscreen canvas, then draws that canvas as
-// a (curved) panel in the world and picks it with the crosshair ray for hover/click
 public final class WorldSurfaceRenderer {
 
     public static final WorldSurfaceRenderer INSTANCE = new WorldSurfaceRenderer();
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
 
-    private static final int SEGMENTS = 24; // curve tessellation along the width
+    private static final int SEGMENTS = 24;
 
     private final CopyOnWriteArrayList<WorldSurface> surfaces = new CopyOnWriteArrayList<>();
     private final Map<WorldSurface, Framebuffer> canvases = new HashMap<>();
@@ -47,7 +45,6 @@ public final class WorldSurfaceRenderer {
     private ShaderProgram program;
     private int vao, vbo;
     private final FloatBuffer grid = BufferUtils.createFloatBuffer((SEGMENTS + 1) * 2 * 2 * 5 * 3);
-    // world-space triangles of the last built grid, reused by the picker
     private final Map<WorldSurface, float[]> pickTris = new HashMap<>();
 
     private boolean attackWasDown;
@@ -55,10 +52,39 @@ public final class WorldSurfaceRenderer {
 
     private WorldSurfaceRenderer() {}
 
-    // true while the crosshair rests on a pickable surface, the click mixin swallows
-    // attack/use so pressing a panel button never swings or places
     public boolean isPointerOverSurface() {
         return pointerOverSurface;
+    }
+
+    public boolean hasKeyboardFocus() {
+        return focusedSurface() != null;
+    }
+
+    public boolean keyPressed(int key, int modifiers) {
+        WorldSurface surface = focusedSurface();
+        if (surface == null) {
+            return false;
+        }
+        surface.internalInput().keyPressed(key, modifiers);
+        return true;
+    }
+
+    public boolean charTyped(int codepoint) {
+        WorldSurface surface = focusedSurface();
+        if (surface == null) {
+            return false;
+        }
+        surface.internalInput().charTyped(codepoint);
+        return true;
+    }
+
+    private WorldSurface focusedSurface() {
+        for (WorldSurface surface : surfaces) {
+            if (surface.isVisible() && surface.internalInput().focused() != null) {
+                return surface;
+            }
+        }
+        return null;
     }
 
     public void add(WorldSurface surface) {
@@ -87,7 +113,7 @@ public final class WorldSurfaceRenderer {
         for (WorldSurface s : surfaces) {
             if (!s.isVisible()) continue;
             double dist = eye.distanceTo(new Vec3(s.xPos(), s.yPos(), s.zPos()));
-            if (dist > s.maxDistanceValue() + 16) continue; // draw a bit past interaction range
+            if (dist > s.maxDistanceValue() + 16) continue;
             try {
                 renderCanvas(s);
                 drawInWorld(s, fc);
@@ -130,7 +156,6 @@ public final class WorldSurfaceRenderer {
         ensureGl();
         Vec3 eye = fc.camera().eye;
 
-        // basis: facing is the outward normal, right spans the width, up the height
         Vector3f n = s.billboardValue()
                 ? new Vector3f((float) (eye.x - s.xPos()), 0, (float) (eye.z - s.zPos()))
                 : new Vector3f(s.facingValue().x, 0, s.facingValue().z);
@@ -148,8 +173,6 @@ public final class WorldSurfaceRenderer {
         int t = 0;
         for (int i = 0; i < segs; i++) {
             float u0 = (float) i / segs, u1 = (float) (i + 1) / segs;
-            // tri 1: (u0,top)(u1,top)(u1,bottom); tri 2: (u0,top)(u1,bottom)(u0,bottom)
-            // the picker reconstructs uv assuming exactly this order
             float[] su = {u0, u1, u1, u0, u1, u0};
             boolean[] st = {true, true, false, true, false, false};
             for (int k = 0; k < 6; k++) {
@@ -169,7 +192,7 @@ public final class WorldSurfaceRenderer {
                 double wy = s.yPos() + (top ? hM * 0.5f : -hM * 0.5f);
                 double wz = s.zPos() + right.z * ox + n.z * oz;
                 grid.put((float) (wx - eye.x)).put((float) (wy - eye.y)).put((float) (wz - eye.z));
-                grid.put(u).put(top ? 1f : 0f); // canvas texture is bottom-up, top row is v=1
+                grid.put(u).put(top ? 1f : 0f);
                 tris[t++] = (float) wx; tris[t++] = (float) wy; tris[t++] = (float) wz;
             }
         }
@@ -208,7 +231,6 @@ public final class WorldSurfaceRenderer {
         GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
     }
 
-    // crosshair ray -> nearest surface hit -> canvas coords, attack press clicks
     private void pick(Minecraft mc) {
         pointerOverSurface = false;
         if (mc.player == null || mc.screen != null || surfaces.isEmpty()) return;
@@ -228,11 +250,9 @@ public final class WorldSurfaceRenderer {
                 float[] hit = rayTriangle(eye, look, tris, i * 9);
                 if (hit != null && hit[0] < bestT && hit[0] <= s.maxDistanceValue()) {
                     bestT = hit[0];
-                    // reconstruct uv: triangle order matches the grid builder
                     int seg = i / 2;
                     boolean second = (i & 1) == 1;
                     float u0 = (float) seg / segs, u1 = (float) (seg + 1) / segs;
-                    // tri 1: (u0,top)(u1,top)(u1,bottom); tri 2: (u0,top)(u1,bottom)(u0,bottom)
                     float[] us = second ? new float[]{u0, u1, u0} : new float[]{u0, u1, u1};
                     float[] vs = second ? new float[]{1, 0, 0} : new float[]{1, 1, 0};
                     bestU = us[0] * hit[1] + us[1] * hit[2] + us[2] * hit[3];
@@ -243,14 +263,14 @@ public final class WorldSurfaceRenderer {
         }
 
         for (WorldSurface s : surfaces) {
-            if (s != best) s.internalInput().mouseMoved(-1, -1); // unhover
+            if (s != best) s.internalInput().mouseMoved(-1, -1);
         }
 
         pointerOverSurface = best != null;
         boolean attack = GLFW.glfwGetMouseButton(mc.getWindow().handle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
         if (best != null) {
             float mx = bestU * best.canvasW();
-            float my = (1f - bestV) * best.canvasH(); // canvas y is top-down
+            float my = (1f - bestV) * best.canvasH();
             best.internalInput().mouseMoved(mx, my);
             if (attack && !attackWasDown) best.internalInput().mouseDown(mx, my, 0);
             if (!attack && attackWasDown) best.internalInput().mouseUp(mx, my, 0);
@@ -258,7 +278,6 @@ public final class WorldSurfaceRenderer {
         attackWasDown = attack;
     }
 
-    // moller-trumbore, returns {t, w0, w1, w2} barycentric weights or null
     private static float[] rayTriangle(Vec3 origin, Vec3 dir, float[] tris, int off) {
         float ax = tris[off], ay = tris[off + 1], az = tris[off + 2];
         float bx = tris[off + 3], by = tris[off + 4], bz = tris[off + 5];

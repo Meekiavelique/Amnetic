@@ -16,10 +16,6 @@ import org.lwjgl.opengl.GL30;
 
 import java.nio.FloatBuffer;
 
-// one interleaved stream for every surface primitive, split into segments on texture change,
-// material draws flush what came before so painter's order always holds
-// vertex: pos2 uv2 color4 params4 extra2 clip4 = 18 floats
-// params = mode(0 rect sdf, 1 glyph, 2 textured), radius, halfW, halfH; extra = borderW, softness
 public final class UiBatcher {
 
     public static final UiBatcher INSTANCE = new UiBatcher();
@@ -37,11 +33,8 @@ public final class UiBatcher {
     private final int[] segCount = new int[MAX_SEGMENTS];
     private int segments;
 
-    // active clip in gui px, x1 <= 0 means none
     private float clipX0, clipY0, clipX1, clipY1;
 
-    // current affine transform applied to vertex positions cpu-side, identity by default
-    // sdf params stay in local space so rotated/scaled shapes and glyphs remain crisp
     private float m00 = 1, m01, m10, m11 = 1, m02, m12;
 
     private UiBatcher() {}
@@ -54,11 +47,9 @@ public final class UiBatcher {
         m00 = t[0]; m01 = t[1]; m10 = t[2]; m11 = t[3]; m02 = t[4]; m12 = t[5];
     }
 
-    // compose translate + uniform scale + rotation around a pivot onto the current transform
     public void composeTransform(float pivotX, float pivotY, float dx, float dy, float scale, float rotation) {
         float cos = (float) Math.cos(rotation) * scale;
         float sin = (float) Math.sin(rotation) * scale;
-        // local: p' = pivot + d + R*S*(p - pivot)
         float a00 = cos, a01 = -sin, a10 = sin, a11 = cos;
         float a02 = pivotX + dx - (a00 * pivotX + a01 * pivotY);
         float a12 = pivotY + dy - (a10 * pivotX + a11 * pivotY);
@@ -90,7 +81,7 @@ public final class UiBatcher {
 
     private void segment(int texture) {
         if (segments > 0 && segTexture[segments - 1] == texture) return;
-        if (segments == MAX_SEGMENTS) return; // merge into the last, better than crashing
+        if (segments == MAX_SEGMENTS) return;
         segTexture[segments] = texture;
         segCount[segments] = 0;
         segments++;
@@ -116,13 +107,11 @@ public final class UiBatcher {
         if (segments > 0) segCount[segments - 1] += 1;
     }
 
-    // sdf rounded rect, uv carries the pixel offset from the rect center
     public void rect(float x, float y, float w, float h, float radius,
                      float borderW, float softness, int argb) {
         rectGradient(x, y, w, h, radius, borderW, softness, argb, argb);
     }
 
-    // vertical gradient comes free from per-vertex color interpolation
     public void rectGradient(float x, float y, float w, float h, float radius,
                              float borderW, float softness, int topArgb, int bottomArgb) {
         segment(0);
@@ -133,7 +122,7 @@ public final class UiBatcher {
         float bb = (bottomArgb & 0xFF) / 255f, ba = ((bottomArgb >>> 24) & 0xFF) / 255f;
         float hw = w * 0.5f, hh = h * 0.5f;
         float cx = x + hw, cy = y + hh;
-        float e = softness + 1f; // expand so shadow feather is not clipped by the geometry
+        float e = softness + 1f;
         float ew = hw + e, eh = hh + e;
         vert(cx - ew, cy - eh, -ew, -eh, tr, tg, tb, ta, 0f, radius, hw, hh, borderW, softness);
         vert(cx - ew, cy + eh, -ew,  eh, br, bg, bb, ba, 0f, radius, hw, hh, borderW, softness);
@@ -143,15 +132,12 @@ public final class UiBatcher {
         vert(cx + ew, cy + eh,  ew,  eh, br, bg, bb, ba, 0f, radius, hw, hh, borderW, softness);
     }
 
-    // sdf glyph quad, uv is atlas uv
     public void glyph(int atlasTexture, float x0, float y0, float x1, float y1,
                       float u0, float v0, float u1, float v1,
                       float r, float g, float b, float a) {
         glyph(atlasTexture, x0, y0, x1, y1, u0, v0, u1, v1, r, g, b, a, 0f, 0f);
     }
 
-    // styled variant: edgeOffset grows/shrinks the glyph edge (outlines), softness widens
-    // the coverage band (glow/blur), both in normalized sdf units (the bake spread is ~0.5)
     public void glyph(int atlasTexture, float x0, float y0, float x1, float y1,
                       float u0, float v0, float u1, float v1,
                       float r, float g, float b, float a,
@@ -166,10 +152,9 @@ public final class UiBatcher {
         vert(x1, y1, u1, v1, r, g, b, a, 1f, edgeOffset, softness, 0, 0, 0);
     }
 
-    // frosted glass: samples the blurred scene behind the rect, masked by the rounded sdf
     public void blurBehind(int sceneTexture, float x, float y, float w, float h,
                            float radius, float blurPx, int argb) {
-        if (sceneTexture == 0) { // capture unavailable, translucent fallback
+        if (sceneTexture == 0) {
             rect(x, y, w, h, radius, 0f, 0f, argb);
             return;
         }
@@ -187,7 +172,6 @@ public final class UiBatcher {
         vert(cx + hw, cy + hh,  hw,  hh, r, g, b, a, 3f, radius, hw, hh, 0, blurPx);
     }
 
-    // textured quad with a raw gl texture id
     public void image(int texture, float x, float y, float w, float h, int argb) {
         segment(texture);
         grow(6 * FLOATS);
@@ -201,13 +185,10 @@ public final class UiBatcher {
         vert(x + w, y + h, 1, 1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
-    // custom-material rect: flush what came before, then draw this quad with the material's
-    // program so painter's order is preserved
     public void material(SurfaceMaterial mat, float x, float y, float w, float h, float radius,
                          float hover, float pressed, float focus, int argb) {
         flush();
         if (!mat.beginDraw(ortho, guiW, guiH, Reactive.clock().peek(), hover, pressed, focus)) {
-            // broken material falls back to an obvious flat fill so layout stays debuggable
             rect(x, y, w, h, radius, 0, 0, 0xFF3A2A3A);
             return;
         }
@@ -225,7 +206,7 @@ public final class UiBatcher {
         vert(cx + hw, cy + hh,  hw,  hh, r, g, b, a, 0f, radius, hw, hh, 0, 0);
 
         applyBlend(mat.blend());
-        drawPending(); // program already bound by beginDraw
+        drawPending();
         applyBlend(SurfaceMaterial.Blend.MIX);
     }
 
@@ -246,13 +227,11 @@ public final class UiBatcher {
         verts.flip();
         GlStateManager._glBindVertexArray(vao);
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
-        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo); // raw too, cached bind can be stale
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, verts, GL15.GL_STREAM_DRAW);
 
         int offset = 0;
         for (int i = 0; i < segments; i++) {
-            // raw bind + cache sync, a cached-only bind gets skipped when vanilla's new
-            // backend changed the real binding behind GlStateManager's back
             GlState.bindTexture(0, segTexture[i]);
             GL11.glDrawArrays(GL11.GL_TRIANGLES, offset, segCount[i]);
             offset += segCount[i];
@@ -263,8 +242,6 @@ public final class UiBatcher {
         segments = 0;
     }
 
-    // re-establish the standard surface pass state after outside rendering (viewports,
-    // offscreen model renders) changed it mid-pass
     public void restorePassState() {
         GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
         GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);

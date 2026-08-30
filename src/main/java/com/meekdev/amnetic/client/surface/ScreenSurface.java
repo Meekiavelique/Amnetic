@@ -5,8 +5,6 @@ import com.meekdev.amnetic.client.surface.internal.SurfaceScreen;
 import com.meekdev.amnetic.client.surface.widget.Stack;
 import net.minecraft.client.Minecraft;
 
-// a modal ui: opens a vanilla screen for input capture and pause semantics while the
-// visuals render through the surface pass, widgets live under root()
 public final class ScreenSurface {
 
     private final Stack outer = new Stack();
@@ -21,15 +19,13 @@ public final class ScreenSurface {
     ScreenSurface(String name) {
         this.name = name;
         outer.add(root);
-        outer.add(overlay); // drawn above and hit-tested first
+        outer.add(overlay);
     }
 
-    // floating layer for popups, tooltips, menus and toasts
     public Stack overlay() {
         return overlay;
     }
 
-    // engine-side: the full tree including the overlay
     public Stack internalTree() {
         return outer;
     }
@@ -43,7 +39,6 @@ public final class ScreenSurface {
         return this;
     }
 
-    // backdrop dim drawn under the widgets, 0 disables
     public ScreenSurface dim(int argb) {
         this.dim = argb;
         return this;
@@ -78,7 +73,6 @@ public final class ScreenSurface {
         screen = null;
     }
 
-    // engine-side accessor, not for api users
     public InputRouter internalInput() {
         return input;
     }

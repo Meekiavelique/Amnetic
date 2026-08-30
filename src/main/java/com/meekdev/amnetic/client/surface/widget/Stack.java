@@ -1,7 +1,6 @@
 package com.meekdev.amnetic.client.surface.widget;
 
 import com.meekdev.amnetic.client.surface.Anchor;
-// free-placement container, children position via anchor/offset/size (the Widget default)
 public class Stack extends Widget {
 
     @Override
@@ -22,7 +21,6 @@ public class Stack extends Widget {
         return max;
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Stack size(float w, float h) { super.size(w, h); return this; }
     @Override public Stack width(float w) { super.width(w); return this; }
     @Override public Stack height(float h) { super.height(h); return this; }

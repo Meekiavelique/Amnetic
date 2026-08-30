@@ -6,19 +6,17 @@ import java.util.Random;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryUtil;
 
-// stock textures for material samplers so common shaders work without shipping assets
 public final class MaterialTextures {
 
     private static int noise;
 
     private MaterialTextures() {}
 
-    // 256x256 rgba white noise, repeat wrap, render thread
     public static int noise() {
         if (noise != 0) return noise;
         int size = 256;
         ByteBuffer data = MemoryUtil.memAlloc(size * size * 4);
-        Random rng = new Random(0x5EEDF00DL); // fixed seed, same noise every session
+        Random rng = new Random(0x5EEDF00DL);
         for (int i = 0; i < size * size * 4; i++) data.put((byte) rng.nextInt(256));
         data.flip();
 

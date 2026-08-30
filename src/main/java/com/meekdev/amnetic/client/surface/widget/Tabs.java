@@ -13,8 +13,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import net.minecraft.resources.Identifier;
 
-// tab bar over a content stack, the underline rides animateLayout so it glides
-// between tabs and a width spring keeps it hugging the selected label
 public class Tabs extends Column {
 
     public final Signal<Integer> selected = new Signal<>(0);
@@ -33,8 +31,6 @@ public class Tabs extends Column {
     public Tabs() {
         gap(8);
         underline.animateLayout(true);
-        // custom header: the row lays out normally, then the underline lands under
-        // the selected tab and springs there on change
         Stack headerStack = new Stack() {
             @Override
             protected float contentWidth() {
@@ -104,8 +100,6 @@ public class Tabs extends Column {
         super.remove();
     }
 
-    // flat header button, hover pill on a spring, selection tint snaps because
-    // the gliding underline already carries the transition
     private class TabButton extends Widget {
 
         final String title;
@@ -164,7 +158,6 @@ public class Tabs extends Column {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Tabs gap(float g) { super.gap(g); return this; }
     @Override public Tabs size(float w, float h) { super.size(w, h); return this; }
     @Override public Tabs width(float w) { super.width(w); return this; }

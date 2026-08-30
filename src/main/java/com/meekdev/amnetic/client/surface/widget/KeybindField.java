@@ -10,7 +10,6 @@ import java.util.function.Consumer;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-// key capture button: click arms it, the next key press is stored, escape cancels
 public class KeybindField extends Widget {
 
     public final Signal<Integer> key;
@@ -104,7 +103,6 @@ public class KeybindField extends Widget {
 
     @Override
     public boolean onChar(int codepoint) {
-        // swallow the char that rides along with the captured key press
         return armed;
     }
 
@@ -119,7 +117,6 @@ public class KeybindField extends Widget {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public KeybindField size(float w, float h) { super.size(w, h); return this; }
     @Override public KeybindField width(float w) { super.width(w); return this; }
     @Override public KeybindField height(float h) { super.height(h); return this; }

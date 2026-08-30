@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-// virtualized fixed-row-height list, only visible rows are mounted so ten thousand
-// items cost the same as ten
 public class ListView<T> extends Widget {
 
     List<T> items;
@@ -54,7 +52,6 @@ public class ListView<T> extends Widget {
         int first = Math.max(0, (int) (scrollY / rowHeight));
         int last = Math.min(items.size() - 1, (int) ((scrollY + h) / rowHeight));
 
-        // mount only the visible window, reuse rows built earlier so state survives
         children.clear();
         for (int i = first; i <= last; i++) {
             Widget row = mounted.get(i);
@@ -91,7 +88,6 @@ public class ListView<T> extends Widget {
         return true;
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public ListView<T> size(float w, float h) { super.size(w, h); return this; }
     @Override public ListView<T> width(float w) { super.width(w); return this; }
     @Override public ListView<T> height(float h) { super.height(h); return this; }

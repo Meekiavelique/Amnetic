@@ -7,9 +7,6 @@ import com.meekdev.amnetic.client.surface.reactive.Signal;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-// hsv color picker: sv square + hue bar + hex field stacked in a column, the square
-// is exact per strip because rgb is bilinear in s and v so vertical gradients from
-// lerped hue tops to black reproduce the model, only s is quantized into strips
 public class ColorPicker extends Column {
 
     public final Signal<Integer> color;
@@ -36,7 +33,6 @@ public class ColorPicker extends Column {
         add(hueBar);
         add(hex);
 
-        // external writes to the signal re-derive hsv, our own writes round-trip equal
         colorSync = new Effect(() -> {
             int c = color.get();
             if (c != hsvToArgb(hue, sat, val, alphaByte)) {
@@ -59,7 +55,6 @@ public class ColorPicker extends Column {
         val = max;
         sat = max <= 0f ? 0f : delta / max;
         if (delta <= 0f) {
-            // keep the previous hue so a black or grey pick does not snap the square
             return;
         }
         float h;
@@ -92,7 +87,6 @@ public class ColorPicker extends Column {
             } catch (NumberFormatException ignored) {
             }
         }
-        // bad input, restore the current value
         hex.value.set(hexString(color.peek()));
     }
 
@@ -100,7 +94,6 @@ public class ColorPicker extends Column {
         return String.format(Locale.ROOT, "#%06X", argb & 0xFFFFFF);
     }
 
-    // rgb channel = v * (1 - s * (1 - hueChannel)), the standard hsv cone
     static int hsvToArgb(float h, float s, float v, int a) {
         float[] rgb = hueRgb(h);
         int r = Math.round(v * (1f - s * (1f - rgb[0])) * 255f);
@@ -123,7 +116,6 @@ public class ColorPicker extends Column {
         super.remove();
     }
 
-    // saturation left to right, value top to bottom, built from vertical strip gradients
     private final class SvSquare extends Widget {
 
         private static final int STRIPS = 16;
@@ -147,7 +139,6 @@ public class ColorPicker extends Column {
                 d.gradient(x + i * sw, y, sw + 0.5f, h, 0, fade(top, alpha), fade(0xFF000000, alpha));
             }
             d.border(x, y, w, h, 2, 1f, fade(0x30FFFFFF, alpha));
-            // selection ring
             float sx = x + sat * w, sy = y + (1f - val) * h;
             d.roundedRect(sx - 4, sy - 4, 8, 8, 4, fade(0xFF000000, alpha));
             d.roundedRect(sx - 3, sy - 3, 6, 6, 3, fade(0xFFFFFFFF, alpha));
@@ -171,7 +162,6 @@ public class ColorPicker extends Column {
         }
     }
 
-    // rainbow strip with a draggable knob
     private final class HueBar extends Widget {
 
         private static final int SEGMENTS = 24;
@@ -215,7 +205,6 @@ public class ColorPicker extends Column {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public ColorPicker size(float w, float h) { super.size(w, h); return this; }
     @Override public ColorPicker width(float w) { super.width(w); return this; }
     @Override public ColorPicker height(float h) { super.height(h); return this; }

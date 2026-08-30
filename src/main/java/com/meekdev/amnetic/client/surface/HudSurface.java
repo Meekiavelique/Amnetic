@@ -6,8 +6,6 @@ import com.meekdev.amnetic.client.surface.internal.SurfaceRenderer;
 import com.meekdev.amnetic.client.surface.widget.Stack;
 import java.util.function.Consumer;
 
-// a screen-space overlay canvas drawn over post-processing and under the vanilla gui,
-// build a widget tree under root() or draw immediately via onDraw, both compose
 public final class HudSurface {
 
     private final Stack outer = new Stack();
@@ -24,12 +22,10 @@ public final class HudSurface {
         outer.add(overlay);
     }
 
-    // floating layer for popups, tooltips, menus and toasts
     public Stack overlay() {
         return overlay;
     }
 
-    // engine-side: the full tree including the overlay
     public Stack internalTree() {
         return outer;
     }
@@ -38,7 +34,6 @@ public final class HudSurface {
         return root;
     }
 
-    // interactive huds receive mouse events whenever a surface screen is open
     public HudSurface interactive(boolean i) {
         interactive = i;
         return this;
@@ -48,7 +43,6 @@ public final class HudSurface {
         return interactive;
     }
 
-    // engine-side accessor, not for api users
     public InputRouter internalInput() {
         return input;
     }
@@ -72,7 +66,6 @@ public final class HudSurface {
         SurfaceRenderer.INSTANCE.remove(this);
     }
 
-    // engine-side accessor, not for api users
     public Consumer<UiDraw> internalDrawCallback() {
         return drawCallback;
     }

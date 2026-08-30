@@ -5,7 +5,6 @@ import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 import java.util.function.Consumer;
 
-// horizontal 0..1 slider, the value is a signal so anything can bind to it
 public class Slider extends Widget {
 
     public final Signal<Float> value;
@@ -38,7 +37,6 @@ public class Slider extends Widget {
     protected void drawSelf(UiDraw d, float alpha) {
         d.roundedRect(x, y, w, h, rounding, fade(track, alpha));
         float v = value.peek();
-        // knob rides the track, fill ends exactly at the knob so they never drift apart
         float knobSize = h - 4;
         float knobX = x + 2 + (w - knobSize - 4) * v;
         float fillW = Math.max(knobX + knobSize + 2 - x, h);
@@ -47,7 +45,6 @@ public class Slider extends Widget {
     }
 
     private void setFromMouse(float mx) {
-        // invert the knob-center mapping so the knob lands under the cursor
         float v = clamp((mx - x - h * 0.5f) / Math.max(w - h, 1));
         if (!value.peek().equals(v)) {
             value.set(v);
@@ -70,7 +67,6 @@ public class Slider extends Widget {
         return Math.min(Math.max(v, 0f), 1f);
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Slider size(float w, float h) { super.size(w, h); return this; }
     @Override public Slider width(float w) { super.width(w); return this; }
     @Override public Slider height(float h) { super.height(h); return this; }

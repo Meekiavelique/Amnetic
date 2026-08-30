@@ -4,8 +4,6 @@ import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import java.util.function.IntSupplier;
 
-// textured quad from a raw gl texture id, the supplier form makes it a live view onto
-// anything that renders to a texture (scene captures, offscreen model views, portals)
 public class Image extends Widget {
 
     final IntSupplier texture;
@@ -22,7 +20,6 @@ public class Image extends Widget {
 
     public Image tint(int argb) { tint = argb; return this; }
 
-    // framebuffer textures are stored bottom-up, flip when showing a capture
     public Image flipV(boolean flip) { flipV = flip; return this; }
 
     @Override
@@ -38,7 +35,6 @@ public class Image extends Widget {
         d.image(id, x, flipV ? y + h : y, w, flipV ? -h : h, fade(tint, alpha));
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Image size(float w, float h) { super.size(w, h); return this; }
     @Override public Image width(float w) { super.width(w); return this; }
     @Override public Image height(float h) { super.height(h); return this; }

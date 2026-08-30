@@ -11,8 +11,6 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import net.minecraft.resources.Identifier;
 
-// number spinbox: minus and plus buttons around a centered value, holding a button
-// repeats after a short delay via a per-frame driver
 public class Stepper extends Widget {
 
     public final Signal<Float> value;
@@ -65,7 +63,6 @@ public class Stepper extends Widget {
 
     @Override
     protected void placeChildren() {
-        // square buttons pinned to the ends, the value gets the middle
         children.get(0).layout(x, y, h, h);
         children.get(1).layout(x + w - h, y, h, h);
     }
@@ -80,7 +77,6 @@ public class Stepper extends Widget {
         if (prev != null) d.font(prev);
     }
 
-    // one end button: fires once on press then repeats while held
     private final class StepButton extends Widget {
 
         private final String glyph;
@@ -148,7 +144,6 @@ public class Stepper extends Widget {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Stepper size(float w, float h) { super.size(w, h); return this; }
     @Override public Stepper width(float w) { super.width(w); return this; }
     @Override public Stepper height(float h) { super.height(h); return this; }

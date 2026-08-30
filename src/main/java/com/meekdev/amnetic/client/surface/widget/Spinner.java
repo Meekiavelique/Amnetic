@@ -5,13 +5,11 @@ import com.meekdev.amnetic.client.surface.Fx;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Effect;
 
-// indeterminate loading arc: a ring of small rects fading by index, the whole
-// widget spins through the rotation transform channel every frame
 public class Spinner extends Widget {
 
     int color = 0xFFFFFFFF;
     int segments = 8;
-    float speed = 4f; // radians per second
+    float speed = 4f;
 
     private final Effect driver;
 
@@ -45,7 +43,6 @@ public class Spinner extends Widget {
         super.remove();
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Spinner size(float w, float h) { super.size(w, h); return this; }
     @Override public Spinner width(float w) { super.width(w); return this; }
     @Override public Spinner height(float h) { super.height(h); return this; }

@@ -5,8 +5,6 @@ import com.meekdev.amnetic.client.surface.internal.WorldSurfaceRenderer;
 import com.meekdev.amnetic.client.surface.widget.Stack;
 import org.joml.Vector3f;
 
-// a widget tree living on a plane in the world: rendered offscreen at a chosen density,
-// drawn as a (optionally curved) panel, hover/click picked from the crosshair ray
 public final class WorldSurface {
 
     private final Stack outer = new Stack();
@@ -16,9 +14,9 @@ public final class WorldSurface {
     private final float widthM, heightM;
     private double x, y, z;
     private final Vector3f facing = new Vector3f(0, 0, -1);
-    private float curve; // total arc in radians, 0 flat, positive bends edges toward the viewer
+    private float curve;
     private boolean billboard;
-    private int resolution = 256; // canvas px per meter
+    private int resolution = 256;
     private float maxDistance = 8f;
     private boolean alwaysOnTop;
     private boolean visible = true;
@@ -31,12 +29,10 @@ public final class WorldSurface {
         outer.add(overlay);
     }
 
-    // floating layer for popups, tooltips, menus and toasts
     public Stack overlay() {
         return overlay;
     }
 
-    // engine-side: the full tree including the overlay
     public Stack internalTree() {
         return outer;
     }
@@ -48,7 +44,6 @@ public final class WorldSurface {
         return this;
     }
 
-    // outward normal of the panel, horizontal component is what matters
     public WorldSurface facing(float fx, float fy, float fz) {
         facing.set(fx, fy, fz).normalize();
         return this;
@@ -56,7 +51,6 @@ public final class WorldSurface {
 
     public WorldSurface curve(float radians) { curve = radians; return this; }
 
-    // always face the camera instead of the fixed facing
     public WorldSurface billboard(boolean b) { billboard = b; return this; }
     public boolean billboardValue() { return billboard; }
     public WorldSurface resolution(int pxPerMeter) { resolution = Math.max(16, pxPerMeter); return this; }
@@ -85,6 +79,5 @@ public final class WorldSurface {
     public int canvasW() { return Math.round(widthM * resolution); }
     public int canvasH() { return Math.round(heightM * resolution); }
 
-    // engine-side accessor, not for api users
     public InputRouter internalInput() { return input; }
 }

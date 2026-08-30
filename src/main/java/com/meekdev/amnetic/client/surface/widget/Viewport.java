@@ -11,22 +11,15 @@ import org.lwjgl.opengl.GL45;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// generic 3d view: orbit camera as plain signals (drive them with springs, tweens or
-// drag), a frame hook that renders whatever you want to a texture, and the texture shown
-// in the widget rect - ModelViewport is the one-model preset, scenes/items/portals are
-// the same widget with a different hook
 public class Viewport extends Widget {
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
 
-    // orbit state, public signals so anything can read or drive them
     public final Signal<Float> yaw;
     public final Signal<Float> pitch;
     public final Signal<Float> zoom;
 
-    // renders to a texture using the current orbit values, runs once per drawn frame
     public interface FrameHook {
-        // returns the gl texture id to show, 0 shows nothing this frame
         int frame(Viewport vp, float dt);
     }
 
@@ -72,8 +65,6 @@ public class Viewport extends Widget {
             lastFrameClock = now;
             d.interrupt(() -> lastTexture = hook.frame(this, dt));
 
-            // diagnostics: a viewport stuck on texture 0 is a content problem (model not
-            // ready, render failing), say so once instead of showing nothing silently
             if (lastTexture == 0) {
                 if (zeroSince < 0) zeroSince = now;
                 if (!reported && now - zeroSince > 2f) {
@@ -81,7 +72,6 @@ public class Viewport extends Widget {
                     LOG.warn("viewport produced no texture for 2s, its content never became ready or its render fails");
                 }
             } else if (!sampled) {
-                // one-shot center-pixel probe so an all-transparent render is diagnosable
                 sampled = true;
                 ByteBuffer buf = BufferUtils.createByteBuffer(4);
                 GL45.glGetTextureSubImage(lastTexture, 0, 256, 256, 0, 1, 1, 1,
@@ -97,7 +87,6 @@ public class Viewport extends Widget {
             }
         }
         if (lastTexture != 0) {
-            // offscreen targets are bottom-up, draw flipped
             d.image(lastTexture, x, y + h, w, -h, fade(0xFFFFFFFF, alpha));
         }
     }
@@ -125,7 +114,6 @@ public class Viewport extends Widget {
         return Math.min(Math.max(v, min), max);
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public Viewport size(float w, float h) { super.size(w, h); return this; }
     @Override public Viewport width(float w) { super.width(w); return this; }
     @Override public Viewport height(float h) { super.height(h); return this; }

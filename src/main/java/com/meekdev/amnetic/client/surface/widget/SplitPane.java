@@ -4,8 +4,6 @@ import com.meekdev.amnetic.client.surface.Anchor;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 
-// two panes split by a draggable divider, the grab strip is wider than the drawn
-// line so it stays easy to hit, min sizes clamp the ratio
 public class SplitPane extends Widget {
 
     public final Signal<Float> ratio;
@@ -15,7 +13,7 @@ public class SplitPane extends Widget {
     int dividerColor = 0x35FFFFFF;
     int dividerActiveColor = 0x80FFFFFF;
 
-    private static final float HIT = 8; // grab strip, the visual line is 2px
+    private static final float HIT = 8;
 
     private final Handle handle = new Handle();
 
@@ -82,7 +80,6 @@ public class SplitPane extends Widget {
         ratio.set(Math.min(Math.max(t, 0f), 1f));
     }
 
-    // the grab strip, draws only the thin center line
     private final class Handle extends Widget {
 
         @Override
@@ -109,7 +106,6 @@ public class SplitPane extends Widget {
         }
     }
 
-    // fluent overrides so chains keep the subtype
     @Override public SplitPane size(float w, float h) { super.size(w, h); return this; }
     @Override public SplitPane width(float w) { super.width(w); return this; }
     @Override public SplitPane height(float h) { super.height(h); return this; }

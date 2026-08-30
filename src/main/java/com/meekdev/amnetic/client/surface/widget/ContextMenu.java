@@ -13,19 +13,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// floating right-click menu mounted on an overlay stack
-//
-// widgets own their input, so the menu is opened from the caller's mouse handler:
-// InputRouter passes GLFW button ids straight through to onMouseDown and right
-// click is GLFW_MOUSE_BUTTON_RIGHT (1), so inside your widget:
-//
-//   @Override public boolean onMouseDown(float mx, float my, int button) {
-//       if (ContextMenu.onMouseDown(overlay, mx, my, button, items)) return true;
-//       return super.onMouseDown(mx, my, button);
-//   }
-//
-// or call ContextMenu.open(overlay, x, y, items) directly to open at any point,
-// the menu closes itself on selection or on a click anywhere else
 public final class ContextMenu {
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
@@ -40,14 +27,12 @@ public final class ContextMenu {
         }
     }
 
-    // sugar for the handler pattern above, returns true when it consumed the press
     public static boolean onMouseDown(Stack overlayLayer, float mx, float my, int button, List<Item> items) {
         if (button != GLFW.GLFW_MOUSE_BUTTON_RIGHT) return false;
         open(overlayLayer, mx, my, items);
         return true;
     }
 
-    // opens a menu at the given gui-scaled point, clamped to the overlay bounds
     public static void open(Stack overlayLayer, float x, float y, List<Item> items) {
         if (overlayLayer == null) {
             LOG.warn("context menu has no overlay layer, menu skipped");
@@ -65,8 +50,6 @@ public final class ContextMenu {
         float px = Math.min(Math.max(x, ox), ox + ow - pw);
         float py = Math.min(Math.max(y, oy), oy + oh - ph);
 
-        // the catcher closes both, built before the panel so the array indirection
-        // lets the close closure see them
         Widget[] parts = new Widget[2];
         Runnable close = () -> {
             for (Widget part : parts) {
@@ -94,7 +77,6 @@ public final class ContextMenu {
         return f == null ? 60 : f.width(s, TEXT_PX);
     }
 
-    // one menu entry, disabled rows are greyed and swallow the click without closing
     private static final class MenuRow extends Widget {
 
         private final Item item;

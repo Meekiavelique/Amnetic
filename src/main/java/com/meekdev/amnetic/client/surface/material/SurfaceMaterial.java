@@ -15,10 +15,6 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// surface shader dialect: author writes `shader_type surface;` + `void fragment()`
-// against UV/TIME/COLOR/HOVER/PRESSED/FOCUS/RECT_SIZE/SCREEN_UV built-ins, uniforms may
-// carry hints (`uniform float Speed : hint_range(0,5) = 1.0;`), the engine owns the
-// rounded-rect coverage mask and clip so the author only controls color
 public final class SurfaceMaterial {
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
@@ -65,13 +61,11 @@ public final class SurfaceMaterial {
                 (argb & 0xFF) / 255f, ((argb >>> 24) & 0xFF) / 255f);
     }
 
-    // reactive uniform, re-uploads only when the signal changes
     public SurfaceMaterial bind(String name, Signal<Float> signal) {
         bindings.add(new Effect(() -> set(name, signal.get())));
         return this;
     }
 
-    // backing texture for a `uniform sampler2D <name>;`, raw gl id
     public SurfaceMaterial setTexture(String name, int glTextureId) {
         textures.put(name, glTextureId);
         return this;
@@ -83,7 +77,6 @@ public final class SurfaceMaterial {
         program.close();
     }
 
-    // engine side: bind program and push built-ins + user uniforms, returns false when broken
     public boolean beginDraw(org.joml.Matrix4f ortho, float screenW, float screenH,
                              float time, float hover, float pressed, float focus) {
         parseIfNeeded();
@@ -91,7 +84,7 @@ public final class SurfaceMaterial {
         try {
             program.begin();
         } catch (Exception e) {
-            broken = true; // bad user shader, log once and fall back to flat
+            broken = true;
             LOG.warn("surface material {} failed to compile: {}", sourceId, e.getMessage());
             return false;
         }
@@ -112,7 +105,6 @@ public final class SurfaceMaterial {
                 default -> {}
             }
         }
-        // user samplers live on units 1+, unit 0 stays the engine's Tex
         int unit = 1;
         for (Uniform u : uniforms) {
             if (!"sampler2D".equals(u.glslType())) continue;
@@ -121,7 +113,7 @@ public final class SurfaceMaterial {
             GlState.bindTexture(unit, id == null ? 0 : id);
             unit++;
         }
-        if (unit > 1) GlState.bindTexture(0, 0); // leave unit 0 active for the batcher
+        if (unit > 1) GlState.bindTexture(0, 0);
         return true;
     }
 
@@ -143,7 +135,6 @@ public final class SurfaceMaterial {
         }
     }
 
-    // records uniforms/blend and applies defaults, body extraction happens in generate()
     private void parse(String src) {
         uniforms.clear();
         boolean typed = false;
@@ -170,7 +161,6 @@ public final class SurfaceMaterial {
         if (!typed) throw new RuntimeException("missing shader_type surface;");
     }
 
-    // `uniform float Name : hint_range(0, 5) = 3.0;`
     private static Uniform parseUniform(String line) {
         String body = line.substring("uniform ".length()).replace(";", "").trim();
         String hint = null;
@@ -207,7 +197,6 @@ public final class SurfaceMaterial {
         return out;
     }
 
-    // full fragment source: preamble + user code with dialect lines stripped + engine main
     private String generate() {
         String src;
         try {
@@ -221,7 +210,6 @@ public final class SurfaceMaterial {
             String t = line.trim();
             if (t.startsWith("shader_type") || t.startsWith("render_mode")) continue;
             if (t.startsWith("uniform ")) {
-                // strip hints and defaults, glsl doesn't know them
                 Uniform u = parseUniform(t);
                 user.append("uniform ").append(u.glslType()).append(' ').append(u.name()).append(";\n");
                 continue;
