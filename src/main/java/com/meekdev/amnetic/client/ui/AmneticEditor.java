@@ -32,6 +32,7 @@ public final class AmneticEditor {
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Editor");
 
     private static AmneticEditor instance;
+    private static final List<Inspector> PENDING = new ArrayList<>();
 
     private static final float FONT_SIZE = 16f;
 
@@ -59,12 +60,22 @@ public final class AmneticEditor {
     public static void init() {
         if (instance != null) return;
         instance = new AmneticEditor();
+        if (!PENDING.isEmpty()) {
+            instance.inspectors.addAll(PENDING);
+            LOGGER.info("adopted {} inspectors registered before the editor existed", PENDING.size());
+            PENDING.clear();
+        }
         ImGuiMCEvents.INSTANCE.postRenderImGuiEvent(instance::render);
         LOGGER.info("Amnetic editor ready (toggle with the configured keybind)");
     }
 
     public static void register(Inspector inspector) {
-        if (instance != null && inspector != null) instance.inspectors.add(inspector);
+        if (inspector == null) return;
+        if (instance == null) {
+            PENDING.add(inspector);
+            return;
+        }
+        instance.inspectors.add(inspector);
     }
 
     public static void toggle() {

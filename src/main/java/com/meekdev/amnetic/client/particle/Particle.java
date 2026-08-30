@@ -34,6 +34,7 @@ public final class Particle {
     float rVx, rVy, rVz;
     float rSize;
     float rR, rG, rB, rA;
+    float rAge;
     float rUvOffX, rUvOffY, rUvScaleX = 1f, rUvScaleY = 1f;
 
     // trail history: ring buffer of recent world positions (x,y,z per sample), null unless the material

@@ -25,8 +25,6 @@ import org.lwjgl.opengl.GL30;
 
 public final class ShaderProgram implements AutoCloseable {
 
-    // lets in-memory systems (e.g. the shading-model uber-shader ladder) inject generated GLSL for a
-    // virtual include path without needing a real resource-pack file on disk
     private static final Map<Identifier, Supplier<String>> VIRTUAL_SOURCES = new ConcurrentHashMap<>();
 
     public static void registerVirtualSource(Identifier id, Supplier<String> source) {
@@ -38,8 +36,6 @@ public final class ShaderProgram implements AutoCloseable {
     private int program;
     private int vao;
 
-    // uniform locations are stable for a linked program; querying per-setter (glGetUniformLocation) is a
-    // native string lookup that ran hundreds of times per frame on the always-on deferred path, so cache
     private final Map<String, Integer> uniformLocations = new HashMap<>();
     private final float[] mat4Scratch = new float[16];
     private FloatBuffer matArrayScratch;
@@ -54,8 +50,6 @@ public final class ShaderProgram implements AutoCloseable {
         return l;
     }
 
-    // live-instance registry for dev hot reload: invalidateAll() marks every program stale so each lazily
-    // recompiles on next use (see ShaderHotReload). weak keys, closed/abandoned programs just drop out
     private static final Map<ShaderProgram, Boolean> LIVE =
             Collections.synchronizedMap(new WeakHashMap<>());
 
@@ -71,8 +65,6 @@ public final class ShaderProgram implements AutoCloseable {
         LIVE.put(this, Boolean.TRUE);
     }
 
-    // forces the next begin() to recompile/relink, e.g. after the shading-model registry registers a new
-    // custom snippet and the injected uber-shader ladder needs to grow
     public void invalidate() {
         if (program != 0) {
             GlStateManager.glDeleteProgram(program);
@@ -196,7 +188,7 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     private static void resolve(Identifier id, StringBuilder out, Set<Identifier> seen) {
-        if (!seen.add(id)) return; // already inlined elsewhere, skip duplicate copies
+        if (!seen.add(id)) return;
         for (String line : loadRaw(id).split("\n", -1)) {
             String trimmed = line.trim();
             if (trimmed.startsWith("#include")) {
@@ -209,6 +201,10 @@ public final class ShaderProgram implements AutoCloseable {
             }
             out.append(line).append('\n');
         }
+    }
+
+    public static String readSource(Identifier id) {
+        return loadWithIncludes(id);
     }
 
     private static String loadRaw(Identifier id) {

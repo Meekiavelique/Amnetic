@@ -89,6 +89,7 @@ public final class TaaPass extends ScreenPass {
         resolve.setVec3("EyeDelta", (float) dx, (float) dy, (float) dz);
         resolve.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
         resolve.setFloat("Feedback", historyValid && !cut ? settings.feedback() : 0f);
+        resolve.setFloat("ClipSigma", settings.clipTightness());
         resolve.draw();
         hCurr.end();
 
