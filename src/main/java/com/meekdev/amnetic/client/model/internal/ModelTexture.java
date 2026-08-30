@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.model.TextureFilter;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -58,6 +59,10 @@ public final class ModelTexture implements AutoCloseable {
     }
 
     public static ModelTexture fromBytes(byte[] bytes, boolean srgb) {
+        return fromBytes(bytes, srgb, TextureFilter.LINEAR);
+    }
+
+    public static ModelTexture fromBytes(byte[] bytes, boolean srgb, TextureFilter filter) {
         ModelTexture tex = new ModelTexture();
         GlUploadQueue.decode(() -> {
             try (InputStream is = new ByteArrayInputStream(bytes)) {
@@ -67,7 +72,7 @@ public final class ModelTexture implements AutoCloseable {
                     return;
                 }
                 Decoded d = decode(img);
-                GlUploadQueue.submit(() -> tex.finishUpload(d, srgb));
+                GlUploadQueue.submit(() -> tex.finishUpload(d, srgb, filter));
             } catch (Exception e) {
                 LOG.warn("Amnetic: failed to decode embedded model texture", e);
             }
@@ -103,7 +108,8 @@ public final class ModelTexture implements AutoCloseable {
             LOG.warn("Amnetic: failed to read model texture: {}", resId, e);
             return null;
         }
-        ModelTexture tex = fromBytes(bytes, srgb);
+        // came out of the resource pack, so it is authored pixel art rather than a PBR map
+        ModelTexture tex = fromBytes(bytes, srgb, TextureFilter.NEAREST);
         tex.shared = true;
         IDENTIFIER_CACHE.put(key, tex);
         return tex;
@@ -126,7 +132,7 @@ public final class ModelTexture implements AutoCloseable {
     }
 
     // render thread: create the GL texture from the decoded pixels
-    private void finishUpload(Decoded d, boolean srgb) {
+    private void finishUpload(Decoded d, boolean srgb, TextureFilter filter) {
         if (closed) {
             return;
         }
@@ -139,13 +145,17 @@ public final class ModelTexture implements AutoCloseable {
         GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR_MIPMAP_LINEAR);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+        // nearest magnification keeps pixels crisp up close, mipmapped minification still avoids
+        // shimmer at distance
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER,
+                filter == TextureFilter.NEAREST ? GL11.GL_NEAREST_MIPMAP_LINEAR : GL11.GL_LINEAR_MIPMAP_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER,
+                filter == TextureFilter.NEAREST ? GL11.GL_NEAREST : GL11.GL_LINEAR);
         int internalFormat = srgb ? GL21.GL_SRGB8_ALPHA8 : GL11.GL_RGBA8;
         GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, internalFormat, d.w, d.h, 0,
                 GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, d.pixels);
         GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
-        if (GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
+        if (filter != TextureFilter.NEAREST && GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
             float maxAniso = GL11.glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT);
             GL11.glTexParameterf(GL11.GL_TEXTURE_2D,
                     EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT, Math.min(16f, maxAniso));

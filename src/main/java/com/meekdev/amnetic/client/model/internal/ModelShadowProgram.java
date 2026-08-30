@@ -1,14 +1,11 @@
 package com.meekdev.amnetic.client.model.internal;
 
-import java.io.InputStream;
+import com.meekdev.amnetic.client.render.ShaderProgram;
 import java.nio.FloatBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
 
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.Resource;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
@@ -127,15 +124,7 @@ final class ModelShadowProgram implements AutoCloseable {
     }
 
     private static String loadSource(Identifier id) {
-        Optional<Resource> opt = Minecraft.getInstance().getResourceManager().getResource(id);
-        if (opt.isEmpty()) {
-            throw new RuntimeException("Model shadow shader not found: " + id);
-        }
-        try (InputStream is = opt.get().open()) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to read model shadow shader " + id, e);
-        }
+        return ShaderProgram.readSource(id);
     }
 
     @Override
