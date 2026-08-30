@@ -21,7 +21,7 @@ public final class GlFramebuffer {
     private final FramebufferSpec spec;
     private final String name;
     private final List<Attachment> colorAttachments = new ArrayList<>();
-    private Attachment depthAttachment; // null when DepthMode.NONE
+    private Attachment depthAttachment;
 
     private int fbo;
     private int readFbo;
@@ -153,16 +153,10 @@ public final class GlFramebuffer {
         GlStateManager._viewport(0, 0, width, height);
     }
 
-    // glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING) drains the GL pipeline, a big stall since begin()/blits run
-    // dozens of times per frame. GlStateManager shadows the binding CPU-side (every bind goes through it,
-    // vanilla's included) so read the shadow instead of the driver
     private static int currentDrawFbo() {
         return GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
     }
 
-    // the viewport to restore is the main target's full size wherever begin() runs, so derive it instead of
-    // glGetIntegerv(GL_VIEWPORT) which also drains the pipeline. falls back to the query if the main target
-    // isn't up yet
     private void saveOuterViewport() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main != null) {
@@ -176,6 +170,8 @@ public final class GlFramebuffer {
     }
 
     public void clear(float r, float g, float b, float a) {
+        GlStateManager._depthMask(true); GL11.glDepthMask(true);
+        GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
         GL11.glClearColor(r, g, b, a);
         int mask = GL11.GL_COLOR_BUFFER_BIT;
         if (depthAttachment != null) {
@@ -235,7 +231,6 @@ public final class GlFramebuffer {
         }
         GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, fbo);
         GL30.glBlitFramebuffer(0, 0, main.width, main.height, 0, 0, width, height, mask, filter);
-        // detach so we never dangle a reference to a resized/destroyed main texture
         GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFbo);
         GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, attachment, GL11.GL_TEXTURE_2D, 0, 0);
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prev);

@@ -7,6 +7,9 @@ import com.mojang.blaze3d.textures.GpuTexture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL43;
 
 public final class SceneDepth extends AbstractTexture {
 
@@ -15,6 +18,8 @@ public final class SceneDepth extends AbstractTexture {
     private static SceneDepth instance;
     private TextureTarget snapshot;
     private boolean registered;
+    private boolean directCopy = true;
+    private boolean directCopyProven;
 
     private SceneDepth() {}
 
@@ -50,13 +55,45 @@ public final class SceneDepth extends AbstractTexture {
             snapshot = new TextureTarget("amnetic_scene_depth", src.width, src.height, true);
         } else if (snapshot.width != src.width || snapshot.height != src.height) {
             snapshot.resize(src.width, src.height);
+            directCopyProven = false;
         }
         if (snapshot.getDepthTexture() == null) {
             return false;
         }
-        snapshot.copyDepthFrom(src);
+        if (!fastCopyDepth(src)) {
+            snapshot.copyDepthFrom(src);
+        }
         this.texture = snapshot.getDepthTexture();
         this.textureView = snapshot.getDepthTextureView();
+        return true;
+    }
+
+    private boolean fastCopyDepth(RenderTarget src) {
+        if (!directCopy) {
+            return false;
+        }
+        if (!(src.getDepthTexture() instanceof GlTexture from)
+                || !(snapshot.getDepthTexture() instanceof GlTexture to)
+                || !GL.getCapabilities().OpenGL43) {
+            directCopy = false;
+            return false;
+        }
+        if (!directCopyProven) {
+            while (GL11.glGetError() != GL11.GL_NO_ERROR) {
+                continue;
+            }
+        }
+        GL43.glCopyImageSubData(
+                from.glId(), GL11.GL_TEXTURE_2D, 0, 0, 0, 0,
+                to.glId(), GL11.GL_TEXTURE_2D, 0, 0, 0, 0,
+                src.width, src.height, 1);
+        if (!directCopyProven) {
+            directCopyProven = true;
+            if (GL11.glGetError() != GL11.GL_NO_ERROR) {
+                directCopy = false;
+                return false;
+            }
+        }
         return true;
     }
 

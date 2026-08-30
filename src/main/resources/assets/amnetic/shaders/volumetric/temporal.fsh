@@ -19,9 +19,12 @@ void main() {
     float depth = texture(DepthSampler, vUV).r;
     vec3 outc = cur.rgb;
 
-    if (depth < 1.0 && Feedback > 0.0) {
-        vec3 P = reconstruct(vUV, depth);
-        vec4 pc = PrevViewProj * vec4(P + EyeDelta, 1.0);
+    if (Feedback > 0.0) {
+        // sky pixels have no surface to reproject. treat them as a direction and reproject by camera
+        // rotation alone (PrevViewProj is rotation + projection, so dropping EyeDelta drops the
+        // translation). the neighbourhood clamp below bounds the error from ignoring parallax
+        vec3 P = (depth < 1.0) ? reconstruct(vUV, depth) + EyeDelta : reconstruct(vUV, 0.5);
+        vec4 pc = PrevViewProj * vec4(P, 1.0);
         if (pc.w > 0.0) {
             vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
             if (puv.x >= 0.0 && puv.x <= 1.0 && puv.y >= 0.0 && puv.y <= 1.0) {

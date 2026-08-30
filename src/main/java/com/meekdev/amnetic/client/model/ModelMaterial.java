@@ -104,6 +104,16 @@ public final class ModelMaterial {
         return this;
     }
 
+    public ModelMaterial setBaseColorGlTexture(int glId) {
+        return setBaseColorGlTexture(glId, TextureFilter.LINEAR);
+    }
+
+    public ModelMaterial setBaseColorGlTexture(int glId, TextureFilter filter) {
+        mat.baseColorGlId = glId;
+        mat.baseColorFilter = filter;
+        return this;
+    }
+
     /** binds a caller-owned live GL texture as the emissive map (e.g. a video screen). caller keeps
      *  ownership and updates it with glTexSubImage2D, pass 0 to detach */
     public ModelMaterial setEmissiveGlTexture(int glId) {

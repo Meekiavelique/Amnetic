@@ -28,6 +28,11 @@ public final class Animator {
     private float speed = 1f;
     private float time;
 
+    private Vector3f[] overrideT;
+    private Quaternionf[] overrideR;
+    private Vector3f[] overrideS;
+    private boolean overridden;
+
     Animator(Model model, ModelIR ir) {
         this.model = model;
         this.ir = ir;
@@ -44,6 +49,129 @@ public final class Animator {
             localPose[i] = new Matrix4f();
             worldPose[i] = new Matrix4f();
         }
+    }
+
+    public int boneCount() {
+        return ir.nodes().size();
+    }
+
+    public String boneName(int node) {
+        return node < 0 || node >= ir.nodes().size() ? null : ir.nodes().get(node).name;
+    }
+
+    public int boneIndex(String name) {
+        if (name == null) {
+            return -1;
+        }
+        for (int i = 0; i < ir.nodes().size(); i++) {
+            if (name.equals(ir.nodes().get(i).name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public int boneParent(int node) {
+        return node < 0 || node >= ir.nodes().size() ? -1 : ir.nodes().get(node).parent;
+    }
+
+    public Vector3f restTranslation(int node, Vector3f out) {
+        return node < 0 || node >= ir.nodes().size()
+                ? out.set(0f, 0f, 0f)
+                : out.set(ir.nodes().get(node).t);
+    }
+
+    public Vector3f restScale(int node, Vector3f out) {
+        return node < 0 || node >= ir.nodes().size()
+                ? out.set(1f, 1f, 1f)
+                : out.set(ir.nodes().get(node).s);
+    }
+
+    public Vector3f restRotationDegrees(int node, Vector3f out) {
+        if (node < 0 || node >= ir.nodes().size()) {
+            return out.set(0f, 0f, 0f);
+        }
+        ir.nodes().get(node).r.getEulerAnglesXYZ(out);
+        return out.set((float) Math.toDegrees(out.x), (float) Math.toDegrees(out.y),
+                (float) Math.toDegrees(out.z));
+    }
+
+    public Matrix4f worldPose(int node) {
+        Matrix4f[] poses = pose();
+        return node < 0 || node >= poses.length ? new Matrix4f() : new Matrix4f(poses[node]);
+    }
+
+    public Animator overrideTranslation(int node, float x, float y, float z) {
+        if (!allocateOverrides(node)) {
+            return this;
+        }
+        if (overrideT[node] == null) {
+            overrideT[node] = new Vector3f();
+        }
+        overrideT[node].set(x, y, z);
+        return this;
+    }
+
+    public Animator overrideRotation(int node, Quaternionf rotation) {
+        if (!allocateOverrides(node) || rotation == null) {
+            return this;
+        }
+        if (overrideR[node] == null) {
+            overrideR[node] = new Quaternionf();
+        }
+        overrideR[node].set(rotation);
+        return this;
+    }
+
+    public Animator overrideRotationDegrees(int node, float x, float y, float z) {
+        return overrideRotation(node, new Quaternionf().rotationXYZ(
+                (float) Math.toRadians(x), (float) Math.toRadians(y), (float) Math.toRadians(z)));
+    }
+
+    public Animator overrideScale(int node, float x, float y, float z) {
+        if (!allocateOverrides(node)) {
+            return this;
+        }
+        if (overrideS[node] == null) {
+            overrideS[node] = new Vector3f();
+        }
+        overrideS[node].set(x, y, z);
+        return this;
+    }
+
+    public Animator clearOverride(int node) {
+        if (!overridden || node < 0 || node >= ir.nodes().size()) {
+            return this;
+        }
+        overrideT[node] = null;
+        overrideR[node] = null;
+        overrideS[node] = null;
+        return this;
+    }
+
+    public Animator clearOverrides() {
+        overridden = false;
+        overrideT = null;
+        overrideR = null;
+        overrideS = null;
+        return this;
+    }
+
+    public boolean hasOverrides() {
+        return overridden;
+    }
+
+    private boolean allocateOverrides(int node) {
+        if (node < 0 || node >= ir.nodes().size()) {
+            return false;
+        }
+        if (!overridden) {
+            overridden = true;
+            overrideT = new Vector3f[ir.nodes().size()];
+            overrideR = new Quaternionf[ir.nodes().size()];
+            overrideS = new Vector3f[ir.nodes().size()];
+        }
+        return true;
     }
 
     public Animator play(String clip) {
@@ -106,6 +234,20 @@ public final class Animator {
             if (target != null) {
                 float blend = Math.min(1f, crossfadeElapsed / crossfadeDuration);
                 blendInto(target, crossfadeElapsed, blend);
+            }
+        }
+
+        if (overridden) {
+            for (int i = 0; i < nodeTranslation.length; i++) {
+                if (overrideT[i] != null) {
+                    nodeTranslation[i].set(overrideT[i]);
+                }
+                if (overrideR[i] != null) {
+                    nodeRotation[i].set(overrideR[i]);
+                }
+                if (overrideS[i] != null) {
+                    nodeScale[i].set(overrideS[i]);
+                }
             }
         }
 
@@ -201,6 +343,15 @@ public final class Animator {
             return;
         }
         float f = keyFactor(ch.times, i, t);
+        if (ch.interp == ModelIR.Interp.CATMULLROM && n > 2) {
+            int p0 = Math.max(0, i - 1) * 3;
+            int p3 = Math.min(n - 1, i + 2) * 3;
+            out.set(
+                    catmullRom(ch.values[p0], ch.values[a], ch.values[b], ch.values[p3], f),
+                    catmullRom(ch.values[p0 + 1], ch.values[a + 1], ch.values[b + 1], ch.values[p3 + 1], f),
+                    catmullRom(ch.values[p0 + 2], ch.values[a + 2], ch.values[b + 2], ch.values[p3 + 2], f));
+            return;
+        }
         out.set(
                 ch.values[a] + (ch.values[b] - ch.values[a]) * f,
                 ch.values[a + 1] + (ch.values[b + 1] - ch.values[a + 1]) * f,
@@ -221,16 +372,56 @@ public final class Animator {
             return;
         }
         tmpQuatB.set(ch.values[b], ch.values[b + 1], ch.values[b + 2], ch.values[b + 3]);
-        out.slerp(tmpQuatB, keyFactor(ch.times, i, t));
+        float f = keyFactor(ch.times, i, t);
+        if (ch.interp == ModelIR.Interp.CATMULLROM && n > 2) {
+            int p0 = Math.max(0, i - 1) * 4;
+            int p3 = Math.min(n - 1, i + 2) * 4;
+            float[] v = ch.values;
+            float s0 = hemisphere(v, p0, v, a);
+            float s2 = hemisphere(v, b, v, a);
+            float s3 = hemisphere(v, p3, v, a);
+            out.set(
+                    catmullRom(v[p0] * s0, v[a], v[b] * s2, v[p3] * s3, f),
+                    catmullRom(v[p0 + 1] * s0, v[a + 1], v[b + 1] * s2, v[p3 + 1] * s3, f),
+                    catmullRom(v[p0 + 2] * s0, v[a + 2], v[b + 2] * s2, v[p3 + 2] * s3, f),
+                    catmullRom(v[p0 + 3] * s0, v[a + 3], v[b + 3] * s2, v[p3 + 3] * s3, f));
+            if (out.lengthSquared() < 1.0e-8f) {
+                out.set(v[a], v[a + 1], v[a + 2], v[a + 3]);
+            } else {
+                out.normalize();
+            }
+            return;
+        }
+        out.slerp(tmpQuatB, f);
+    }
+
+    private static float hemisphere(float[] values, int offset, float[] reference, int at) {
+        float dot = values[offset] * reference[at]
+                + values[offset + 1] * reference[at + 1]
+                + values[offset + 2] * reference[at + 2]
+                + values[offset + 3] * reference[at + 3];
+        return dot < 0f ? -1f : 1f;
+    }
+
+    private static float catmullRom(float p0, float p1, float p2, float p3, float f) {
+        float f2 = f * f;
+        float f3 = f2 * f;
+        return 0.5f * ((2f * p1)
+                + (-p0 + p2) * f
+                + (2f * p0 - 5f * p1 + 4f * p2 - p3) * f2
+                + (-p0 + 3f * p1 - 3f * p2 + p3) * f3);
     }
 
     private int findKey(float[] times, float t) {
-        for (int i = 0; i < times.length - 1; i++) {
-            if (t < times[i + 1]) {
-                return i;
-            }
+        int last = times.length - 2;
+        if (t <= times[0]) return 0;
+        if (t >= times[last + 1]) return last;
+        int lo = 0, hi = last;
+        while (lo < hi) {
+            int mid = (lo + hi + 1) >>> 1;
+            if (times[mid] <= t) lo = mid; else hi = mid - 1;
         }
-        return times.length - 2;
+        return lo;
     }
 
     private float keyFactor(float[] times, int i, float t) {

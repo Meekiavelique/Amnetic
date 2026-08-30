@@ -41,6 +41,7 @@ public final class Light {
     private float godrayDensity = 0.4f;
     private float godrayAniso = 0.6f; // henyey-greenstein g, 0..0.95
     private boolean godrayShadows = true; // shaft samples this light's shadow map
+    private int style; // 0 = amnetic's own lighting, else a LightStyles id
 
     private boolean enabled = true;
     private boolean removed;
@@ -176,6 +177,15 @@ public final class Light {
     public Light iesProfile(int profile) {
         this.iesProfile = Math.max(0, Math.min(5, profile));
         return this;
+    }
+
+    public Light style(int style) {
+        this.style = Math.max(0, style);
+        return this;
+    }
+
+    public int style() {
+        return style;
     }
 
     public Light godray(float strength) {

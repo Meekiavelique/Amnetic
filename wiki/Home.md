@@ -1,8 +1,19 @@
-# Amnetic
+<p align="center">
+  <img src="https://files.catbox.moe/jdrud4.png" alt="Java" />
+</p>
+<p align="center">
+  <a href="https://github.com/Meekiavelique/Amnetic/releases">
+    <img src="https://img.shields.io/github/v/release/Meekiavelique/Amnetic?style=for-the-badge&color=2ea44f&label=LATEST%20RELEASE" alt="Latest Release" />
+  </a>
+  <img src="https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
+  <img src="https://img.shields.io/badge/Running%20on-Fabric-2C2C2C?style=for-the-badge&logo=openjdk&logoColor=white" alt="Running on Fabric" />
+  <a href=" "><img src="https://img.shields.io/badge/Wiki-Documentation-4A90E2?style=for-the-badge&logo=gitbook&logoColor=white" alt="Wiki" /></a>
+  <a href="https://discord.gg/avSH2JTfef"><img src="https://img.shields.io/badge/Discord-online-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+</p>
 
-Amnetic is a Minecraft 26.1.2 Fabric rendering utility library. 
-
----
+<p align="center">
+A Fabric rendering utility library for Minecraft 26.1.2 
+</p>
 
 ## Installation
 
@@ -82,6 +93,18 @@ Projected box decals: give `Decals` a texture, a center, and a surface normal, a
 
 Register a GLSL snippet as a `ShadingModel` and assign it to a model material. The snippet is baked into the deferred lighting shader as a dispatch case, so your geometry responds to Amnetic lights with a fully custom BRDF instead of the default Cook-Torrance path. See [Shading Models](Shading-Models).
 
+**Subsurface scattering**
+
+Light that enters a surface, scatters inside it, and leaves somewhere else: red backlit skin, glowing leaves, soft wax. A per-fragment transmission term in the deferred pass plus a screen-space Burley diffusion gather, driven by tunable profiles with `skin()`, `wax()`, `foliage()`, and `marble()` presets. See [Subsurface Scattering](Subsurface-Scattering).
+
+**Light styles**
+
+Register a GLSL snippet against a `Light` to customise the light itself rather than the surface: displace where it appears to come from, scale or tint its contribution, or mask it to a region. See [Light Styles](Light-Styles).
+
+**Surface UI**
+
+A retained-mode UI toolkit drawn through Amnetic's renderer: HUD overlays, modal screens, and panels in the world. SDF text with per-glyph effects, shader materials with blur-behind, spring-animated layout, a full widget catalogue, and a fine-grained reactive core of signals, computed values, and effects. See [Surface UI](Surface-UI).
+
 **Quality presets**
 
 One-call presets (`Quality.off()`, `low()`, `balanced()`, `ultra()`) that tune SSAO, SSGI, SSR, and bloom together to trade performance for fidelity. Each system stays fully configurable through its own settings afterwards; a preset is just a starting point. See [Quality](Quality).
@@ -149,7 +172,10 @@ The following areas are planned for future releases. None of them are available 
 | [TAA](TAA) | `Taa` and `TaaSettings` for temporal anti-aliasing and the CAS sharpen pass |
 | [Color Grading](Color-Grading) | `ColorGrade` and `ColorGradeSettings` for the final-frame grading post pass |
 | [Decals](Decals) | `Decals` factory and `Decal` handles for projected box decals and gbuffer relighting |
-| [Shading Models](Shading-Models) | `ShadingModel` custom GLSL shading snippets for deferred-lit materials |
+| [Shading Models](Shading-Models) | `ShadingModel` lighting bases, fragment and vertex GLSL snippets for deferred-lit materials |
+| [Subsurface Scattering](Subsurface-Scattering) | `Subsurface` profiles, the Burley diffusion pass, and transmission |
+| [Light Styles](Light-Styles) | `LightStyles` GLSL snippets that customise how a single light is evaluated |
+| [Surface UI](Surface-UI) | `Surfaces`, widgets, layout, the reactive core, SDF text, and surface materials |
 | [Quality](Quality) | `Quality` one-call presets for the screen-space effect stack |
 | [Models](Models) | `Models`/`Model`/`ModelInstance`, PBR materials, and the `Animator` |
 | [Scene Capture](Scene-Capture) | `PerspectiveCapture`, `PerspectiveView`, and `PlanarReflection` mirrors |
@@ -159,3 +185,10 @@ The following areas are planned for future releases. None of them are available 
 | [Shader Hot Reload](Shader-Hot-Reload) | Dev-only shader hot reloading and the `onReload` contract |
 
 ---
+
+---
+
+## Credits
+
+- **[bb4j](https://github.com/Danrus1100/bb4j)** by [Danrus1100](https://github.com/Danrus1100) - the Blockbench `.bbmodel` parser behind Amnetic's Blockbench model loading.
+- **[Veil](https://github.com/FoundryMC/Veil)** by [FoundryMC](https://github.com/FoundryMC) - a big source of inspiration for the shape of this library, particularly the deferred rendering and framebuffer work.

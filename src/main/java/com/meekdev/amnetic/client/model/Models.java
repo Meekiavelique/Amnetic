@@ -6,6 +6,7 @@ import com.meekdev.amnetic.client.model.internal.ModelRegistry;
 import com.meekdev.amnetic.client.model.internal.ammesh.AmmeshCache;
 import com.meekdev.amnetic.client.model.internal.ammesh.AmmeshReader;
 import com.meekdev.amnetic.client.model.internal.ammesh.AmmeshScanner;
+import com.meekdev.amnetic.client.model.internal.parse.BbmodelParser;
 import java.io.InputStream;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -79,6 +80,7 @@ public final class Models {
         return switch (format) {
             case OBJ -> throw new ModelLoadException("OBJ parsing was removed; convert to .ammesh instead: " + source);
             case AMMESH -> AmmeshReader.read(bytes);
+            case BBMODEL -> BbmodelParser.parse(bytes, String.valueOf(source));
             case GLTF -> throw new ModelLoadException("glTF must go through the .ammesh cache, not direct parse: " + source);
         };
     }

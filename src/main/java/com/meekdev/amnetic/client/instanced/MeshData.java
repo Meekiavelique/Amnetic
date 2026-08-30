@@ -11,16 +11,78 @@ public final class MeshData {
     private final int[] indices;
     private final int vertexStrideFloats;
     private final boolean textureCoordinates;
+    private final boolean mutable;
+    private int liveVertexFloats;
+    private int liveIndexCount;
+    private int version;
 
     private MeshData(float[] vertices, int[] indices) {
         this(vertices, indices, 3, false);
     }
 
     private MeshData(float[] vertices, int[] indices, int vertexStrideFloats, boolean textureCoordinates) {
+        this(vertices, indices, vertexStrideFloats, textureCoordinates, false);
+    }
+
+    private MeshData(float[] vertices, int[] indices, int vertexStrideFloats,
+                     boolean textureCoordinates, boolean mutable) {
         this.vertices = vertices;
         this.indices = indices;
         this.vertexStrideFloats = vertexStrideFloats;
         this.textureCoordinates = textureCoordinates;
+        this.mutable = mutable;
+        this.liveVertexFloats = vertices.length;
+        this.liveIndexCount = indices != null ? indices.length : 0;
+    }
+
+    public static MeshData mutable(int vertexStrideFloats, boolean textureCoordinates,
+                                   int maxVertices, int maxIndices) {
+        if (vertexStrideFloats < 3) {
+            throw new IllegalArgumentException("vertex stride must cover at least a position");
+        }
+        if (maxVertices <= 0) {
+            throw new IllegalArgumentException("maxVertices must be positive");
+        }
+        MeshData data = new MeshData(new float[maxVertices * vertexStrideFloats],
+                maxIndices > 0 ? new int[maxIndices] : null,
+                vertexStrideFloats, textureCoordinates, true);
+        data.liveVertexFloats = 0;
+        data.liveIndexCount = 0;
+        return data;
+    }
+
+    public boolean isMutable() { return mutable; }
+
+    public int version() { return version; }
+
+    public int vertexCapacity() { return vertices.length / vertexStrideFloats; }
+
+    public int indexCapacity() { return indices != null ? indices.length : 0; }
+
+    public void update(float[] sourceVertices, int vertexFloats, int[] sourceIndices, int indexCount) {
+        if (!mutable) {
+            throw new IllegalStateException("mesh data is not mutable");
+        }
+        if (vertexFloats % vertexStrideFloats != 0) {
+            throw new IllegalArgumentException("vertexFloats must be a multiple of the stride");
+        }
+        if (vertexFloats > vertices.length) {
+            throw new IllegalArgumentException("vertex overflow: " + vertexFloats + " > " + vertices.length);
+        }
+        if (indices == null) {
+            if (indexCount > 0) {
+                throw new IllegalArgumentException("mesh was allocated without an index buffer");
+            }
+        } else if (indexCount > indices.length) {
+            throw new IllegalArgumentException("index overflow: " + indexCount + " > " + indices.length);
+        }
+        System.arraycopy(sourceVertices, 0, vertices, 0, vertexFloats);
+        if (indices != null && indexCount > 0) {
+            System.arraycopy(sourceIndices, 0, indices, 0, indexCount);
+        }
+        liveVertexFloats = vertexFloats;
+        liveIndexCount = indexCount;
+        version++;
     }
 
     public static MeshData quad() {
@@ -114,19 +176,20 @@ public final class MeshData {
     public boolean hasIndices() { return indices != null; }
     public boolean hasTextureCoordinates() { return textureCoordinates; }
     public int vertexStrideBytes() { return vertexStrideFloats * Float.BYTES; }
-    public int vertexCount() { return vertices.length / vertexStrideFloats; }
-    public int indexCount() { return indices != null ? indices.length : 0; }
+    public int vertexStrideFloats() { return vertexStrideFloats; }
+    public int vertexCount() { return liveVertexFloats / vertexStrideFloats; }
+    public int indexCount() { return liveIndexCount; }
 
     public FloatBuffer verticesAsBuffer() {
-        FloatBuffer buf = BufferUtils.createFloatBuffer(vertices.length);
-        buf.put(vertices).flip();
+        FloatBuffer buf = BufferUtils.createFloatBuffer(Math.max(1, liveVertexFloats));
+        buf.put(vertices, 0, liveVertexFloats).flip();
         return buf;
     }
 
     public IntBuffer indicesAsBuffer() {
         if (indices == null) throw new IllegalStateException("No indices");
-        IntBuffer buf = BufferUtils.createIntBuffer(indices.length);
-        buf.put(indices).flip();
+        IntBuffer buf = BufferUtils.createIntBuffer(Math.max(1, liveIndexCount));
+        buf.put(indices, 0, liveIndexCount).flip();
         return buf;
     }
 }

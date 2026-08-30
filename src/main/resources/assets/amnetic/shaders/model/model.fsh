@@ -22,6 +22,7 @@ uniform int HasNormal;
 uniform int HasOrm;
 uniform int HasEmissive;
 uniform int MaterialId;
+const int FLAT_SHADED_BASE = 128;
 
 uniform vec4 BaseColor;
 uniform vec3 Emissive;
@@ -173,6 +174,23 @@ void main() {
 
     float emStrength = clamp(max(max(emissiveColor.r, emissiveColor.g), emissiveColor.b) * EmissiveStrength, 0.0, 1.0);
     float materialIdNorm = float(MaterialId) / 255.0;
+    float blockIdx = floor(clamp(vLight.x, 0.0, 1.0) * 15.0 + 0.5);
+    float skyIdx = floor(clamp(vLight.y, 0.0, 1.0) * 15.0 + 0.5);
+    float lightmapEncoded = (blockIdx * 16.0 + skyIdx) / 255.0;
+
+    if (MaterialId >= FLAT_SHADED_BASE) {
+        vec3 n = normalize(N);
+        float face = abs(n.y) > max(abs(n.x), abs(n.z))
+                ? (n.y > 0.0 ? 1.0 : 0.5)
+                : (abs(n.z) > abs(n.x) ? 0.8 : 0.6);
+        float lm = clamp(max(sky, block), 0.03, 1.0);
+        FragColor = vec4(albedo.rgb * face * lm, albedo.a);
+        GNormal = vec4(N, 1.0);
+        // roughness 1, metallic 0: nothing downstream should put a highlight on this
+        GMaterial = vec4(1.0, 0.0, materialIdNorm, lightmapEncoded);
+        GEmissive = vec4(0.0);
+        return;
+    }
 
     // transmissive glass, rough transmission where the roughness map doubles as the dirt/frost mask
     if (Transmission > 0.0) {
@@ -188,7 +206,7 @@ void main() {
         glass = pow(max(glass, 0.0), vec3(1.0 / 2.2));
         FragColor = vec4(glass, a);
         GNormal = vec4(N, 1.0);
-        GMaterial = vec4(roughness, metallic, materialIdNorm, 0.0);
+        GMaterial = vec4(roughness, metallic, materialIdNorm, lightmapEncoded);
         GEmissive = vec4(emissive, emStrength);
         return;
     }
@@ -202,6 +220,6 @@ void main() {
     FragColor = vec4(color, albedo.a);
 
     GNormal = vec4(N, 1.0);
-    GMaterial = vec4(roughness, metallic, materialIdNorm, 0.0);
+    GMaterial = vec4(roughness, metallic, materialIdNorm, lightmapEncoded);
     GEmissive = vec4(emissive, emStrength);
 }

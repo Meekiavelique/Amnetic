@@ -2,6 +2,8 @@ package com.meekdev.amnetic.client.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.model.internal.FlatProgram;
@@ -17,7 +19,12 @@ import org.joml.Vector3f;
 
 public final class Model {
 
-    public record Draw(Matrix4f world, Matrix4f[] pose) {
+    public record Draw(Matrix4f world, Matrix4f[] pose,
+                       float blockLight, float skyLight, float emissive) {
+
+        public Draw(Matrix4f world, Matrix4f[] pose) {
+            this(world, pose, Float.NaN, Float.NaN, Float.NaN);
+        }
     }
 
     private volatile GpuModel gpu;
@@ -124,6 +131,32 @@ public final class Model {
         return ir != null && ir.hasAnimations();
     }
 
+    public boolean hasBones() {
+        return ir != null && ir.nodes().size() > 1;
+    }
+
+    public List<String> boneNames() {
+        if (ir == null) {
+            return List.of();
+        }
+        List<String> names = new ArrayList<>(ir.nodes().size());
+        for (var node : ir.nodes()) {
+            names.add(node.name);
+        }
+        return List.copyOf(names);
+    }
+
+    public List<String> clipNames() {
+        if (ir == null) {
+            return List.of();
+        }
+        List<String> names = new ArrayList<>(ir.animations().size());
+        for (var animation : ir.animations()) {
+            names.add(animation.name);
+        }
+        return List.copyOf(names);
+    }
+
     public String firstClip() {
         if (ir == null || ir.animations().isEmpty()) {
             return null;
@@ -134,6 +167,21 @@ public final class Model {
     public Model render(Matrix4fc worldTransform) {
         if (!disposed) {
             pending.add(new Draw(new Matrix4f(worldTransform), null));
+        }
+        return this;
+    }
+
+    public Model render(Matrix4fc worldTransform, float blockLight, float skyLight, float emissive) {
+        if (!disposed) {
+            pending.add(new Draw(new Matrix4f(worldTransform), null, blockLight, skyLight, emissive));
+        }
+        return this;
+    }
+
+    public Model renderPosed(Matrix4fc worldTransform, Matrix4f[] pose,
+                             float blockLight, float skyLight, float emissive) {
+        if (!disposed) {
+            pending.add(new Draw(new Matrix4f(worldTransform), pose, blockLight, skyLight, emissive));
         }
         return this;
     }
@@ -223,6 +271,53 @@ public final class Model {
         return boundsMax;
     }
 
+    private static final float[] NO_BONE_GEOMETRY = new float[0];
+    private final Map<Integer, float[]> boneBoundsCache =
+            new ConcurrentHashMap<>();
+
+    public boolean boneBounds(int node, Vector3f min, Vector3f max) {
+        ModelIR local = ir;
+        if (local == null || node < 0) {
+            return false;
+        }
+        float[] cached = boneBoundsCache.get(node);
+        if (cached == null) {
+            float minX = Float.MAX_VALUE;
+            float minY = Float.MAX_VALUE;
+            float minZ = Float.MAX_VALUE;
+            float maxX = -Float.MAX_VALUE;
+            float maxY = -Float.MAX_VALUE;
+            float maxZ = -Float.MAX_VALUE;
+            int stride = ModelIR.VERTEX_STRIDE_FLOATS;
+            boolean any = false;
+            for (ModelIR.Part part : local.parts()) {
+                if (part.nodeIndex != node) {
+                    continue;
+                }
+                float[] verts = part.vertices;
+                for (int i = 0; i + 2 < verts.length; i += stride) {
+                    any = true;
+                    minX = Math.min(minX, verts[i]);
+                    minY = Math.min(minY, verts[i + 1]);
+                    minZ = Math.min(minZ, verts[i + 2]);
+                    maxX = Math.max(maxX, verts[i]);
+                    maxY = Math.max(maxY, verts[i + 1]);
+                    maxZ = Math.max(maxZ, verts[i + 2]);
+                }
+            }
+            cached = any
+                    ? new float[] {minX, minY, minZ, maxX, maxY, maxZ}
+                    : NO_BONE_GEOMETRY;
+            boneBoundsCache.put(node, cached);
+        }
+        if (cached.length == 0) {
+            return false;
+        }
+        min.set(cached[0], cached[1], cached[2]);
+        max.set(cached[3], cached[4], cached[5]);
+        return true;
+    }
+
     private void ensureBounds() {
         if (boundsReady) {
             return;
@@ -266,6 +361,14 @@ public final class Model {
         if (!disposed) {
             ModelRegistry.INSTANCE.release(this);
         }
+    }
+
+    public void localBounds(org.joml.Vector3f outMin, org.joml.Vector3f outMax) {
+        internalGpu().localBounds(outMin, outMax);
+    }
+
+    public void tightBounds(org.joml.Vector3f outMin, org.joml.Vector3f outMax) {
+        internalGpu().tightBounds(outMin, outMax);
     }
 
     public GpuModel internalGpu() {

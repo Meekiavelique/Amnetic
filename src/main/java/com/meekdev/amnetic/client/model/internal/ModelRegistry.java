@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.material.internal.ShadingModelRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,12 +41,18 @@ public final class ModelRegistry {
     public static final ModelRegistry INSTANCE = new ModelRegistry();
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Model");
 
-    // reused per-frame scratch for frustum culling, no per-instance allocation
     private final FrustumIntersection frustum = new FrustumIntersection();
     private final Vector3f boundsMin = new Vector3f();
     private final Vector3f boundsMax = new Vector3f();
     private final Vector3f cullMin = new Vector3f();
     private final Vector3f cullMax = new Vector3f();
+    private final Matrix4f relScratch = new Matrix4f();
+    private final Vector3f poseMin = new Vector3f();
+    private final Vector3f poseMax = new Vector3f();
+    private final Vector3f poseScratch = new Vector3f();
+    private final BlockPos.MutableBlockPos lightSamplePos = new BlockPos.MutableBlockPos();
+    private final ArrayList<GpuModel.DrawInstance> mainPool = new ArrayList<>();
+    private final ArrayList<GpuModel.DrawInstance> shadowPool = new ArrayList<>();
 
     private final CopyOnWriteArrayList<Model> models = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<Consumer<InstanceRenderContext>> frameCallbacks = new CopyOnWriteArrayList<>();
@@ -55,13 +62,10 @@ public final class ModelRegistry {
     private ModelShader shader;
     private final Map<String, ModelShader> customShaders = new ConcurrentHashMap<>();
     private ModelShadowProgram shadowProgram;
-    // how many not-yet-uploaded models may upload their geometry this frame, so a heavy scene's
-    // uploads spread over a few frames instead of hitching on one
     private static final int UPLOADS_PER_FRAME = 1;
     private int frameUploadBudget;
 
     private ModelRegistry() {
-        // dev hot reload, drop the compiled programs so the null-checked load sites rebuild them
         ShaderHotReload.onReload(this::invalidatePrograms);
     }
 
@@ -80,7 +84,6 @@ public final class ModelRegistry {
         }
     }
 
-    // compiles the model shader up front (render thread) so the first draw doesn't pay for it
     public void warmup() {
         if (shader == null) {
             try {
@@ -145,8 +148,6 @@ public final class ModelRegistry {
     }
 
     private void render(CameraRenderState cam, boolean capture) {
-        // runs every frame regardless of pending draws: a model can finish its background .ammesh
-        // conversion and need its one-time GPU upload on a frame where nothing queued a draw for it yet
         for (Model m : models) {
             m.internalUploadPendingIfAny();
         }
@@ -187,6 +188,10 @@ public final class ModelRegistry {
                 : FrameView.INSTANCE.getProjection(new Matrix4f(), cam.projectionMatrix);
         Matrix4f projView = projection.mul(view);
 
+        if (ShadingModelRegistry.INSTANCE.consumeVertexDirty()) {
+            invalidatePrograms();
+        }
+
         if (shader == null) {
             try {
                 shader = ModelShader.load();
@@ -197,8 +202,6 @@ public final class ModelRegistry {
             }
         }
 
-        // refresh the environment probe (cheap, only re-bakes when the sun bucket changes), bound per
-        // program in prepareProgram so custom model shaders can also sample prefiltered reflections
         EnvProbe.INSTANCE.update(level != null ? (float) ((level.getGameTime() % 24000L) / 24000.0) : 0.25f);
 
         float time = 0f;
@@ -207,15 +210,12 @@ public final class ModelRegistry {
             time = (level.getGameTime() + partial) / 20.0f;
         }
 
-        // frustum is built from the camera-relative proj*view (rotation-only view, camera at origin),
-        // same space the per-instance camera-relative matrices live in, so AABB tests are consistent
         frustum.set(projView);
         frameUploadBudget = UPLOADS_PER_FRAME;
         ModelShader current = null;
         try {
             for (Model model : models) {
                 if (model.isReady() && model.internalHasPending()) {
-                    // each model may run a custom program, bind + re-upload frame uniforms only when it changes
                     ModelShader prog = programFor(model.internalConfig());
                     if (prog != current) {
                         prepareProgram(prog, projView, time);
@@ -231,7 +231,6 @@ public final class ModelRegistry {
         }
     }
 
-    // default shader, or the model's cached custom program (compiled once)
     private ModelShader programFor(ModelConfig config) {
         if (!config.hasCustomShader()) {
             return shader;
@@ -243,14 +242,13 @@ public final class ModelRegistry {
                 prog = ModelShader.loadCustom(config.customVsh(), config.customFsh());
             } catch (Exception e) {
                 LOG.error("Amnetic: failed to load custom model shader {} (using default)", key, e);
-                prog = shader; // cache the fallback so we don't retry a broken compile every frame
+                prog = shader;
             }
             customShaders.put(key, prog);
         }
         return prog;
     }
 
-    // binds a program and uploads the per-frame uniforms shared by all models drawn with it
     private void prepareProgram(ModelShader prog, Matrix4f projView, float time) {
         prog.bind();
         prog.uploadProjView(projView);
@@ -262,7 +260,6 @@ public final class ModelRegistry {
         prog.uploadTime(time);
     }
 
-    // picks a LOD level from the nearest instance's distance (instance matrices are camera-relative)
     private int lodFor(List<GpuModel.DrawInstance> instances) {
         float best = Float.MAX_VALUE;
         for (GpuModel.DrawInstance di : instances) {
@@ -280,10 +277,7 @@ public final class ModelRegistry {
     }
 
     private void renderModel(Model model, ModelShader prog, Vec3 camPos, ClientLevel level, boolean capture) {
-        model.internalEnsureLod(); // opt-in LOD generation (off-thread), once the consumer's config is set
-        // spread first-time geometry uploads across frames: if this model hasn't uploaded yet and the
-        // frame's upload budget is spent, skip it. pending draws are re-submitted each frame so it
-        // just pops in a frame or two later without a hitch
+        model.internalEnsureLod();
         if (!model.internalGpu().isUploaded()) {
             if (frameUploadBudget <= 0) {
                 return;
@@ -299,9 +293,26 @@ public final class ModelRegistry {
         state.apply();
         GlStateManager._depthFunc(GL11.GL_LEQUAL);
         try {
-            prog.uploadEmissiveStrength(config.isEmissive() ? config.emissiveStrength() : 1f);
-            List<GpuModel.DrawInstance> instances = toInstances(model, camPos, level);
-            model.internalGpu().draw(prog, instances, lodFor(instances));
+            float defaultEmissive = config.isEmissive() ? config.emissiveStrength() : 1f;
+            emissiveGroups.clear();
+            for (Model.Draw draw : model.internalPending()) {
+                float value = Float.isNaN(draw.emissive()) ? defaultEmissive : draw.emissive();
+                if (!emissiveGroups.contains(value)) {
+                    emissiveGroups.add(value);
+                }
+            }
+            if (emissiveGroups.isEmpty()) {
+                emissiveGroups.add(defaultEmissive);
+            }
+            for (int group = 0; group < emissiveGroups.size(); group++) {
+                float value = emissiveGroups.get(group);
+                prog.uploadEmissiveStrength(value);
+                List<GpuModel.DrawInstance> instances =
+                        toInstances(model, camPos, level, value, defaultEmissive);
+                if (!instances.isEmpty()) {
+                    model.internalGpu().draw(prog, instances, lodFor(instances));
+                }
+            }
             if (useGBuffer) {
                 gbuffer.setPopulated(true);
             }
@@ -317,20 +328,40 @@ public final class ModelRegistry {
         }
     }
 
+    private final ArrayList<Float> emissiveGroups = new ArrayList<>();
+
     private List<GpuModel.DrawInstance> toInstances(Model model, Vec3 camPos, ClientLevel level) {
+        return toInstances(model, camPos, level, Float.NaN, Float.NaN);
+    }
+
+    private List<GpuModel.DrawInstance> toInstances(Model model, Vec3 camPos, ClientLevel level,
+                                                    float wantEmissive, float defaultEmissive) {
         List<Model.Draw> pending = model.internalPending();
-        List<GpuModel.DrawInstance> out = new ArrayList<>(pending.size());
         model.internalGpu().localBounds(boundsMin, boundsMax);
+        boolean cull = model.internalConfig().frustumCull();
+        int n = 0;
         for (Model.Draw draw : pending) {
+            if (!Float.isNaN(wantEmissive)) {
+                float value = Float.isNaN(draw.emissive()) ? defaultEmissive : draw.emissive();
+                if (Float.compare(value, wantEmissive) != 0) {
+                    continue;
+                }
+            }
             Matrix4f world = draw.world();
-            Matrix4f camRel = new Matrix4f(world);
+            Matrix4f camRel = relScratch.set(world);
             camRel.m30(world.m30() - (float) camPos.x);
             camRel.m31(world.m31() - (float) camPos.y);
             camRel.m32(world.m32() - (float) camPos.z);
-            // frustum cull: transform the model AABB into camera-relative space and skip if fully off-screen
-            // opt-out for large tiled geometry (streamed terrain) where per-chunk AABB tests leave holes
-            if (model.internalConfig().frustumCull()) {
-                camRel.transformAab(boundsMin, boundsMax, cullMin, cullMax);
+            if (cull) {
+                // a posed model can reach well outside its rest bounds - an arm swung out, a bone
+                // driven by a cutscene - and culling it against the rest box makes it vanish while
+                // it is still on screen. widen the box by how far the pose actually moved things
+                if (draw.pose() != null) {
+                    posedBounds(draw.pose(), boundsMin, boundsMax, poseMin, poseMax);
+                    camRel.transformAab(poseMin, poseMax, cullMin, cullMax);
+                } else {
+                    camRel.transformAab(boundsMin, boundsMax, cullMin, cullMax);
+                }
                 if (!frustum.testAab(cullMin.x, cullMin.y, cullMin.z, cullMax.x, cullMax.y, cullMax.z)) {
                     continue;
                 }
@@ -338,17 +369,47 @@ public final class ModelRegistry {
             float block = 1f;
             float sky = 0f;
             if (level != null) {
-                BlockPos bp = BlockPos.containing(world.m30(), world.m31(), world.m32());
-                block = level.getBrightness(LightLayer.BLOCK, bp) / 15f;
-                sky = Math.max(0, level.getBrightness(LightLayer.SKY, bp) - level.getSkyDarken()) / 15f;
+                lightSamplePos.set(world.m30(), world.m31(), world.m32());
+                block = level.getBrightness(LightLayer.BLOCK, lightSamplePos) / 15f;
+                sky = Math.max(0, level.getBrightness(LightLayer.SKY, lightSamplePos) - level.getSkyDarken()) / 15f;
             }
-            out.add(new GpuModel.DrawInstance(camRel, draw.pose(), block, sky));
+            if (!Float.isNaN(draw.blockLight())) {
+                block = draw.blockLight();
+            }
+            if (!Float.isNaN(draw.skyLight())) {
+                sky = draw.skyLight();
+            }
+            pooled(mainPool, n++).set(camRel, draw.pose(), block, sky);
         }
-        return out;
+        return mainPool.subList(0, n);
     }
 
-    // whether any registered model has draws from this frame that want to cast a shadow, lets the
-    // shadow bake force a re-render whenever a custom model moves
+    private void posedBounds(Matrix4f[] pose, Vector3f restMin, Vector3f restMax,
+                             Vector3f outMin, Vector3f outMax) {
+        outMin.set(restMin);
+        outMax.set(restMax);
+        float ex = Math.max(Math.abs(restMin.x), Math.abs(restMax.x));
+        float ey = Math.max(Math.abs(restMin.y), Math.abs(restMax.y));
+        float ez = Math.max(Math.abs(restMin.z), Math.abs(restMax.z));
+        for (Matrix4f bone : pose) {
+            if (bone == null) {
+                continue;
+            }
+            bone.getTranslation(poseScratch);
+            outMin.set(Math.min(outMin.x, poseScratch.x - ex),
+                    Math.min(outMin.y, poseScratch.y - ey),
+                    Math.min(outMin.z, poseScratch.z - ez));
+            outMax.set(Math.max(outMax.x, poseScratch.x + ex),
+                    Math.max(outMax.y, poseScratch.y + ey),
+                    Math.max(outMax.z, poseScratch.z + ez));
+        }
+    }
+
+    private static GpuModel.DrawInstance pooled(ArrayList<GpuModel.DrawInstance> pool, int index) {
+        while (pool.size() <= index) pool.add(new GpuModel.DrawInstance());
+        return pool.get(index);
+    }
+
     public boolean hasShadowCasters() {
         for (Model m : models) {
             if (m.isReady() && m.internalConfig().castsShadow() && !m.internalLastFrameDraws().isEmpty()) {
@@ -358,9 +419,6 @@ public final class ModelRegistry {
         return false;
     }
 
-    // re-draws this frame's model instances into the shadow depth target. lightViewProj must be built
-    // light-relative (same frame as lightX/Y/Z), matching the precision trick the rest of the shadow
-    // bake uses instead of raw world-space floats
     public void renderShadow(Matrix4f lightViewProj, double lightX, double lightY, double lightZ, float range) {
         if (!hasShadowCasters()) {
             return;
@@ -403,20 +461,20 @@ public final class ModelRegistry {
     }
 
     private List<GpuModel.DrawInstance> toShadowInstances(List<Model.Draw> draws, double lx, double ly, double lz, float r2) {
-        List<GpuModel.DrawInstance> out = new ArrayList<>(draws.size());
+        int n = 0;
         for (Model.Draw draw : draws) {
             Matrix4f world = draw.world();
             double dx = world.m30() - lx, dy = world.m31() - ly, dz = world.m32() - lz;
             if (dx * dx + dy * dy + dz * dz > r2) {
                 continue;
             }
-            Matrix4f lightRel = new Matrix4f(world);
+            Matrix4f lightRel = relScratch.set(world);
             lightRel.m30((float) dx);
             lightRel.m31((float) dy);
             lightRel.m32((float) dz);
-            out.add(new GpuModel.DrawInstance(lightRel, draw.pose(), 1f, 1f));
+            pooled(shadowPool, n++).set(lightRel, draw.pose(), 1f, 1f);
         }
-        return out;
+        return shadowPool.subList(0, n);
     }
 
     private void clearAllPending() {

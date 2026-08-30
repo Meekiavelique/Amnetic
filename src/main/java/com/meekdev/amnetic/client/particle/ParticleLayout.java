@@ -21,7 +21,7 @@ public final class ParticleLayout {
                   .putFloat(p.rSize)
                   .putFloat(p.rot)
                   .putVec4(p.rR, p.rG, p.rB, p.rA)
-                  .putVec4(p.seedX, p.seedY, p.ageFraction(), 0f)
+                  .putVec4(p.seedX, p.seedY, p.rAge, 0f)
                   .putVec4(p.rUvOffX, p.rUvOffY, p.rUvScaleX, p.rUvScaleY);
 
     private ParticleLayout() {}

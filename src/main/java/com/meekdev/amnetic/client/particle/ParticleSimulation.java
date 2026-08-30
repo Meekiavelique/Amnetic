@@ -288,6 +288,7 @@ public final class ParticleSimulation {
             p.rCx = cx; p.rCy = cy; p.rCz = cz;
             p.rVx = (float) p.vx; p.rVy = (float) p.vy; p.rVz = (float) p.vz;
             p.rSize = size;
+            p.rAge = t;
 
             float cr, cg, cb, ca;
             if (m.colorGradient != null) {

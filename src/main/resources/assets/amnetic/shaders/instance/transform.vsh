@@ -8,8 +8,13 @@ layout(location = 3) in vec4 InstTransform2;
 layout(location = 4) in vec4 InstTransform3;
 
 uniform mat4 ProjViewMatrix;
+uniform vec3 CameraPos;
+uniform int WorldSpace;
 
 void main() {
     mat4 model = mat4(InstTransform0, InstTransform1, InstTransform2, InstTransform3);
+    if (WorldSpace == 1) {
+        model[3].xyz -= CameraPos;
+    }
     gl_Position = ProjViewMatrix * model * vec4(Position, 1.0);
 }

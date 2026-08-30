@@ -11,6 +11,7 @@ uniform mat4 InvViewProj; // current frame inverse view-proj, unjittered
 uniform vec3 EyeDelta; // current eye - previous eye
 uniform int ZeroToOne;
 uniform float Feedback;
+uniform float ClipSigma; // neighbourhood clip width, in standard deviations
 
 // local copy of the camera-relative position reconstruct, screen.glsl also drags in
 // depth-derivative normal helpers this pass doesn't want
@@ -88,8 +89,8 @@ void main() {
     vec2 texSize = vec2(textureSize(ColorSampler, 0));
     vec3 hist = sampleHistory(puv, texSize);
 
-    // 3x3 neighbourhood variance box in YCoCg, one sigma keeps ghosting invisible while
-    // still letting the accumulation converge
+    // 3x3 neighbourhood variance box in YCoCg. the box width is the only defence against a moving
+    // object's stale history, since reprojection here is camera only, so it is tunable
     ivec2 ip = ivec2(gl_FragCoord.xy);
     ivec2 maxIp = ivec2(texSize) - 1;
     vec3 m1 = vec3(0.0), m2 = vec3(0.0);
@@ -102,7 +103,8 @@ void main() {
     }
     vec3 mu = m1 / 9.0;
     vec3 sigma = sqrt(max(m2 / 9.0 - mu * mu, 0.0));
-    hist = ycocg2rgb(clipAABB(mu - sigma, mu + sigma, rgb2ycocg(hist)));
+    vec3 box = sigma * ClipSigma;
+    hist = ycocg2rgb(clipAABB(mu - box, mu + box, rgb2ycocg(hist)));
 
     // less history when the pixel moved far across the screen, and inverse-luminance
     // weighting so a single bright frame (firefly) can't dominate the blend

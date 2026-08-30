@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.model.TextureFilter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -135,6 +136,8 @@ public final class ModelIR {
         public float metallic = 0f;
         public float roughness = 1f;
         public float transmission = 0f;
+        public int baseColorGlId = 0; // caller-owned live GL texture overriding the base colour map (0 = none)
+        public TextureFilter baseColorFilter = TextureFilter.LINEAR;
         public int emissiveGlId = 0; // caller-owned live GL texture overriding the emissive map (0 = none)
         public float emR = 0f;
         public float emG = 0f;
@@ -183,7 +186,8 @@ public final class ModelIR {
 
     public enum Interp {
         STEP,
-        LINEAR
+        LINEAR,
+        CATMULLROM
     }
 
     public static final class Channel {
