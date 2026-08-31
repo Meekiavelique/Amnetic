@@ -19,6 +19,7 @@ import com.mojang.blaze3d.opengl.GlStateManager;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL33;
 
@@ -86,7 +87,7 @@ public final class BloomRenderer {
                 InstanceMeshRegistry.INSTANCE.renderEmissive(PHASE, ctx, emissiveBuf, s.isAll());
             }
             if (hookEmissive) {
-                emitRegisteredSources();
+                emitRegisteredSources(s.isOcclude());
             }
         }
 
@@ -116,18 +117,39 @@ public final class BloomRenderer {
 
     // lets any renderer (entities, GeckoLib, a third-party mod) draw into the emissive buffer
     // without Amnetic depending on it
-    private void emitRegisteredSources() {
+    private void emitRegisteredSources(boolean occlude) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
         CameraSnapshot cam = CameraSnapshot.current();
         if (cam == null) return;
         emissiveBuf.begin();
         try {
+            // sources draw world geometry, so establish known state instead of inheriting
+            // whatever the previous pass left bound
+            GlStateManager._enableBlend();
+            GL11.glEnable(GL11.GL_BLEND);
+            GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
+            GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
+            GlStateManager._disableCull();
+            GL11.glDisable(GL11.GL_CULL_FACE);
+            GlStateManager._depthMask(false);
+            GL11.glDepthMask(false);
+            if (occlude) {
+                GlStateManager._enableDepthTest();
+                GL11.glEnable(GL11.GL_DEPTH_TEST);
+                GL11.glDepthFunc(GL11.GL_LEQUAL);
+            } else {
+                GlStateManager._disableDepthTest();
+                GL11.glDisable(GL11.GL_DEPTH_TEST);
+            }
+
             EmissiveSources.emitAll(new EmissiveContext(
                     mc.level, cam.eye, cam.view, cam.projection,
                     mc.getDeltaTracker().getGameTimeDeltaPartialTick(false),
                     emissiveBuf.width(), emissiveBuf.height()));
         } finally {
+            GlStateManager._depthMask(true);
+            GL11.glDepthMask(true);
             emissiveBuf.end();
         }
     }
