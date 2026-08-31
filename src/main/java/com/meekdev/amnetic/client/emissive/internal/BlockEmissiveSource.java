@@ -33,7 +33,7 @@ public final class BlockEmissiveSource {
     private static final int STRIDE = BlockEmissiveGeometry.FLOATS_PER_VERTEX;
     private static final int MAX_VERTICES = 400_000;
 
-    private final ShaderProgram program = new ShaderProgram(VSH, FSH);
+    private ShaderProgram program;
 
     private int vao;
     private int vbo;
@@ -89,6 +89,7 @@ public final class BlockEmissiveSource {
         Matrix4f viewProj = new Matrix4f(ctx.projection()).mul(new Matrix4f(ctx.view()));
 
         GlState.bindTexture(0, atlas);
+        if (program == null) program = new ShaderProgram(VSH, FSH);
         program.begin();
         program.setSampler("AtlasSampler", 0);
         program.setMatrix4("ViewProj", viewProj);
