@@ -26,12 +26,18 @@ public final class LightBuffer implements AutoCloseable {
     }
 
     public int pack(List<Light> lights, Vec3 camPos, FrustumIntersection frustum) {
+        return pack(lights, camPos, frustum, null);
+    }
+
+    // outPacked, when given, receives the lights actually uploaded in SSBO index order
+    public int pack(List<Light> lights, Vec3 camPos, FrustumIntersection frustum, List<Light> outPacked) {
         LightSettings s = LightSettings.defaults();
         boolean cull = s.frustumCull();
         float fadeStart = s.lodFadeStart();
         float fadeEnd = s.lodFadeEnd();
 
         scratch.clear();
+        if (outPacked != null) outPacked.clear();
         int count = 0;
         for (Light l : lights) {
             if (!l.isEnabled() || count >= maxLights) continue;
@@ -58,6 +64,7 @@ public final class LightBuffer implements AutoCloseable {
             scratch.put(l.tanX()).put(l.tanY()).put(l.tanZ()).put((float) l.shadowRef());
             scratch.put(l.cookie() ? 1f : 0f).put((float) l.iesProfile()).put(l.godray()).put((float) l.style());
             scratch.put((float) l.godraySteps()).put(l.godrayDensity()).put(l.godrayAniso()).put(l.godrayShadows() ? 1f : 0f);
+            if (outPacked != null) outPacked.add(l);
             count++;
         }
         scratch.flip();
