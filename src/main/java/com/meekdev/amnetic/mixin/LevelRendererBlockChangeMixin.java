@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.mixin;
 
+import com.meekdev.amnetic.client.emissive.BlockEmissive;
 import com.meekdev.amnetic.client.shadow.internal.OccluderCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -17,5 +18,8 @@ public abstract class LevelRendererBlockChangeMixin {
     private void amnetic$invalidateShadowOccluders(BlockGetter level, BlockPos pos, BlockState oldState,
                                                    BlockState newState, int flags, CallbackInfo ci) {
         OccluderCache.invalidateAt(pos);
+        if (oldState.getLightEmission() != newState.getLightEmission()) {
+            BlockEmissive.invalidate();
+        }
     }
 }
