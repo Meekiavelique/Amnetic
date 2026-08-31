@@ -160,7 +160,18 @@ public final class WorldModels {
                     .rotateX((float) Math.toRadians(pitch))
                     .rotateZ((float) Math.toRadians(roll))
                     .scale(scale);
-            if (animator != null && (animator.current() != null || animator.hasOverrides())) {
+            if (model.internalHasBoneRotations()) {
+                if (animator == null && model.isReady() && model.hasBones()) {
+                    animator = model.createAnimator();
+                }
+                if (animator != null) {
+                    model.internalApplyBoneRotations(animator);
+                }
+            } else if (animator != null && animator.hasSpins()) {
+                animator.clearSpins();
+            }
+            if (animator != null && (animator.current() != null || animator.hasOverrides()
+                    || animator.hasSpins())) {
                 animator.update(dt);
                 Matrix4f[] pose = animator.pose();
                 Matrix4f[] copy = new Matrix4f[pose.length];
