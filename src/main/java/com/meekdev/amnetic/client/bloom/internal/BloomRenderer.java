@@ -46,6 +46,8 @@ public final class BloomRenderer {
 
     private int brightQuery;
     private boolean hadBloom = true; // assume bloom until the first query result says otherwise
+    private int staleQueryFrames;
+    private static final int STALE_QUERY_LIMIT = 4;
 
     public void render(LevelRenderContext ctx, BloomSettings s) {
         if (!s.isEnabled()) return;
@@ -61,6 +63,11 @@ public final class BloomRenderer {
             brightQuery = GL15.glGenQueries();
         } else if (GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT_AVAILABLE) == GL11.GL_TRUE) {
             hadBloom = GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT) != 0;
+            staleQueryFrames = 0;
+        } else if (++staleQueryFrames > STALE_QUERY_LIMIT) {
+            // the result never arrived; fail open rather than latch bloom off indefinitely
+            hadBloom = true;
+            staleQueryFrames = 0;
         }
         GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, brightQuery);
         try {
@@ -68,7 +75,11 @@ public final class BloomRenderer {
         } finally {
             GL15.glEndQuery(GL33.GL_ANY_SAMPLES_PASSED);
         }
-        if (!hadBloom) return; // nothing glowed last frame, skip the pyramid and composite
+        // the query only measures what passed the depth test last frame, so it cannot be
+        // trusted to gate an explicitly registered source: looking away for one frame would
+        // otherwise switch bloom off and keep it off
+        boolean explicitSource = instEmissive || hookEmissive || gbufferEmissive;
+        if (!hadBloom && !explicitSource) return;
 
         runPyramidAndComposite(s);
     }
