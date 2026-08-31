@@ -99,6 +99,7 @@ Full reference are in the [wiki](../../wiki):
 - [Entity Effects](../../wiki/Entity-Effects) - custom shaders over entities, texture overrides
 - [Mesh Tap](../../wiki/Mesh-Tap) - reading a posed entity's vertices
 - [Shading Models](../../wiki/Shading-Models) - lighting bases and custom GLSL shading snippets
+- [Emissive](../../wiki/Emissive) - glowing surfaces, block emissive, and the source hook
 - [Subsurface Scattering](../../wiki/Subsurface-Scattering) - Burley diffusion and transmission
 - [Light Styles](../../wiki/Light-Styles) - GLSL snippets that customise a single light
 - [Surface UI](../../wiki/Surface-UI) - widgets, layout, reactivity, and SDF text
