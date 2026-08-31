@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import java.util.Map;
 import com.meekdev.amnetic.client.model.TextureFilter;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -456,10 +457,10 @@ public final class GpuModel implements AutoCloseable {
         return DEFAULT_MATERIAL;
     }
 
-    private java.util.Map<Integer, Integer> nodeShading;
+    private Map<Integer, Integer> nodeShading;
 
-    public void setNodeShading(java.util.Map<Integer, Integer> byNode) {
-        nodeShading = byNode == null || byNode.isEmpty() ? null : java.util.Map.copyOf(byNode);
+    public void setNodeShading(Map<Integer, Integer> byNode) {
+        nodeShading = byNode == null || byNode.isEmpty() ? null : Map.copyOf(byNode);
     }
 
     private int shadingOverride(int nodeIndex) {
