@@ -93,6 +93,10 @@ Projected box decals: give `Decals` a texture, a center, and a surface normal, a
 
 Register a GLSL snippet as a `ShadingModel` and assign it to a model material. The snippet is baked into the deferred lighting shader as a dispatch case, so your geometry responds to Amnetic lights with a fully custom BRDF instead of the default Cook-Torrance path. See [Shading Models](Shading-Models).
 
+**Emissive**
+
+Surfaces that glow on their own, collected into a dedicated HDR buffer that bloom reads. Models, instanced meshes and particles feed it already; `BlockEmissive` adds light-emitting blocks with a palette-filtered gather, and `EmissiveSources` is a generic hook so entities, GeckoLib models or your own renderer can contribute without Amnetic depending on them. Per-quad emission and `_e` texture masks narrow the glow to the parts that should actually be bright. See [Emissive](Emissive).
+
 **Subsurface scattering**
 
 Light that enters a surface, scatters inside it, and leaves somewhere else: red backlit skin, glowing leaves, soft wax. A per-fragment transmission term in the deferred pass plus a screen-space Burley diffusion gather, driven by tunable profiles with `skin()`, `wax()`, `foliage()`, and `marble()` presets. See [Subsurface Scattering](Subsurface-Scattering).
@@ -173,6 +177,7 @@ The following areas are planned for future releases. None of them are available 
 | [Color Grading](Color-Grading) | `ColorGrade` and `ColorGradeSettings` for the final-frame grading post pass |
 | [Decals](Decals) | `Decals` factory and `Decal` handles for projected box decals and gbuffer relighting |
 | [Shading Models](Shading-Models) | `ShadingModel` lighting bases, fragment and vertex GLSL snippets for deferred-lit materials |
+| [Emissive](Emissive) | `BlockEmissive`, the `EmissiveSources` hook, per-texel masks, and how bloom consumes them |
 | [Subsurface Scattering](Subsurface-Scattering) | `Subsurface` profiles, the Burley diffusion pass, and transmission |
 | [Light Styles](Light-Styles) | `LightStyles` GLSL snippets that customise how a single light is evaluated |
 | [Surface UI](Surface-UI) | `Surfaces`, widgets, layout, the reactive core, SDF text, and surface materials |
