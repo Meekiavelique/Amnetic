@@ -149,6 +149,11 @@ public final class BloomRenderer {
                 GlStateManager._enableDepthTest();
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
                 GL11.glDepthFunc(GL11.GL_LEQUAL);
+                // emissive block quads are coplanar with the world geometry already in this
+                // depth buffer, so exact-equality LEQUAL fails at grazing angles and drops
+                // every face except the one squarely facing the camera. bias them nearer.
+                GlStateManager._polygonOffset(-1.0f, -1.0f);
+                GlStateManager._enablePolygonOffset();
             } else {
                 GlStateManager._disableDepthTest();
                 GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -159,6 +164,7 @@ public final class BloomRenderer {
                     mc.getDeltaTracker().getGameTimeDeltaPartialTick(false),
                     emissiveBuf.width(), emissiveBuf.height()));
         } finally {
+            GlStateManager._disablePolygonOffset();
             GlStateManager._depthMask(true);
             GL11.glDepthMask(true);
             emissiveBuf.end();
