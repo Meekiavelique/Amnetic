@@ -7,13 +7,18 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
 import org.joml.Vector3fc;
 
 public final class BlockEmissiveGeometry {
+
+    public static final int FLOATS_PER_VERTEX = 9;
 
     private static final float[] NONE = new float[0];
     private static final Map<BlockState, float[]> CACHE = new IdentityHashMap<>();
@@ -56,7 +61,9 @@ public final class BlockEmissiveGeometry {
             return null;
         }
 
+        float blockEmission = state.getLightEmission() / 15f;
         List<Float> out = new ArrayList<>();
+
         for (BlockStateModelPart part : parts) {
             for (Direction dir : FACES_PLUS_NULL) {
                 List<BakedQuad> quads;
@@ -66,7 +73,14 @@ public final class BlockEmissiveGeometry {
                     continue;
                 }
                 for (BakedQuad q : quads) {
-                    emitQuad(out, q);
+                    BakedQuad.MaterialInfo info = q.materialInfo();
+                    float quadEmission = info.lightEmission() > 0
+                            ? info.lightEmission() / 15f
+                            : blockEmission;
+                    if (quadEmission <= 0f) continue;
+
+                    TextureAtlasSprite mask = maskFor(info.sprite());
+                    emitQuad(out, q, info.sprite(), mask, quadEmission);
                 }
             }
         }
@@ -76,16 +90,57 @@ public final class BlockEmissiveGeometry {
         return arr;
     }
 
-    private static void emitQuad(List<Float> out, BakedQuad q) {
-        vertex(out, q, 0); vertex(out, q, 1); vertex(out, q, 2);
-        vertex(out, q, 0); vertex(out, q, 2); vertex(out, q, 3);
+    private static TextureAtlasSprite maskFor(TextureAtlasSprite sprite) {
+        if (sprite == null) return null;
+        Identifier name = sprite.contents().name();
+        Identifier maskId = Identifier.fromNamespaceAndPath(name.getNamespace(), name.getPath() + "_e");
+        try {
+            TextureAtlas atlas = Minecraft.getInstance().getAtlasManager()
+                    .getAtlasOrThrow(TextureAtlas.LOCATION_BLOCKS);
+            TextureAtlasSprite found = atlas.getSprite(maskId);
+            if (found == null) return null;
+            return maskId.equals(found.contents().name()) ? found : null;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
-    private static void vertex(List<Float> out, BakedQuad q, int i) {
+    private static void emitQuad(List<Float> out, BakedQuad q, TextureAtlasSprite sprite,
+                                 TextureAtlasSprite mask, float emission) {
+        vertex(out, q, 0, sprite, mask, emission);
+        vertex(out, q, 1, sprite, mask, emission);
+        vertex(out, q, 2, sprite, mask, emission);
+        vertex(out, q, 0, sprite, mask, emission);
+        vertex(out, q, 2, sprite, mask, emission);
+        vertex(out, q, 3, sprite, mask, emission);
+    }
+
+    private static void vertex(List<Float> out, BakedQuad q, int i, TextureAtlasSprite sprite,
+                               TextureAtlasSprite mask, float emission) {
         Vector3fc p = q.position(i);
         long uv = q.packedUV(i);
+        float u = Float.intBitsToFloat((int) (uv >>> 32));
+        float v = Float.intBitsToFloat((int) (uv & 0xFFFFFFFFL));
+
+        float mu = u;
+        float mv = v;
+        float hasMask = 0f;
+        if (mask != null && sprite != null) {
+            float su0 = sprite.getU0(), su1 = sprite.getU1();
+            float sv0 = sprite.getV0(), sv1 = sprite.getV1();
+            float du = su1 - su0, dv = sv1 - sv0;
+            if (Math.abs(du) > 1e-9f && Math.abs(dv) > 1e-9f) {
+                float lu = (u - su0) / du;
+                float lv = (v - sv0) / dv;
+                mu = mask.getU0() + lu * (mask.getU1() - mask.getU0());
+                mv = mask.getV0() + lv * (mask.getV1() - mask.getV0());
+                hasMask = 1f;
+            }
+        }
+
         out.add(p.x()); out.add(p.y()); out.add(p.z());
-        out.add(Float.intBitsToFloat((int) (uv >>> 32)));
-        out.add(Float.intBitsToFloat((int) (uv & 0xFFFFFFFFL)));
+        out.add(u); out.add(v);
+        out.add(mu); out.add(mv);
+        out.add(emission); out.add(hasMask);
     }
 }
