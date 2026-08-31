@@ -28,12 +28,12 @@ public final class BlockEmissive {
         return enabled;
     }
 
-    public static void radius(float blocks) {
-        BlockEmissiveSource.INSTANCE.radius(blocks);
+    public static void chunkRadius(int chunks) {
+        BlockEmissiveSource.INSTANCE.chunkRadius(chunks);
     }
 
-    public static float radius() {
-        return BlockEmissiveSource.INSTANCE.radius();
+    public static int chunkRadius() {
+        return BlockEmissiveSource.INSTANCE.chunkRadius();
     }
 
     public static void intensity(float v) {
