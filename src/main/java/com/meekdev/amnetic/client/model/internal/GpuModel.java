@@ -166,6 +166,10 @@ public final class GpuModel implements AutoCloseable {
                 continue;
             }
             bindMaterial(shader, part.materialIndex, mat);
+            int override = shadingOverride(part.nodeIndex);
+            if (override >= 0) {
+                shader.setMaterialId(override);
+            }
             applyMaterialState(mat);
             if (part.skinned) {
                 drawSkinned(shader, part, instances);
@@ -450,6 +454,24 @@ public final class GpuModel implements AutoCloseable {
             return ir.materials().get(materialIndex);
         }
         return DEFAULT_MATERIAL;
+    }
+
+    private java.util.Map<Integer, Integer> nodeShading;
+
+    public void setNodeShading(java.util.Map<Integer, Integer> byNode) {
+        nodeShading = byNode == null || byNode.isEmpty() ? null : java.util.Map.copyOf(byNode);
+    }
+
+    private int shadingOverride(int nodeIndex) {
+        if (nodeShading == null || nodeIndex < 0) {
+            return -1;
+        }
+        Integer id = nodeShading.get(nodeIndex);
+        return id == null ? -1 : id;
+    }
+
+    public ModelIR internalIr() {
+        return ir;
     }
 
     private void bindMaterial(ModelShader shader, int materialIndex, ModelIR.Material mat) {

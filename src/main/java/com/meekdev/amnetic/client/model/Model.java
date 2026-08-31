@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.model.internal.FlatProgram;
+import com.meekdev.amnetic.client.material.ShadingModel;
 import com.meekdev.amnetic.client.model.internal.GpuModel;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import com.meekdev.amnetic.client.model.internal.ModelLod;
@@ -218,6 +219,76 @@ public final class Model {
             pending.add(new Draw(new Matrix4f(worldTransform), pose));
         }
         return this;
+    }
+
+    private final java.util.Map<String, ShadingModel> boneShading = new java.util.LinkedHashMap<>();
+
+    /**
+     * shades one bone and everything parented under it differently from the rest of the model. the
+     * bone does not need geometry of its own: an empty bone used as an anchor still carries the
+     * override down to its children
+     */
+    public Model boneShading(String bone, ShadingModel shading) {
+        if (bone == null || bone.isBlank()) {
+            return this;
+        }
+        if (shading == null) {
+            boneShading.remove(bone);
+        } else {
+            boneShading.put(bone, shading);
+        }
+        rebuildBoneShading();
+        return this;
+    }
+
+    public Model clearBoneShading() {
+        boneShading.clear();
+        rebuildBoneShading();
+        return this;
+    }
+
+    public java.util.Map<String, ShadingModel> boneShadingView() {
+        return java.util.Map.copyOf(boneShading);
+    }
+
+    private void rebuildBoneShading() {
+        GpuModel target = gpu;
+        if (target == null) {
+            return;
+        }
+        com.meekdev.amnetic.client.model.internal.ModelIR source = target.internalIr();
+        if (source == null) {
+            return;
+        }
+        java.util.Map<Integer, Integer> byNode = new java.util.HashMap<>();
+        for (java.util.Map.Entry<String, ShadingModel> entry : boneShading.entrySet()) {
+            int index = nodeIndex(source, entry.getKey());
+            if (index >= 0) {
+                spread(source, index, entry.getValue().id(), byNode);
+            }
+        }
+        target.setNodeShading(byNode);
+    }
+
+    private static int nodeIndex(com.meekdev.amnetic.client.model.internal.ModelIR source,
+                                 String name) {
+        for (int i = 0; i < source.nodes().size(); i++) {
+            if (name.equals(source.nodes().get(i).name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static void spread(com.meekdev.amnetic.client.model.internal.ModelIR source, int node,
+                               int id, java.util.Map<Integer, Integer> out) {
+        if (node < 0 || node >= source.nodes().size() || out.containsKey(node)) {
+            return;
+        }
+        out.put(node, id);
+        for (int child : source.nodes().get(node).children) {
+            spread(source, child, id, out);
+        }
     }
 
     public ModelMaterial material(String name) {
