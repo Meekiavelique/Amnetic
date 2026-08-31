@@ -9,6 +9,7 @@ public final class LightSettings {
     private int maxLights = 256;
 
     private boolean frustumCull = true;
+    private boolean lightVolumes = false;
     private float lodFadeStart = 64f; // blocks past a light's range where it starts fading out
     private float lodFadeEnd = 128f; // blocks past range where it's fully culled
 
@@ -117,6 +118,15 @@ public final class LightSettings {
 
     public int maxLights() {
         return maxLights;
+    }
+
+    public boolean lightVolumes() {
+        return lightVolumes;
+    }
+
+    public LightSettings lightVolumes(boolean v) {
+        lightVolumes = v;
+        return this;
     }
 
     public boolean frustumCull() {

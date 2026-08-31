@@ -1,5 +1,8 @@
 package com.meekdev.amnetic.client.light.internal;
 
+import java.util.List;
+import java.util.ArrayList;
+import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.material.internal.MaterialParams;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
@@ -41,6 +44,7 @@ public final class DeferredLightingPass extends ScreenPass {
     public static int debugMode = 0;
 
     private Framebuffer capture;
+    private final List<Light> packed = new ArrayList<>();
     private LightBuffer lightBuffer;
     private final FrustumIntersection frustum = new FrustumIntersection();
 
@@ -82,7 +86,10 @@ public final class DeferredLightingPass extends ScreenPass {
         if (ShadingModelRegistry.INSTANCE.consumeDirty()) program.invalidate();
 
         frustum.set(cam.viewProj);
-        int count = lightBuffer.pack(LightRegistry.INSTANCE.all(), cam.eye, frustum);
+        boolean volumes = LightSettings.defaults().lightVolumes() && !volumetricOnly && debugMode == 0;
+        packed.clear();
+        int count = lightBuffer.pack(LightRegistry.INSTANCE.all(), cam.eye, frustum,
+                volumes ? packed : null);
         if (count == 0) return false;
 
         if (!volumetricOnly) capture.blitColorFromMain();
@@ -160,6 +167,7 @@ public final class DeferredLightingPass extends ScreenPass {
             program.setMatrix4("InvViewProj", cam.invViewProj);
             program.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
             program.setInt("LightCount", count);
+            program.setInt("SkipLocalLights", volumes ? 1 : 0);
             LightSettings ls = LightSettings.defaults();
             program.setInt("VolumetricSteps", ls.volumetricSteps());
             program.setFloat("VolumetricStrength", ls.volumetricStrength());
@@ -189,6 +197,13 @@ public final class DeferredLightingPass extends ScreenPass {
                 GL11.glDisable(GL11.GL_BLEND);
             }
             program.draw();
+
+            if (volumes) {
+                GlState.bindTexture(0, capture.colorTextureGlId(0));
+                GlState.bindTexture(1, capture.depthTextureGlId());
+                LightVolumePass.INSTANCE.render(cam, packed,
+                        capture.width(), capture.height());
+            }
         } finally {
             GlState.bindTexture(4, 0);
             GlState.bindTexture(6, 0);
