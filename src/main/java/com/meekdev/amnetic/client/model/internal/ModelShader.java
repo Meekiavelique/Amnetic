@@ -225,6 +225,12 @@ final class ModelShader implements AutoCloseable {
         }
     }
 
+    void setMaterialId(int id) {
+        if (materialIdLoc != -1) {
+            GL20.glUniform1i(materialIdLoc, id);
+        }
+    }
+
     private void bindSamplerUnits() {
         GlStateManager._glUseProgram(program);
         setSampler("AlbedoSampler", 0);
