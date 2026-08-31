@@ -42,6 +42,7 @@ public final class BlockEmissiveSource {
 
     private int anchorX = Integer.MIN_VALUE, anchorY, anchorZ;
     private boolean dirty = true;
+    private boolean missedChunk;
     private int chunkRadius = 4;
     private float intensity = 1f;
 
@@ -106,6 +107,7 @@ public final class BlockEmissiveSource {
 
     private void rebuild(ClientLevel level, int cx, int cy, int cz) {
         dirty = false;
+        missedChunk = false;
         anchorX = cx; anchorY = cy; anchorZ = cz;
         vertexCount = 0;
 
@@ -122,7 +124,11 @@ public final class BlockEmissiveSource {
             for (int dz = -chunkRadius; dz <= chunkRadius; dz++) {
                 ChunkAccess chunk = level.getChunk(chunkX + dx, chunkZ + dz,
                         net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
-                if (chunk == null) continue;
+                if (chunk == null) {
+                    // still streaming in; retry next frame instead of caching an empty result
+                    missedChunk = true;
+                    continue;
+                }
 
                 LevelChunkSection[] sections = chunk.getSections();
                 for (int si = 0; si < sections.length && si < sectionCount; si++) {
@@ -165,6 +171,7 @@ public final class BlockEmissiveSource {
 
         buf.flip();
         vertexCount = buf.limit() / STRIDE;
+        if (missedChunk) dirty = true;
         if (vertexCount == 0) return;
 
         if (vao == 0) vao = GL30.glGenVertexArrays();
