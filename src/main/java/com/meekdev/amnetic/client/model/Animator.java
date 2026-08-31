@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model;
 
+import java.util.Arrays;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -32,6 +33,10 @@ public final class Animator {
     private Quaternionf[] overrideR;
     private Vector3f[] overrideS;
     private boolean overridden;
+
+    private Vector3f[] spinAxis;
+    private float[] spinDegrees;
+    private boolean spun;
 
     Animator(Model model, ModelIR ir) {
         this.model = model;
@@ -174,6 +179,53 @@ public final class Animator {
         return true;
     }
 
+    public Animator spin(int node, float axisX, float axisY, float axisZ, float degrees) {
+        if (node < 0 || node >= ir.nodes().size()) {
+            return this;
+        }
+        float length = (float) Math.sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ);
+        if (length < 1.0e-6f) {
+            return this;
+        }
+        if (spinAxis == null) {
+            spinAxis = new Vector3f[ir.nodes().size()];
+            spinDegrees = new float[ir.nodes().size()];
+        }
+        if (spinAxis[node] == null) {
+            spinAxis[node] = new Vector3f();
+        }
+        spinAxis[node].set(axisX / length, axisY / length, axisZ / length);
+        spinDegrees[node] = degrees;
+        spun = true;
+        return this;
+    }
+
+    public Animator clearSpin(int node) {
+        if (spinAxis != null && node >= 0 && node < spinAxis.length) {
+            spinAxis[node] = null;
+            spun = false;
+            for (Vector3f axis : spinAxis) {
+                if (axis != null) {
+                    spun = true;
+                    break;
+                }
+            }
+        }
+        return this;
+    }
+
+    public Animator clearSpins() {
+        if (spinAxis != null) {
+            Arrays.fill(spinAxis, null);
+        }
+        spun = false;
+        return this;
+    }
+
+    public boolean hasSpins() {
+        return spun;
+    }
+
     public Animator play(String clip) {
         this.current = clip;
         this.crossfadeTo = null;
@@ -247,6 +299,16 @@ public final class Animator {
                 }
                 if (overrideS[i] != null) {
                     nodeScale[i].set(overrideS[i]);
+                }
+            }
+        }
+
+        if (spun) {
+            for (int i = 0; i < nodeRotation.length; i++) {
+                Vector3f axis = spinAxis[i];
+                if (axis != null) {
+                    nodeRotation[i].rotateAxis((float) Math.toRadians(spinDegrees[i]),
+                            axis.x, axis.y, axis.z);
                 }
             }
         }

@@ -1,5 +1,8 @@
 package com.meekdev.amnetic.client.model;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import org.joml.Vector3fc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -221,13 +224,8 @@ public final class Model {
         return this;
     }
 
-    private final java.util.Map<String, ShadingModel> boneShading = new java.util.LinkedHashMap<>();
+    private final Map<String, ShadingModel> boneShading = new LinkedHashMap<>();
 
-    /**
-     * shades one bone and everything parented under it differently from the rest of the model. the
-     * bone does not need geometry of its own: an empty bone used as an anchor still carries the
-     * override down to its children
-     */
     public Model boneShading(String bone, ShadingModel shading) {
         if (bone == null || bone.isBlank()) {
             return this;
@@ -247,22 +245,19 @@ public final class Model {
         return this;
     }
 
-    public java.util.Map<String, ShadingModel> boneShadingView() {
-        return java.util.Map.copyOf(boneShading);
+    public Map<String, ShadingModel> boneShadingView() {
+        return Map.copyOf(boneShading);
     }
 
     private void rebuildBoneShading() {
         GpuModel target = gpu;
-        if (target == null) {
+        ModelIR source = ir;
+        if (target == null || source == null) {
             return;
         }
-        com.meekdev.amnetic.client.model.internal.ModelIR source = target.internalIr();
-        if (source == null) {
-            return;
-        }
-        java.util.Map<Integer, Integer> byNode = new java.util.HashMap<>();
-        for (java.util.Map.Entry<String, ShadingModel> entry : boneShading.entrySet()) {
-            int index = nodeIndex(source, entry.getKey());
+        Map<Integer, Integer> byNode = new HashMap<>();
+        for (Map.Entry<String, ShadingModel> entry : boneShading.entrySet()) {
+            int index = nodeIndex(entry.getKey());
             if (index >= 0) {
                 spread(source, index, entry.getValue().id(), byNode);
             }
@@ -270,8 +265,11 @@ public final class Model {
         target.setNodeShading(byNode);
     }
 
-    private static int nodeIndex(com.meekdev.amnetic.client.model.internal.ModelIR source,
-                                 String name) {
+    public int nodeIndex(String name) {
+        ModelIR source = ir;
+        if (source == null || name == null) {
+            return -1;
+        }
         for (int i = 0; i < source.nodes().size(); i++) {
             if (name.equals(source.nodes().get(i).name)) {
                 return i;
@@ -280,14 +278,70 @@ public final class Model {
         return -1;
     }
 
-    private static void spread(com.meekdev.amnetic.client.model.internal.ModelIR source, int node,
-                               int id, java.util.Map<Integer, Integer> out) {
+    private static void spread(ModelIR source, int node,
+                               int id, Map<Integer, Integer> out) {
         if (node < 0 || node >= source.nodes().size() || out.containsKey(node)) {
             return;
         }
         out.put(node, id);
         for (int child : source.nodes().get(node).children) {
             spread(source, child, id, out);
+        }
+    }
+
+    public record BoneRotation(Vector3f axis, float degrees) {
+    }
+
+    private final Map<String, BoneRotation> boneRotations =
+            new LinkedHashMap<>();
+
+    public Model boneRotation(String bone, float axisX, float axisY, float axisZ, float degrees) {
+        if (bone == null || bone.isBlank()) {
+            return this;
+        }
+        BoneRotation current = boneRotations.get(bone);
+        if (current != null && current.degrees() == degrees
+                && current.axis().x == axisX && current.axis().y == axisY
+                && current.axis().z == axisZ) {
+            return this;
+        }
+        boneRotations.put(bone, new BoneRotation(new Vector3f(axisX, axisY, axisZ), degrees));
+        return this;
+    }
+
+    public Model boneRotation(String bone, Vector3fc axis, float degrees) {
+        return axis == null ? this
+                : boneRotation(bone, axis.x(), axis.y(), axis.z(), degrees);
+    }
+
+    public Model clearBoneRotation(String bone) {
+        boneRotations.remove(bone);
+        return this;
+    }
+
+    public Model clearBoneRotations() {
+        boneRotations.clear();
+        return this;
+    }
+
+    public Map<String, BoneRotation> boneRotationView() {
+        return Map.copyOf(boneRotations);
+    }
+
+    public boolean internalHasBoneRotations() {
+        return !boneRotations.isEmpty();
+    }
+
+    public void internalApplyBoneRotations(Animator animator) {
+        animator.clearSpins();
+        for (Map.Entry<String, BoneRotation> entry : boneRotations.entrySet()) {
+            int node = nodeIndex(entry.getKey());
+            if (node < 0) {
+                continue;
+            }
+            BoneRotation rotation = entry.getValue();
+            animator.spin(node, rotation.axis().x, rotation.axis().y, rotation.axis().z,
+                    rotation.degrees());
         }
     }
 
