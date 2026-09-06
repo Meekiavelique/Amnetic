@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.camera;
 
+import com.meekdev.amnetic.client.camera.internal.CameraController;
 import com.meekdev.amnetic.client.post.internal.CameraState;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -22,6 +23,32 @@ import org.joml.Vector4f;
 public final class AmneticCamera {
 
     private AmneticCamera() {}
+
+    // hold the camera at an absolute pose, for a game that owns its own camera
+    // a running director outranks this, effects like shake still layer on top
+    public static void setPose(Vec3 position, float yaw, float pitch) {
+        setPose(position, yaw, pitch, 0f);
+    }
+
+    public static void setPose(Vec3 position, float yaw, float pitch, float roll) {
+        CameraController.INSTANCE.setPose(position, yaw, pitch, roll);
+    }
+
+    public static void clearPose() {
+        CameraController.INSTANCE.clearPose();
+    }
+
+    public static boolean hasPose() {
+        return CameraController.INSTANCE.hasPose();
+    }
+
+    public static void setFov(float fov) {
+        CameraController.INSTANCE.setPoseFov(fov);
+    }
+
+    public static void clearFov() {
+        CameraController.INSTANCE.clearPoseFov();
+    }
 
     public static boolean isReady() {
         return CameraState.valid() && mcCamera() != null;

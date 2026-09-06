@@ -31,6 +31,14 @@ public final class CameraController {
     private float overrideYaw, overridePitch;
     private boolean overrideFovSet;
     private float overrideFov;
+    private float overrideRoll;
+    private boolean overrideKeepsOffsets;
+
+    private boolean poseActive;
+    private Vec3 posePos;
+    private float poseYaw, posePitch, poseRoll;
+    private boolean poseFovSet;
+    private float poseFov;
 
     private final Vector3f rawWorld = new Vector3f();
     private float rawPitch, rawYaw, rawRoll, rawFov;
@@ -68,6 +76,8 @@ public final class CameraController {
         fovOffset = 0f;
         override = false;
         overrideFovSet = false;
+        overrideRoll = 0f;
+        overrideKeepsOffsets = false;
 
         worldOffset.add(rawWorld);
         pitchOffset += rawPitch;
@@ -128,6 +138,47 @@ public final class CameraController {
             }
             if (director.done()) director = null;
         }
+
+        // a director is a takeover and wins, a held pose only applies when none is running
+        if (!override && poseActive) {
+            override = true;
+            overrideKeepsOffsets = true;
+            overridePos = posePos;
+            overrideYaw = poseYaw;
+            overridePitch = posePitch;
+            overrideRoll = poseRoll;
+            if (poseFovSet) {
+                overrideFovSet = true;
+                overrideFov = poseFov;
+            }
+        }
+    }
+
+    public void setPose(Vec3 position, float yaw, float pitch, float roll) {
+        poseActive = true;
+        posePos = position;
+        poseYaw = yaw;
+        posePitch = pitch;
+        poseRoll = roll;
+    }
+
+    public void clearPose() {
+        poseActive = false;
+        posePos = null;
+        poseFovSet = false;
+    }
+
+    public boolean hasPose() {
+        return poseActive;
+    }
+
+    public void setPoseFov(float fov) {
+        poseFovSet = true;
+        poseFov = fov;
+    }
+
+    public void clearPoseFov() {
+        poseFovSet = false;
     }
 
     private void integrateSpring(float dt) {
@@ -193,6 +244,15 @@ public final class CameraController {
 
     public float overridePitch() {
         return overridePitch;
+    }
+
+    public float overrideRoll() {
+        return overrideRoll;
+    }
+
+    // a director replaces the shot outright, a held pose still takes shake and kick on top
+    public boolean overrideKeepsOffsets() {
+        return overrideKeepsOffsets;
     }
 
     public boolean hasFovOverride() {

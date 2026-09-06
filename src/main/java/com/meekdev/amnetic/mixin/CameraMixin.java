@@ -45,17 +45,18 @@ public abstract class CameraMixin {
         if (c.hasOverride()) {
             setRotation(c.overrideYaw(), c.overridePitch());
             setPosition(c.overridePosition());
-            return;
+            if (!c.overrideKeepsOffsets()) return;
         }
 
         if (c.hasRotationOffset()) {
             float newYaw = yRot + c.yawOffset();
             float newPitch = Math.max(-90f, Math.min(90f, xRot + c.pitchOffset()));
             setRotation(newYaw, newPitch);
-
-            float roll = c.rollOffset();
-            if (roll != 0f) amnetic$applyRoll((float) Math.toRadians(roll));
         }
+
+        // after the last setRotation, which would otherwise rebuild the basis without it
+        float roll = c.rollOffset() + c.overrideRoll();
+        if (roll != 0f) amnetic$applyRoll((float) Math.toRadians(roll));
 
         if (c.hasPositionOffset()) {
             Vector3f w = c.worldOffset();
