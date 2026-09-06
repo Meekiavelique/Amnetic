@@ -29,6 +29,7 @@ public final class InstancedMesh<T> {
     final boolean gpuCull;
     final boolean worldSpace;
     final boolean manual;
+    final boolean flatShaded;
     final BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
     private InstancedMesh(Builder<T> b) {
@@ -44,6 +45,7 @@ public final class InstancedMesh<T> {
         this.extraSamplers = List.copyOf(b.extraSamplers);
         this.phase = b.phase;
         this.renderState = b.renderState;
+        this.flatShaded = b.flatShaded;
         this.emissive = b.emissive;
         this.emissiveStrength = b.emissiveStrength;
         this.writeGBuffer = b.writeGBuffer;
@@ -87,6 +89,7 @@ public final class InstancedMesh<T> {
     public boolean gpuCull() { return gpuCull; }
     public boolean worldSpace() { return worldSpace; }
     public boolean manual() { return manual; }
+    public boolean flatShaded() { return flatShaded; }
 
     public BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender() { return onRender; }
 
@@ -119,6 +122,7 @@ public final class InstancedMesh<T> {
         private boolean gpuCull = false;
         private boolean worldSpace = false;
         private boolean manual = false;
+        private boolean flatShaded = false;
         private BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
 
         private Builder(InstanceLayout layout, InstanceWriter<T> writer) {
@@ -223,10 +227,26 @@ public final class InstancedMesh<T> {
             return this;
         }
 
+        /**
+         * shades every face by the axis it points down, the way a vanilla block is shaded and the
+         * way {@link com.meekdev.amnetic.client.material.ShadingModel#flat()} shades a model.
+         * instanced geometry carries no normals, so the face normal comes from the derivative of
+         * the fragment position and there is no lightmap term
+         */
+        public Builder<T> flatShaded() {
+            this.flatShaded = true;
+            return this;
+        }
+
         public InstancedMesh<T> build() {
             boolean hasExplicit = vertexShaderId != null && fragmentShaderId != null;
             if (builtinShader == null && customShaderId == null && !hasExplicit) {
                 throw new IllegalStateException("Specify a shader");
+            }
+            if (flatShaded && (builtinShader == null || !builtinShader.hasFlatVariant())) {
+                throw new IllegalStateException("flatShaded() needs a builtin shader that has one, "
+                        + "and " + (builtinShader == null ? "a custom shader" : builtinShader.shaderId())
+                        + " does not");
             }
             return new InstancedMesh<>(this);
         }
