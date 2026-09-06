@@ -1,11 +1,18 @@
 package com.meekdev.amnetic.client.camera;
 
-import com.meekdev.amnetic.client.camera.internal.CameraController;
 import com.meekdev.amnetic.client.anim.Easing;
+import com.meekdev.amnetic.client.camera.effect.Kick;
+import com.meekdev.amnetic.client.camera.effect.Shake;
+import com.meekdev.amnetic.client.camera.effect.Spring;
+import com.meekdev.amnetic.client.camera.internal.CameraController;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Vector3f;
 
+// shake, kick and spring are ordinary CameraModifiers, nothing here reaches past the same
+// api your own modifier would use
 public final class CameraEffects {
+
+    private static Shake shake;
+    private static Spring spring;
 
     private CameraEffects() {}
 
@@ -31,8 +38,7 @@ public final class CameraEffects {
 
     public static void impulse(Vec3 positionDelta, float pitch, float yaw, float roll, float fov,
                                float durationSeconds, Easing easing) {
-        c().impulse(new Vector3f((float) positionDelta.x, (float) positionDelta.y, (float) positionDelta.z),
-                pitch, yaw, roll, fov, durationSeconds, easing);
+        addModifier(new Kick(positionDelta, pitch, yaw, roll, fov, durationSeconds, easing));
     }
 
     public static void kick(float pitch, float yaw, float roll, float durationSeconds) {
@@ -44,19 +50,19 @@ public final class CameraEffects {
     }
 
     public static void shake(float trauma) {
-        c().shake(trauma);
+        shake().add(trauma);
     }
 
     public static void shake(float trauma, float positionScale, float rotationScale) {
-        c().shake(trauma, positionScale, rotationScale);
+        shake().scale(positionScale, rotationScale).add(trauma);
     }
 
     public static void shakeDecay(float perSecond) {
-        c().shakeDecay(perSecond);
+        shake().decay(perSecond);
     }
 
     public static void springTo(Vec3 targetOffset, float stiffness, float damping) {
-        c().springTo(targetOffset.x, targetOffset.y, targetOffset.z, stiffness, damping);
+        spring().to(targetOffset, stiffness, damping);
     }
 
     public static void addModifier(CameraModifier modifier) {
@@ -72,6 +78,22 @@ public final class CameraEffects {
     }
 
     public static void clear() {
+        shake = null;
+        spring = null;
         c().clear();
+    }
+
+    // the shared instances drop out of the list when they settle, re-adding rather than
+    // remaking them is what keeps a shakeDecay or a stiffness set earlier
+    private static Shake shake() {
+        if (shake == null) shake = new Shake();
+        addModifier(shake);
+        return shake;
+    }
+
+    private static Spring spring() {
+        if (spring == null) spring = new Spring();
+        addModifier(spring);
+        return spring;
     }
 }

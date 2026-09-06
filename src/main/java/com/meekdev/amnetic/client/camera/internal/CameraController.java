@@ -43,21 +43,6 @@ public final class CameraController {
     private final Vector3f rawWorld = new Vector3f();
     private float rawPitch, rawYaw, rawRoll, rawFov;
 
-    private final List<Impulse> impulses = new ArrayList<>();
-
-    private float trauma;
-    private float traumaClock;
-    private float shakePosScale = 0.18f;   // blocks at full trauma
-    private float shakeRotScale = 4.0f;    // degrees at full trauma
-    private float shakeDecayPerS = 1.0f;   // trauma drained per second
-
-    private final Vector3f springPos = new Vector3f();
-    private final Vector3f springVel = new Vector3f();
-    private final Vector3f springTarget = new Vector3f();
-    private boolean springActive;
-    private float springStiffness = 120f;
-    private float springDamping = 18f;
-
     private final List<CameraModifier> modifiers = new ArrayList<>();
     private final CameraFrame frame = new CameraFrame(this);
     private float frameClock; // accumulated render seconds, handed to modifiers
@@ -93,35 +78,8 @@ public final class CameraController {
             for (int i = 0; i < modifiers.size(); i++) {
                 modifiers.get(i).modify(frame);
             }
-        }
-
-        for (int i = impulses.size() - 1; i >= 0; i--) {
-            Impulse imp = impulses.get(i);
-            imp.advance(dt);
-            imp.accumulate(this);
-            if (imp.dead()) impulses.remove(i);
-        }
-
-        if (trauma > 0f) {
-            traumaClock += dt;
-            float s = trauma * trauma;
-            localOffset.x += noise(traumaClock, 1) * s * shakePosScale;
-            localOffset.y += noise(traumaClock, 2) * s * shakePosScale;
-            rollOffset += noise(traumaClock, 3) * s * shakeRotScale;
-            pitchOffset += noise(traumaClock, 4) * s * shakeRotScale * 0.5f;
-            yawOffset += noise(traumaClock, 5) * s * shakeRotScale * 0.5f;
-            trauma = Math.max(0f, trauma - shakeDecayPerS * dt);
-        }
-
-        if (springActive) {
-            integrateSpring(dt);
-            worldOffset.add(springPos);
-            if (springTarget.lengthSquared() < 1.0e-8f
-                    && springPos.lengthSquared() < 1.0e-7f
-                    && springVel.lengthSquared() < 1.0e-6f) {
-                springActive = false;
-                springPos.zero();
-                springVel.zero();
+            for (int i = modifiers.size() - 1; i >= 0; i--) {
+                if (modifiers.get(i).finished()) modifiers.remove(i);
             }
         }
 
@@ -179,37 +137,6 @@ public final class CameraController {
 
     public void clearPoseFov() {
         poseFovSet = false;
-    }
-
-    private void integrateSpring(float dt) {
-        int steps = Math.max(1, (int) Math.ceil(dt / 0.008f));
-        float h = dt / steps;
-        for (int i = 0; i < steps; i++) {
-            springVel.x += (-springStiffness * (springPos.x - springTarget.x) - springDamping * springVel.x) * h;
-            springVel.y += (-springStiffness * (springPos.y - springTarget.y) - springDamping * springVel.y) * h;
-            springVel.z += (-springStiffness * (springPos.z - springTarget.z) - springDamping * springVel.z) * h;
-            springPos.fma(h, springVel);
-        }
-    }
-
-    private static float noise(float t, int seed) {
-        float a = (float) Math.sin(t * 17.0 + seed * 1.7);
-        float b = (float) Math.sin(t * 31.3 + seed * 4.1);
-        return a * 0.6f + b * 0.4f;
-    }
-
-    void addWorld(float x, float y, float z) {
-        worldOffset.add(x, y, z);
-    }
-
-    void addRotation(float pitch, float yaw, float roll) {
-        pitchOffset += pitch;
-        yawOffset += yaw;
-        rollOffset += roll;
-    }
-
-    void addFov(float fov) {
-        fovOffset += fov;
     }
 
     public void contributeWorld(double x, double y, double z) {
@@ -309,44 +236,13 @@ public final class CameraController {
         rawFov += fov;
     }
 
-    public void impulse(Vector3f posDelta, float pitch, float yaw, float roll, float fov,
-                        float duration, Easing easing) {
-        impulses.add(new Impulse(posDelta, pitch, yaw, roll, fov, duration, easing));
-    }
-
-    public void shake(float traumaToAdd) {
-        trauma = Math.min(1f, trauma + traumaToAdd);
-    }
-
-    public void shake(float traumaToAdd, float posScale, float rotScale) {
-        this.shakePosScale = posScale;
-        this.shakeRotScale = rotScale;
-        shake(traumaToAdd);
-    }
-
-    public void shakeDecay(float perSecond) {
-        this.shakeDecayPerS = Math.max(1.0e-3f, perSecond);
-    }
-
-    public void springTo(double x, double y, double z, float stiffness, float damping) {
-        this.springTarget.set((float) x, (float) y, (float) z);
-        this.springStiffness = stiffness;
-        this.springDamping = damping;
-        this.springActive = true;
-    }
-
     public void clear() {
         worldOffset.zero();
         localOffset.zero();
         rawWorld.zero();
         rawPitch = rawYaw = rawRoll = rawFov = 0f;
         pitchOffset = yawOffset = rollOffset = fovOffset = 0f;
-        impulses.clear();
-        trauma = 0f;
-        springActive = false;
-        springPos.zero();
-        springVel.zero();
-        springTarget.zero();
+        modifiers.clear();
     }
 
     public void addModifier(CameraModifier modifier) {
