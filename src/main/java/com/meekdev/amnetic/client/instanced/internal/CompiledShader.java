@@ -46,7 +46,7 @@ final class CompiledShader implements AutoCloseable {
             vshId = toShaderPath(mesh.vertexShaderId(), ".vsh");
             fshId = toShaderPath(mesh.fragmentShaderId(), ".fsh");
         } else if (mesh.isBuiltin()) {
-            String name = mesh.builtinShader().shaderId();
+            String name = mesh.builtinShader().shaderId() + (mesh.flatShaded() ? "_flat" : "");
             vshId = Identifier.fromNamespaceAndPath("amnetic", "shaders/instance/" + name + ".vsh");
             fshId = Identifier.fromNamespaceAndPath("amnetic", "shaders/instance/" + name + ".fsh");
         } else {
