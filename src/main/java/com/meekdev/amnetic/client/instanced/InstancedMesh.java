@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.IntSupplier;
 import net.minecraft.resources.Identifier;
 
 public final class InstancedMesh<T> {
@@ -160,6 +161,12 @@ public final class InstancedMesh<T> {
 
         public Builder<T> extraSampler(String uniformName, Identifier textureId, int unit, boolean fileBacked) {
             this.extraSamplers.add(new ExtraSampler(uniformName, textureId, unit, fileBacked));
+            return this;
+        }
+
+        // a texture the caller resolves itself, for one the texture manager does not hold
+        public Builder<T> extraSampler(String uniformName, IntSupplier glTexture, int unit) {
+            this.extraSamplers.add(new ExtraSampler(uniformName, glTexture, unit));
             return this;
         }
 

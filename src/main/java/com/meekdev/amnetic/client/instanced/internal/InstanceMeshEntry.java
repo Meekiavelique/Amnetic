@@ -314,6 +314,15 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         var textureManager = Minecraft.getInstance().getTextureManager();
         for (var sampler : samplers) {
             try {
+                if (sampler.glTexture() != null) {
+                    int name = sampler.glTexture().getAsInt();
+                    if (name != 0) {
+                        GlStateManager._activeTexture(GL13.GL_TEXTURE0 + sampler.unit());
+                        GlStateManager._bindTexture(name);
+                        shader.uploadSamplerUnit(sampler.uniformName(), sampler.unit());
+                    }
+                    continue;
+                }
                 if (sampler.fileBacked() && !ImportedTextures.isImported(sampler.textureId())
                         && registeredExtras.add(sampler.textureId())) {
                     textureManager.registerAndLoad(sampler.textureId(), new SimpleTexture(sampler.textureId()));
