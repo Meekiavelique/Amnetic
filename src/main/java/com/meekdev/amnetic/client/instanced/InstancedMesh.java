@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.instanced;
 
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
+import com.meekdev.amnetic.client.model.TextureFilter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -19,6 +20,7 @@ public final class InstancedMesh<T> {
     final Identifier vertexShaderId;
     final Identifier fragmentShaderId;
     final Identifier textureId;
+    final TextureFilter textureFilter;
     final List<ExtraSampler> extraSamplers;
     final InstancePhase phase;
     final RenderState renderState;
@@ -43,6 +45,7 @@ public final class InstancedMesh<T> {
         this.vertexShaderId = b.vertexShaderId;
         this.fragmentShaderId = b.fragmentShaderId;
         this.textureId = b.textureId;
+        this.textureFilter = b.textureFilter;
         this.extraSamplers = List.copyOf(b.extraSamplers);
         this.phase = b.phase;
         this.renderState = b.renderState;
@@ -100,6 +103,7 @@ public final class InstancedMesh<T> {
     public Identifier vertexShaderId() { return vertexShaderId; }
     public Identifier fragmentShaderId() { return fragmentShaderId; }
     public Identifier textureId() { return textureId; }
+    public TextureFilter textureFilter() { return textureFilter; }
     public List<ExtraSampler> extraSamplers() { return extraSamplers; }
 
     public static final class Builder<T> {
@@ -110,6 +114,7 @@ public final class InstancedMesh<T> {
         private Identifier vertexShaderId;
         private Identifier fragmentShaderId;
         private Identifier textureId;
+        private TextureFilter textureFilter = TextureFilter.NEAREST;
         private final List<ExtraSampler> extraSamplers = new ArrayList<>();
         private MeshData geometry;
         private InstanceLayout vertexLayout;
@@ -151,6 +156,15 @@ public final class InstancedMesh<T> {
             this.vertexShaderId = vertexShaderId;
             this.fragmentShaderId = fragmentShaderId;
             this.builtinShader = null;
+            return this;
+        }
+
+        /**
+         * how the mesh texture is filtered. nearest by default, which is what a game drawn from
+         * texels wants; ask for linear only for something authored smooth
+         */
+        public Builder<T> textureFilter(TextureFilter filter) {
+            this.textureFilter = filter;
             return this;
         }
 
