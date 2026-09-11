@@ -18,6 +18,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Vector4f;
 
 public final class AmneticCamera {
@@ -152,10 +153,16 @@ public final class AmneticCamera {
         return new Ray(position(), dir);
     }
 
+    // null behind the camera, the same answer worldToScreen gives there
+    //
+    // w is negative behind the plane, so dividing by it produced coordinates that look like a
+    // point in front and are not. a caller checking the result was being told yes
+    @Nullable
     public static Vector3f worldToNdc(Vec3 world) {
         Vec3 cam = position();
         Vector4f clip = viewProjection().transform(new Vector4f(
                 (float) (world.x - cam.x), (float) (world.y - cam.y), (float) (world.z - cam.z), 1f));
+        if (clip.w <= 1.0e-4f) return null;
         return new Vector3f(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
     }
 
