@@ -4,6 +4,7 @@ import com.meekdev.amnetic.client.compute.ComputeCapabilities;
 import com.meekdev.amnetic.client.instanced.InstanceBatch;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
+import com.meekdev.amnetic.client.model.TextureFilter;
 import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.opengl.GlTexture;
@@ -14,6 +15,7 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL33;
 import org.lwjgl.opengl.GL40;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryStack;
@@ -303,6 +305,12 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         if (texture.getTexture() instanceof GlTexture glTexture) {
             GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             GlStateManager._bindTexture(glTexture.glId());
+            GL33.glBindSampler(0, 0);
+            boolean nearest = mesh.textureFilter() != TextureFilter.LINEAR;
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER,
+                    nearest ? GL11.GL_NEAREST : GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER,
+                    nearest ? GL11.GL_NEAREST : GL11.GL_LINEAR);
             shader.uploadTextureSampler(0);
         }
     }
