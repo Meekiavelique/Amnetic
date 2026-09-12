@@ -149,7 +149,9 @@ public final class AmneticCamera {
         Vector4f far = inv.transform(new Vector4f(ndcX, ndcY, 1f, 1f));
         near.div(near.w);
         far.div(far.w);
-        Vec3 dir = new Vec3(far.x - near.x, far.y - near.y, far.z - near.z);
+        // unit length, because a caller stepping along a ray writes origin + direction * metres.
+        // handing back the whole near to far span made that step the length of the frustum
+        Vec3 dir = new Vec3(far.x - near.x, far.y - near.y, far.z - near.z).normalize();
         return new Ray(position(), dir);
     }
 
