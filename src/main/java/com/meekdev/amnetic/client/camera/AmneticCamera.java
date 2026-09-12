@@ -146,7 +146,7 @@ public final class AmneticCamera {
         Vector4f far = inv.transform(new Vector4f(ndcX, ndcY, 1f, 1f));
         near.div(near.w);
         far.div(far.w);
-        Vec3 dir = new Vec3(far.x - near.x, far.y - near.y, far.z - near.z);
+        Vec3 dir = new Vec3(far.x - near.x, far.y - near.y, far.z - near.z).normalize();
         return new Ray(position(), dir);
     }
 
