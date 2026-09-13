@@ -8,8 +8,19 @@ import net.minecraft.resources.Identifier;
 public final class Fonts {
     private static final Map<List<Identifier>, SdfFont> CACHE = new HashMap<>();
     private static final Map<List<Identifier>, Boolean> FAILED = new HashMap<>();
+    private static final Map<Identifier, byte[]> REGISTERED = new HashMap<>();
 
     private Fonts() {}
+
+    public static void register(Identifier fontId, byte[] ttf) {
+        REGISTERED.put(fontId, ttf.clone());
+        CACHE.keySet().removeIf(key -> key.contains(fontId));
+        FAILED.keySet().removeIf(key -> key.contains(fontId));
+    }
+
+    static byte[] registered(Identifier fontId) {
+        return REGISTERED.get(fontId);
+    }
 
     public static SdfFont get(Identifier fontId) {
         return chain(fontId);
