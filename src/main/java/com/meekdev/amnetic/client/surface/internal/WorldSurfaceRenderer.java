@@ -20,6 +20,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
@@ -115,7 +116,7 @@ public final class WorldSurfaceRenderer {
             double dist = eye.distanceTo(new Vec3(s.xPos(), s.yPos(), s.zPos()));
             if (dist > s.maxDistanceValue() + 16) continue;
             try {
-                renderCanvas(s);
+                if (!direct(s)) renderCanvas(s);
                 drawInWorld(s, fc);
             } catch (Exception e) {
                 LOG.warn("world surface draw failed, hiding it", e);
@@ -210,6 +211,11 @@ public final class WorldSurfaceRenderer {
         pickTris.put(s, tris);
         grid.flip();
 
+        if (direct(s)) {
+            drawDirect(s, fc, right, up, n);
+            return;
+        }
+
         Framebuffer fb = canvases.get(s);
         if (fb == null) return;
 
@@ -238,6 +244,55 @@ public final class WorldSurfaceRenderer {
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, segs * 6);
         GlStateManager._glBindVertexArray(0);
         GlStateManager._glUseProgram(0);
+        GlStateManager._depthMask(true); GL11.glDepthMask(true);
+        GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
+    }
+
+    private static boolean direct(WorldSurface s) {
+        return s.directValue() && s.curveValue() == 0;
+    }
+
+    // the widgets go through the ui batch with a matrix that takes canvas pixels onto the plane, so
+    // the distance field text and the rounded edges are resolved on screen rather than in a texture
+    private void drawDirect(WorldSurface s, FrameContext fc, Vector3f right, Vector3f up, Vector3f n) {
+        Vec3 eye = fc.camera().eye;
+        float w = s.canvasW(), h = s.canvasH();
+        float wM = s.widthM(), hM = s.heightM();
+        float sx = wM / w, sy = hM / h;
+        float ox = (float) (s.xPos() - eye.x) - right.x * wM * 0.5f + up.x * hM * 0.5f;
+        float oy = (float) (s.yPos() - eye.y) - right.y * wM * 0.5f + up.y * hM * 0.5f;
+        float oz = (float) (s.zPos() - eye.z) - right.z * wM * 0.5f + up.z * hM * 0.5f;
+        // column major: x runs along right, y runs down the plane, z is unused
+        Matrix4f plane = new Matrix4f(
+                right.x * sx, right.y * sx, right.z * sx, 0,
+                -up.x * sy, -up.y * sy, -up.z * sy, 0,
+                n.x, n.y, n.z, 0,
+                ox, oy, oz, 1);
+        Matrix4f projection = new Matrix4f(fc.camera().viewProj).mul(plane);
+
+        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
+        if (s.alwaysOnTopValue()) {
+            GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
+        } else {
+            GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
+            GL11.glDepthFunc(GL11.GL_LEQUAL);
+            // a surface lying on a face would otherwise fight the face for the same depth
+            GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
+            GL11.glPolygonOffset(-1f, -2f);
+        }
+        GlStateManager._depthMask(false); GL11.glDepthMask(false);
+
+        UiBatcher batcher = UiBatcher.INSTANCE;
+        batcher.begin(w, h, projection);
+        UiDraw draw = new UiDraw(batcher, w, h);
+        s.internalTree().layout(0, 0, w, h);
+        s.internalTree().draw(draw, 1f);
+        batcher.flush();
+
+        GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
         GlStateManager._depthMask(true); GL11.glDepthMask(true);
         GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
     }
