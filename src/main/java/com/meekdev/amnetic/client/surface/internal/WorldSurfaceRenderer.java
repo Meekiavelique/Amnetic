@@ -156,12 +156,22 @@ public final class WorldSurfaceRenderer {
         ensureGl();
         Vec3 eye = fc.camera().eye;
 
-        Vector3f n = s.billboardValue()
-                ? new Vector3f((float) (eye.x - s.xPos()), 0, (float) (eye.z - s.zPos()))
-                : new Vector3f(s.facingValue().x, 0, s.facingValue().z);
-        if (n.lengthSquared() < 1e-6f) n.set(0, 0, -1);
-        n.normalize();
-        Vector3f right = new Vector3f(-n.z, 0, n.x);
+        Vector3f n;
+        Vector3f right;
+        Vector3f up;
+        if (s.orientRightValue() != null) {
+            right = new Vector3f(s.orientRightValue());
+            up = new Vector3f(s.orientUpValue());
+            n = new Vector3f(right).cross(up).normalize();
+        } else {
+            n = s.billboardValue()
+                    ? new Vector3f((float) (eye.x - s.xPos()), 0, (float) (eye.z - s.zPos()))
+                    : new Vector3f(s.facingValue().x, 0, s.facingValue().z);
+            if (n.lengthSquared() < 1e-6f) n.set(0, 0, -1);
+            n.normalize();
+            right = new Vector3f(-n.z, 0, n.x);
+            up = new Vector3f(0, 1, 0);
+        }
 
         float wM = s.widthM(), hM = s.heightM();
         float curve = s.curveValue();
@@ -188,9 +198,10 @@ public final class WorldSurfaceRenderer {
                     ox = local;
                     oz = 0;
                 }
-                double wx = s.xPos() + right.x * ox + n.x * oz;
-                double wy = s.yPos() + (top ? hM * 0.5f : -hM * 0.5f);
-                double wz = s.zPos() + right.z * ox + n.z * oz;
+                float oy = top ? hM * 0.5f : -hM * 0.5f;
+                double wx = s.xPos() + right.x * ox + up.x * oy + n.x * oz;
+                double wy = s.yPos() + right.y * ox + up.y * oy + n.y * oz;
+                double wz = s.zPos() + right.z * ox + up.z * oy + n.z * oz;
                 grid.put((float) (wx - eye.x)).put((float) (wy - eye.y)).put((float) (wz - eye.z));
                 grid.put(u).put(top ? 1f : 0f);
                 tris[t++] = (float) wx; tris[t++] = (float) wy; tris[t++] = (float) wz;
