@@ -8,6 +8,7 @@ uniform int HasGBuffer;
 uniform mat4 InvViewProj;
 uniform int ZeroToOne;
 uniform int LightCount;
+uniform float LightTime; // seconds, wrapping every hour, for styles that move
 uniform int SkipLocalLights;
 uniform int VolumetricSteps;
 uniform float VolumetricStrength;
