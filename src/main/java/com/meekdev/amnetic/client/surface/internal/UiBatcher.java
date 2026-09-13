@@ -218,6 +218,40 @@ public final class UiBatcher {
         vert(x1, y1, u1, v1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
+    // part of a texture on any four corners, top left, top right, bottom right, bottom left, which is
+    // what slanted or turning text needs
+    public void imageQuad(int texture, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
+                          float u0, float v0, float u1, float v1, int argb, boolean nearest) {
+        segment(texture, nearest);
+        grow(6 * FLOATS);
+        float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
+        float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+        vert(x0, y0, u0, v0, r, g, b, a, 2f, u0, v0, u1, v1, 0);
+        vert(x3, y3, u0, v1, r, g, b, a, 2f, u0, v0, u1, v1, 0);
+        vert(x1, y1, u1, v0, r, g, b, a, 2f, u0, v0, u1, v1, 0);
+        vert(x1, y1, u1, v0, r, g, b, a, 2f, u0, v0, u1, v1, 0);
+        vert(x3, y3, u0, v1, r, g, b, a, 2f, u0, v0, u1, v1, 0);
+        vert(x2, y2, u1, v1, r, g, b, a, 2f, u0, v0, u1, v1, 0);
+    }
+
+    // what was queued so far is drawn, then everything queued inside draw is drawn through program
+    // instead of the surface's own shader. the program gets Ortho, Tex, ScreenSize and whatever
+    // uniforms sets; each vertex carries its uv rect in Params, so a shader can tell where inside a
+    // glyph it is
+    public void withProgram(ShaderProgram custom, java.util.function.Consumer<ShaderProgram> uniforms, Runnable draw) {
+        flush();
+        draw.run();
+        if (segments == 0 || verts.position() == 0) return;
+        ensureGl();
+        custom.begin();
+        custom.setMatrix4("Ortho", ortho);
+        custom.setSampler("Tex", 0);
+        custom.setVec2("ScreenSize", guiW, guiH);
+        uniforms.accept(custom);
+        drawPending();
+        GlStateManager._glUseProgram(0);
+    }
+
     public void material(SurfaceMaterial mat, float x, float y, float w, float h, float radius,
                          float hover, float pressed, float focus, int argb) {
         flush();
