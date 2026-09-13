@@ -13,6 +13,8 @@ public final class WorldSurface {
     private final float widthM, heightM;
     private double x, y, z;
     private final Vector3f facing = new Vector3f(0, 0, -1);
+    private Vector3f orientRight;
+    private Vector3f orientUp;
     private float curve;
     private boolean billboard;
     private int resolution = 256;
@@ -47,6 +49,15 @@ public final class WorldSurface {
         facing.set(fx, fy, fz).normalize();
         return this;
     }
+
+    public WorldSurface orient(float rx, float ry, float rz, float ux, float uy, float uz) {
+        orientRight = new Vector3f(rx, ry, rz).normalize();
+        orientUp = new Vector3f(ux, uy, uz).normalize();
+        return this;
+    }
+
+    public Vector3f orientRightValue() { return orientRight; }
+    public Vector3f orientUpValue() { return orientUp; }
 
     public WorldSurface curve(float radians) { curve = radians; return this; }
 
