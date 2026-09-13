@@ -128,6 +128,19 @@ public final class UiDraw {
         return this;
     }
 
+    public UiDraw imageQuad(int glTextureId, float x0, float y0, float x1, float y1, float x2, float y2,
+                            float x3, float y3, float u0, float v0, float u1, float v1, int argb, boolean nearest) {
+        batcher.imageQuad(glTextureId, x0, y0, x1, y1, x2, y2, x3, y3, u0, v0, u1, v1, argb, nearest);
+        return this;
+    }
+
+    public UiDraw withProgram(com.meekdev.amnetic.client.render.ShaderProgram program,
+                              java.util.function.Consumer<com.meekdev.amnetic.client.render.ShaderProgram> uniforms,
+                              Runnable draw) {
+        batcher.withProgram(program, uniforms, draw);
+        return this;
+    }
+
     public UiDraw material(SurfaceMaterial mat, float x, float y, float w, float h, float radius) {
         return material(mat, x, y, w, h, radius, 0f, 0f, 0f, 0xFFFFFFFF);
     }
