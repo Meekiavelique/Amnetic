@@ -108,6 +108,10 @@ public final class CameraController {
                 overrideFov = poseFov;
             }
         }
+        if (!overrideFovSet && poseFovSet) {
+            overrideFovSet = true;
+            overrideFov = poseFov;
+        }
     }
 
     public void setPose(Vec3 position, float yaw, float pitch, float roll) {
@@ -180,7 +184,7 @@ public final class CameraController {
     }
 
     public boolean hasFovOverride() {
-        return override && overrideFovSet;
+        return overrideFovSet;
     }
 
     public float overrideFov() {
