@@ -11,6 +11,7 @@ import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import com.meekdev.amnetic.client.light.LightSettings;
+import com.meekdev.amnetic.client.light.LightType;
 import com.meekdev.amnetic.client.material.internal.ShadingModelRegistry;
 import com.meekdev.amnetic.client.render.*;
 import com.meekdev.amnetic.client.shadow.ShadowSettings;
@@ -92,8 +93,25 @@ public final class DeferredLightingPass extends ScreenPass {
                 volumes ? packed : null);
         if (count == 0) return false;
 
+        boolean anyDirectional = false;
+        if (volumes) {
+            for (Light l : packed) {
+                if (l.type() == LightType.DIRECTIONAL) { anyDirectional = true; break; }
+            }
+        }
+        boolean gbufferDepth = GBufferTargets.INSTANCE.isPopulated()
+                && GBufferTargets.INSTANCE.depthGlId() != 0;
+        // the fullscreen pass recomposes the whole frame, which is only needed when something
+        // darkens it (sun/directional) or replaces it (custom shading, debug, volumetrics)
+        boolean needsFullscreen = !volumes
+                || volumetricOnly
+                || debugMode != 0
+                || anyDirectional
+                || ShadowMapPass.INSTANCE.sunActive()
+                || ShadingModelRegistry.INSTANCE.hasCustomModels();
+
         if (!volumetricOnly) capture.blitColorFromMain();
-        capture.blitDepthFromMain();
+        if (needsFullscreen || !gbufferDepth) capture.blitDepthFromMain();
 
         boolean toHalf = volumetricOnly && volumetricTarget != null;
         int prevFbo = -1;
@@ -167,6 +185,7 @@ public final class DeferredLightingPass extends ScreenPass {
             program.setMatrix4("InvViewProj", cam.invViewProj);
             program.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
             program.setInt("LightCount", count);
+            program.setFloat("LightTime", (float) ((System.nanoTime() / 1.0e9) % 3600.0));
             program.setInt("SkipLocalLights", volumes ? 1 : 0);
             LightSettings ls = LightSettings.defaults();
             program.setInt("VolumetricSteps", ls.volumetricSteps());
@@ -196,9 +215,12 @@ public final class DeferredLightingPass extends ScreenPass {
                 GlStateManager._disableBlend();
                 GL11.glDisable(GL11.GL_BLEND);
             }
-            program.draw();
+            if (needsFullscreen) program.draw();
 
             if (volumes) {
+                if (!needsFullscreen && gbufferDepth) {
+                    GlState.bindTexture(1, GBufferTargets.INSTANCE.depthGlId());
+                }
                 GlState.bindTexture(0, capture.colorTextureGlId(0));
                 GlState.bindTexture(1, capture.depthTextureGlId());
                 LightVolumePass.INSTANCE.render(cam, packed,

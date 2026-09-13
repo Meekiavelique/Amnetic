@@ -64,6 +64,7 @@ public final class LightVolumePass {
         program.setMatrix4("InvViewProj", cam.invViewProj);
         program.setMatrix4("ViewProj", viewProj);
         program.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
+        program.setFloat("LightTime", (float) ((System.nanoTime() / 1.0e9) % 3600.0));
         program.setVec2("ScreenSize", screenW, screenH);
 
         GL30.glBindVertexArray(vao);
