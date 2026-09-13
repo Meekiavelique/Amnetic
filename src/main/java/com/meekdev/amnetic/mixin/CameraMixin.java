@@ -82,7 +82,9 @@ public abstract class CameraMixin {
 
         CameraController c = CameraController.INSTANCE;
         if (c.hasFovOverride()) {
-            cir.setReturnValue(c.overrideFov());
+            // a punch or a zoom kick still lands on a held lens, unless a director took the whole shot
+            float offset = !c.hasOverride() || c.overrideKeepsOffsets() ? c.fovOffset() : 0f;
+            cir.setReturnValue(c.overrideFov() + offset);
         } else if (c.fovOffset() != 0f) {
             cir.setReturnValue(cir.getReturnValueF() + c.fovOffset());
         }

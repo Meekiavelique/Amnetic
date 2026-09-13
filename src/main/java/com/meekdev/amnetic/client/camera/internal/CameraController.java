@@ -110,6 +110,10 @@ public final class CameraController {
                 overrideFov = poseFov;
             }
         }
+        if (!overrideFovSet && poseFovSet) {
+            overrideFovSet = true;
+            overrideFov = poseFov;
+        }
     }
 
     public void setPose(Vec3 position, float yaw, float pitch, float roll) {
@@ -182,8 +186,9 @@ public final class CameraController {
         return overrideKeepsOffsets;
     }
 
+    // a lens can be held without a pose: the game still places the camera and only the field of view is set
     public boolean hasFovOverride() {
-        return override && overrideFovSet;
+        return overrideFovSet;
     }
 
     public float overrideFov() {
