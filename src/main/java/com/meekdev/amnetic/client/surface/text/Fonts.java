@@ -9,8 +9,21 @@ public final class Fonts {
 
     private static final Map<List<Identifier>, SdfFont> CACHE = new HashMap<>();
     private static final Map<List<Identifier>, Boolean> FAILED = new HashMap<>();
+    private static final Map<Identifier, byte[]> REGISTERED = new HashMap<>();
 
     private Fonts() {}
+
+    // a font file that is not in a resource pack, held under an id of the caller's choosing. naming an
+    // id again with other bytes replaces it, and anything baked from the old bytes is dropped
+    public static void register(Identifier fontId, byte[] ttf) {
+        REGISTERED.put(fontId, ttf.clone());
+        CACHE.keySet().removeIf(key -> key.contains(fontId));
+        FAILED.keySet().removeIf(key -> key.contains(fontId));
+    }
+
+    static byte[] registered(Identifier fontId) {
+        return REGISTERED.get(fontId);
+    }
 
     public static SdfFont get(Identifier fontId) {
         return chain(fontId);

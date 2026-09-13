@@ -166,9 +166,14 @@ public final class SdfFont {
 
     private static Source loadSource(Identifier fontId) {
         ByteBuffer fontData = null;
-        try (InputStream in = Minecraft.getInstance().getResourceManager().getResource(fontId)
-                .orElseThrow(() -> new RuntimeException("font not found: " + fontId)).open()) {
-            byte[] bytes = in.readAllBytes();
+        try {
+            byte[] bytes = Fonts.registered(fontId);
+            if (bytes == null) {
+                try (InputStream in = Minecraft.getInstance().getResourceManager().getResource(fontId)
+                        .orElseThrow(() -> new RuntimeException("font not found: " + fontId)).open()) {
+                    bytes = in.readAllBytes();
+                }
+            }
             fontData = MemoryUtil.memAlloc(bytes.length);
             fontData.put(bytes).flip();
             STBTTFontinfo info = STBTTFontinfo.create();
