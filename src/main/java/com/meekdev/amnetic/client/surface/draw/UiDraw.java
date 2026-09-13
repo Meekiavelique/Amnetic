@@ -122,6 +122,12 @@ public final class UiDraw {
         return this;
     }
 
+    public UiDraw imageRegion(int glTextureId, float x0, float y0, float x1, float y1,
+                              float u0, float v0, float u1, float v1, int argb, boolean nearest) {
+        batcher.imageRegion(glTextureId, x0, y0, x1, y1, u0, v0, u1, v1, argb, nearest);
+        return this;
+    }
+
     public UiDraw material(SurfaceMaterial mat, float x, float y, float w, float h, float radius) {
         return material(mat, x, y, w, h, radius, 0f, 0f, 0f, 0xFFFFFFFF);
     }
