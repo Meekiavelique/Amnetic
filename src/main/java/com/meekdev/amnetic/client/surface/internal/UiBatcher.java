@@ -7,6 +7,7 @@ import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
@@ -59,6 +60,11 @@ public final class UiBatcher {
         float n02 = m00 * a02 + m01 * a12 + m02;
         float n12 = m10 * a02 + m11 * a12 + m12;
         m00 = n00; m01 = n01; m10 = n10; m11 = n11; m02 = n02; m12 = n12;
+    }
+
+    public void begin(float guiW, float guiH, Matrix4fc projection) {
+        begin(guiW, guiH);
+        ortho.set(projection);
     }
 
     public void begin(float guiW, float guiH) {

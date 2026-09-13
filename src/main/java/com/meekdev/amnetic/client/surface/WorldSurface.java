@@ -13,6 +13,7 @@ public final class WorldSurface {
     private final float widthM, heightM;
     private double x, y, z;
     private final Vector3f facing = new Vector3f(0, 0, -1);
+    private boolean direct;
     private Vector3f orientRight;
     private Vector3f orientUp;
     private float curve;
@@ -55,6 +56,9 @@ public final class WorldSurface {
         orientUp = new Vector3f(ux, uy, uz).normalize();
         return this;
     }
+
+    public WorldSurface direct(boolean d) { direct = d; return this; }
+    public boolean directValue() { return direct; }
 
     public Vector3f orientRightValue() { return orientRight; }
     public Vector3f orientUpValue() { return orientUp; }
