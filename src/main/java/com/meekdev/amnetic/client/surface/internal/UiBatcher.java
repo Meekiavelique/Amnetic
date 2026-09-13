@@ -10,10 +10,12 @@ import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL33;
 
 import java.nio.FloatBuffer;
 
@@ -32,6 +34,8 @@ public final class UiBatcher {
 
     private final int[] segTexture = new int[MAX_SEGMENTS];
     private final int[] segCount = new int[MAX_SEGMENTS];
+    private final boolean[] segNearest = new boolean[MAX_SEGMENTS];
+    private int nearestSampler;
     private int segments;
 
     private float clipX0, clipY0, clipX1, clipY1;
@@ -88,9 +92,14 @@ public final class UiBatcher {
     }
 
     private void segment(int texture) {
-        if (segments > 0 && segTexture[segments - 1] == texture) return;
+        segment(texture, false);
+    }
+
+    private void segment(int texture, boolean nearest) {
+        if (segments > 0 && segTexture[segments - 1] == texture && segNearest[segments - 1] == nearest) return;
         if (segments == MAX_SEGMENTS) return;
         segTexture[segments] = texture;
+        segNearest[segments] = nearest;
         segCount[segments] = 0;
         segments++;
     }
@@ -193,6 +202,22 @@ public final class UiBatcher {
         vert(x + w, y + h, 1, 1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
+    // part of a texture, by its corners in uv. nearest keeps texel edges hard however far it is scaled,
+    // which is what a pixel font or pixel art wants
+    public void imageRegion(int texture, float x0, float y0, float x1, float y1,
+                            float u0, float v0, float u1, float v1, int argb, boolean nearest) {
+        segment(texture, nearest);
+        grow(6 * FLOATS);
+        float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
+        float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+        vert(x0, y0, u0, v0, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+        vert(x0, y1, u0, v1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+        vert(x1, y0, u1, v0, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+        vert(x1, y0, u1, v0, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+        vert(x0, y1, u0, v1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+        vert(x1, y1, u1, v1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+    }
+
     public void material(SurfaceMaterial mat, float x, float y, float w, float h, float radius,
                          float hover, float pressed, float focus, int argb) {
         flush();
@@ -218,6 +243,17 @@ public final class UiBatcher {
         applyBlend(SurfaceMaterial.Blend.MIX);
     }
 
+    private int nearestSampler() {
+        if (nearestSampler == 0) {
+            nearestSampler = GL33.glGenSamplers();
+            GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
+            GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
+            GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+            GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+        }
+        return nearestSampler;
+    }
+
     public void flush() {
         if (segments == 0 || verts.position() == 0) return;
         ensureGl();
@@ -241,9 +277,12 @@ public final class UiBatcher {
         int offset = 0;
         for (int i = 0; i < segments; i++) {
             GlState.bindTexture(0, segTexture[i]);
+            GL33.glBindSampler(0, segNearest[i] ? nearestSampler() : 0);
             GL11.glDrawArrays(GL11.GL_TRIANGLES, offset, segCount[i]);
             offset += segCount[i];
         }
+        // left bound, the sampler would override whatever the game draws on unit zero next
+        GL33.glBindSampler(0, 0);
 
         GlStateManager._glBindVertexArray(0);
         verts.clear();
