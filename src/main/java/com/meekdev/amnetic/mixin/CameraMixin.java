@@ -29,6 +29,13 @@ public abstract class CameraMixin {
     @Shadow private float xRot;
     @Shadow private float yRot;
     @Shadow private float fov;
+    @Shadow private float depthFar;
+    @Shadow @Final private Minecraft minecraft;
+    @Shadow @Final private Matrix4f cachedViewRotMatrix;
+    @Shadow private void setupPerspective(float near, float far, float fov, float width, float height) { throw new AssertionError(); }
+    @Shadow private void prepareCullFrustum(Matrix4fc viewRotation, Matrix4f projection, Vec3 position) { throw new AssertionError(); }
+    @Shadow private Matrix4f createProjectionMatrixForCulling() { throw new AssertionError(); }
+    @Shadow public abstract Matrix4f getViewRotationMatrix(Matrix4f dest);
     @Shadow private int matrixPropertiesDirty;
 
     @Shadow protected abstract void setRotation(float yRot, float xRot);
@@ -41,6 +48,18 @@ public abstract class CameraMixin {
 
         CameraController c = CameraController.INSTANCE;
         c.frame(position, yRot, xRot, fov);
+
+        // the projection was already built from the fov field before this ran, and nothing reads getFov to
+        // build it again: a lens held or punched has to go into the field and the projection has to be made
+        // over, or it changes a number nobody draws with
+        float lens = c.hasFovOverride()
+                ? c.overrideFov() + (!c.hasOverride() || c.overrideKeepsOffsets() ? c.fovOffset() : 0f)
+                : fov + c.fovOffset();
+        if (lens != fov) {
+            fov = Math.max(1f, Math.min(179f, lens));
+            setupPerspective(0.05f, depthFar, fov, minecraft.getWindow().getWidth(), minecraft.getWindow().getHeight());
+            prepareCullFrustum(getViewRotationMatrix(cachedViewRotMatrix), createProjectionMatrixForCulling(), position);
+        }
 
         if (c.hasOverride()) {
             setRotation(c.overrideYaw(), c.overridePitch());
@@ -74,20 +93,6 @@ public abstract class CameraMixin {
         up.rotateAxis(radians, forwards.x, forwards.y, forwards.z);
         left.rotateAxis(radians, forwards.x, forwards.y, forwards.z);
         matrixPropertiesDirty = -1; // force view-rotation matrices to rebuild with the roll
-    }
-
-    @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
-    private void amnetic$applyFovOffset(CallbackInfoReturnable<Float> cir) {
-        if (!amnetic$isMainCamera()) return;
-
-        CameraController c = CameraController.INSTANCE;
-        if (c.hasFovOverride()) {
-            // a punch or a zoom kick still lands on a held lens, unless a director took the whole shot
-            float offset = !c.hasOverride() || c.overrideKeepsOffsets() ? c.fovOffset() : 0f;
-            cir.setReturnValue(c.overrideFov() + offset);
-        } else if (c.fovOffset() != 0f) {
-            cir.setReturnValue(cir.getReturnValueF() + c.fovOffset());
-        }
     }
 
     @Inject(method = "getViewRotationMatrix", at = @At("HEAD"), cancellable = true)
