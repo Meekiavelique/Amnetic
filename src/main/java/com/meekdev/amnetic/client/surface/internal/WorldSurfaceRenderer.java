@@ -298,7 +298,9 @@ public final class WorldSurfaceRenderer {
         batcher.begin(w, h, projection);
         UiDraw draw = new UiDraw(batcher, w, h);
         s.internalTree().layout(0, 0, w, h);
+        draw.pushClip(0, 0, w, h);
         s.internalTree().draw(draw, 1f);
+        draw.popClip();
         batcher.flush();
 
         GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
