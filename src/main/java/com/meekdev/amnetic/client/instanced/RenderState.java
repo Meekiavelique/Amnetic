@@ -43,7 +43,12 @@ public final class RenderState {
     }
 
     public void apply() {
-        if (depthTest) GlStateManager._enableDepthTest(); else GlStateManager._disableDepthTest();
+        if (depthTest) {
+            GlStateManager._enableDepthTest();
+            GlStateManager._depthFunc(GL11.GL_LEQUAL);
+        } else {
+            GlStateManager._disableDepthTest();
+        }
         GlStateManager._depthMask(depthWrite);
         if (backfaceCulling) GlStateManager._enableCull(); else GlStateManager._disableCull();
         switch (blendMode) {
