@@ -128,9 +128,15 @@ public final class WorldSurfaceRenderer {
     }
 
     private void renderCanvas(WorldSurface s) {
-        Framebuffer fb = canvases.computeIfAbsent(s, k ->
-                Framebuffers.fixed(k.canvasW(), k.canvasH(),
-                        FramebufferSpec.builder().color(ColorFormat.RGBA8).build()));
+        Framebuffer fb = canvases.get(s);
+        if (fb != null && (fb.width() != s.canvasW() || fb.height() != s.canvasH())) {
+            fb.dispose();
+            fb = null;
+        }
+        if (fb == null) {
+            fb = Framebuffers.fixed(s.canvasW(), s.canvasH(), FramebufferSpec.builder().color(ColorFormat.RGBA8).build());
+            canvases.put(s, fb);
+        }
 
         float w = s.canvasW(), h = s.canvasH();
         UiBatcher batcher = UiBatcher.INSTANCE;
@@ -153,6 +159,7 @@ public final class WorldSurfaceRenderer {
 
         GlStateManager._depthMask(true); GL11.glDepthMask(true);
         fb.end();
+        if (s.filterValue() != null) s.filterValue().accept(fb);
     }
 
     private void drawInWorld(WorldSurface s, FrameContext fc) {
@@ -251,7 +258,7 @@ public final class WorldSurfaceRenderer {
     }
 
     private static boolean direct(WorldSurface s) {
-        return s.directValue() && s.curveValue() == 0;
+        return s.directValue() && s.curveValue() == 0 && s.filterValue() == null;
     }
 
     // the widgets go through the ui batch with a matrix that takes canvas pixels onto the plane, so

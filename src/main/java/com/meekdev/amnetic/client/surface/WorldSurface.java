@@ -3,6 +3,8 @@ package com.meekdev.amnetic.client.surface;
 import com.meekdev.amnetic.client.surface.internal.InputRouter;
 import com.meekdev.amnetic.client.surface.internal.WorldSurfaceRenderer;
 import com.meekdev.amnetic.client.surface.widget.Stack;
+import com.meekdev.amnetic.client.framebuffer.Framebuffer;
+import java.util.function.Consumer;
 import org.joml.Vector3f;
 
 public final class WorldSurface {
@@ -24,6 +26,7 @@ public final class WorldSurface {
     private boolean alwaysOnTop;
     private boolean visible = true;
     private boolean removed;
+    private Consumer<Framebuffer> filter;
 
     WorldSurface(float widthM, float heightM) {
         this.widthM = widthM;
@@ -63,6 +66,8 @@ public final class WorldSurface {
     // draws the widgets straight into the world instead of onto a canvas texture first, so text and
     // edges stay sharp at any distance. flat surfaces only: a curved one still goes through the canvas
     public WorldSurface direct(boolean d) { direct = d; return this; }
+    public WorldSurface filter(Consumer<Framebuffer> f) { filter = f; return this; }
+    public Consumer<Framebuffer> filterValue() { return filter; }
     public boolean directValue() { return direct; }
 
     public Vector3f orientRightValue() { return orientRight; }
