@@ -7,6 +7,7 @@ import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
 import com.meekdev.amnetic.client.pipeline.FrameContext;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderStage;
+import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.surface.WorldSurface;
@@ -22,6 +23,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
@@ -302,6 +304,11 @@ public final class WorldSurfaceRenderer {
         if (mc.player == null || mc.screen != null || surfaces.isEmpty()) return;
         Vec3 eye = mc.player.getEyePosition();
         Vec3 look = mc.player.getLookAngle();
+        CameraSnapshot camera = CameraSnapshot.current();
+        if (camera != null) {
+            eye = camera.eye;
+            look = aim(mc, camera);
+        }
 
         WorldSurface best = null;
         float bestT = Float.MAX_VALUE;
@@ -342,6 +349,21 @@ public final class WorldSurfaceRenderer {
             if (!attack && attackWasDown) best.internalInput().mouseUp(mx, my, 0);
         }
         attackWasDown = attack;
+    }
+
+    private static Vec3 aim(Minecraft mc, CameraSnapshot camera) {
+        float x = 0;
+        float y = 0;
+        if (!mc.mouseHandler.isMouseGrabbed()) {
+            x = (float) (mc.mouseHandler.xpos() / Math.max(1, mc.getWindow().getScreenWidth()) * 2 - 1);
+            y = (float) (1 - mc.mouseHandler.ypos() / Math.max(1, mc.getWindow().getScreenHeight()) * 2);
+        }
+        float near = camera.zeroToOne ? 0 : -1;
+        Vector4f from = camera.invViewProj.transform(new Vector4f(x, y, near, 1));
+        Vector4f to = camera.invViewProj.transform(new Vector4f(x, y, 1, 1));
+        from.div(from.w);
+        to.div(to.w);
+        return new Vec3(to.x - from.x, to.y - from.y, to.z - from.z).normalize();
     }
 
     private static float[] rayTriangle(Vec3 origin, Vec3 dir, float[] tris, int off) {
