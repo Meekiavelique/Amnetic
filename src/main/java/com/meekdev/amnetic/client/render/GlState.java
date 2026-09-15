@@ -9,9 +9,21 @@ import org.lwjgl.opengl.GL33;
 public final class GlState {
     private static final int MAX_UNIT = 3;
 
+    private static volatile int geometryPolygonMode = GL11.GL_FILL;
+
     private GlState() {}
 
+    public static void geometryPolygonMode(int mode) {
+        geometryPolygonMode = mode;
+        GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, mode);
+    }
+
+    public static int geometryPolygonMode() {
+        return geometryPolygonMode;
+    }
+
     public static void beginFullscreen() {
+        GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
         GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
@@ -44,5 +56,6 @@ public final class GlState {
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
+        GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, geometryPolygonMode);
     }
 }
