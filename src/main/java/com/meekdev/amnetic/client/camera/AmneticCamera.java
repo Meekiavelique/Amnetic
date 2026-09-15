@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.camera;
 
 import com.meekdev.amnetic.client.camera.internal.CameraController;
+import com.meekdev.amnetic.client.camera.internal.Orthographic;
 import com.meekdev.amnetic.client.post.internal.CameraState;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -49,6 +50,18 @@ public final class AmneticCamera {
 
     public static void clearFov() {
         CameraController.INSTANCE.clearPoseFov();
+    }
+
+    public static void setOrthographic(float halfHeightMetres, float depthMetres) {
+        Orthographic.set(halfHeightMetres, depthMetres);
+    }
+
+    public static void clearOrthographic() {
+        Orthographic.clear();
+    }
+
+    public static boolean isOrthographic() {
+        return Orthographic.active();
     }
 
     public static boolean isReady() {

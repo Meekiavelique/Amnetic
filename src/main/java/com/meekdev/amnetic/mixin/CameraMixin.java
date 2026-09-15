@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.mixin;
 
 import com.meekdev.amnetic.client.camera.internal.CameraController;
+import com.meekdev.amnetic.client.camera.internal.Orthographic;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
@@ -41,6 +42,11 @@ public abstract class CameraMixin {
     @Shadow protected abstract void setRotation(float yRot, float xRot);
 
     @Shadow protected abstract void setPosition(Vec3 position);
+
+    @Inject(method = "createProjectionMatrixForCulling", at = @At("HEAD"), cancellable = true)
+    private void amnetic$cullOrthographic(CallbackInfoReturnable<Matrix4f> cir) {
+        if (Orthographic.active() && amnetic$isMainCamera()) cir.setReturnValue(Orthographic.matrix(new Matrix4f()));
+    }
 
     @Inject(method = "update", at = @At("TAIL"))
     private void amnetic$applyCameraOffsets(DeltaTracker deltaTracker, CallbackInfo ci) {

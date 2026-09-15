@@ -24,7 +24,8 @@
     "accessor.GlGpuBufferAccessor",
     "accessor.PostEffectPassAccessor",
     "accessor.PostEffectProcessorAccessor",
-    "accessor.ShaderLoaderAccessor"
+    "accessor.ShaderLoaderAccessor",
+    "FrustumMixin"
   ],
   "injectors": {
     "defaultRequire": 1

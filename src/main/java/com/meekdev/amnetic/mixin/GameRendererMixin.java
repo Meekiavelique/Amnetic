@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.mixin;
 
+import com.meekdev.amnetic.client.camera.internal.Orthographic;
 import com.meekdev.amnetic.client.camera.internal.FrameView;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderLayer;
@@ -69,6 +70,7 @@ public abstract class GameRendererMixin {
     )
     private GpuBufferSlice amnetic$captureBobbedProjection(ProjectionMatrixBuffer buffer, Matrix4f projectionMatrix) {
         if (!CaptureManager.INSTANCE.isCapturing()) {
+            if (Orthographic.active()) Orthographic.matrix(projectionMatrix);
             if (Taa.jitterActive()) {
                 var target = Minecraft.getInstance().getMainRenderTarget();
                 TaaJitter.INSTANCE.beginFrame(target.width, target.height);
