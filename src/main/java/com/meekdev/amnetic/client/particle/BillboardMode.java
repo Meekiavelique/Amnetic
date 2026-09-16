@@ -4,7 +4,8 @@ import net.minecraft.resources.Identifier;
 
 public enum BillboardMode {
     SPHERICAL(Identifier.fromNamespaceAndPath("amnetic", "particle/billboard")),
-    VELOCITY_STRETCHED(Identifier.fromNamespaceAndPath("amnetic", "particle/billboard_stretched"));
+    VELOCITY_STRETCHED(Identifier.fromNamespaceAndPath("amnetic", "particle/billboard_stretched")),
+    BEAM(Identifier.fromNamespaceAndPath("amnetic", "particle/billboard_beam"));
 
     private final Identifier vertexShader;
 

@@ -2,7 +2,11 @@ package com.meekdev.amnetic.client.ui;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+//? if >=26.1 {
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+//?} else {
+/*import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+*///?}
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import org.lwjgl.glfw.GLFW;
@@ -25,8 +29,16 @@ public final class AmneticEditorBridge {
                 "key.amnetic.editor",
                 InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_RIGHT_SHIFT,
+                //? if >=1.21.9 {
                 KeyMapping.Category.MISC);
+                //?} else {
+                /*"key.categories.misc");
+                *///?}
+        //? if >=26.1 {
         KeyMappingHelper.registerKeyMapping(toggleKey);
+        //?} else {
+        /*KeyBindingHelper.registerKeyBinding(toggleKey);
+        *///?}
 
         if (FabricLoader.getInstance().isModLoaded(IMGUIMC)) {
             AmneticEditor.init();

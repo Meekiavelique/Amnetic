@@ -1,13 +1,12 @@
 package com.meekdev.amnetic.client.framebuffer.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.DepthMode;
 import com.meekdev.amnetic.client.framebuffer.FramebufferException;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.textures.GpuTexture;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -154,7 +153,11 @@ public final class GlFramebuffer {
     }
 
     private static int currentDrawFbo() {
+        //? if >=1.21.5 {
         return GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
+        //?} else {
+        /*return GlStateManager.getBoundFramebuffer();
+        *///?}
     }
 
     private void saveOuterViewport() {
@@ -191,7 +194,7 @@ public final class GlFramebuffer {
     public void blitColorFromMain() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null) return;
-        int srcId = glId(main.getColorTexture());
+        int srcId = VanillaCompat.colorTextureGlId(main);
         if (srcId <= 0) return;
         blitFromMain(srcId, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_COLOR_BUFFER_BIT, GL11.GL_LINEAR, main);
     }
@@ -199,7 +202,7 @@ public final class GlFramebuffer {
     public void blitDepthFromMain() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null || !main.useDepth) return;
-        int srcId = glId(main.getDepthTexture());
+        int srcId = VanillaCompat.depthTextureGlId(main);
         if (srcId <= 0) return;
         blitFromMain(srcId, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST, main);
     }
@@ -239,7 +242,7 @@ public final class GlFramebuffer {
     public void blitColorToMain() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null) return;
-        int dstId = glId(main.getColorTexture());
+        int dstId = VanillaCompat.colorTextureGlId(main);
         if (dstId <= 0) return;
 
         int prev = currentDrawFbo();
@@ -254,10 +257,6 @@ public final class GlFramebuffer {
                 GL11.GL_COLOR_BUFFER_BIT, GL11.GL_LINEAR);
         GL30.glFramebufferTexture2D(GL30.GL_DRAW_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, 0, 0);
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prev);
-    }
-
-    private static int glId(GpuTexture texture) {
-        return texture instanceof GlTexture gl ? gl.glId() : -1;
     }
 
     public void dispose() {

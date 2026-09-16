@@ -63,10 +63,17 @@ public final class ShaderHotReload {
             for (Path root : mod.getRootPaths()) {
                 if (!"file".equals(root.toUri().getScheme()) || !Files.isDirectory(root)) continue;
                 Path src = sourceRootFor(root);
-                if (src == null || ROOTS.containsKey(src)) continue;
-                ROOTS.put(src, root);
-                registerTreeWatch(src);
-                LOG.info("watching {} shaders: {}", modId, src);
+                if (src != null && !ROOTS.containsKey(src)) {
+                    ROOTS.put(src, root);
+                    registerTreeWatch(src);
+                    LOG.info("watching {} shader sources: {}", modId, src);
+                }
+                Path runtime = root.toAbsolutePath().normalize();
+                if (src != null && !ROOTS.containsKey(runtime)) {
+                    ROOTS.put(runtime, root);
+                    registerTreeWatch(runtime);
+                    LOG.info("watching {} runtime resources: {}", modId, runtime);
+                }
             }
         } catch (Exception e) {
             LOG.warn("shader hot reload unavailable for {}: {}", modId, e.toString());

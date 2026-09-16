@@ -1,9 +1,9 @@
 package com.meekdev.amnetic.client.emissive.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.emissive.EmissiveContext;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlTexture;
 import java.nio.FloatBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -116,7 +116,11 @@ public final class BlockEmissiveSource {
 
         int chunkX = cx >> 4;
         int chunkZ = cz >> 4;
+        //? if >=1.21.2 {
         int minSectionY = level.getMinSectionY();
+        //?} else {
+        /*int minSectionY = level.getMinSection();
+        *///?}
         int sectionCount = level.getSectionsCount();
 
         outer:
@@ -200,7 +204,7 @@ public final class BlockEmissiveSource {
     private static int atlasGlId() {
         AbstractTexture tex = Minecraft.getInstance().getTextureManager()
                 .getTexture(TextureAtlas.LOCATION_BLOCKS);
-        return tex != null && tex.getTexture() instanceof GlTexture gl ? gl.glId() : 0;
+        return VanillaCompat.glId(tex);
     }
 
     public void dispose() {

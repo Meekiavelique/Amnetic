@@ -1,15 +1,17 @@
 package com.meekdev.amnetic.client.particle;
 
-import com.mojang.blaze3d.opengl.GlTexture;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.textures.GpuTexture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL43;
+//? if <1.21.5 {
+/*import net.minecraft.server.packs.resources.ResourceManager;
+*///?}
 
 public final class SceneDepth extends AbstractTexture {
 
@@ -26,7 +28,7 @@ public final class SceneDepth extends AbstractTexture {
     public static boolean update() {
         Minecraft mc = Minecraft.getInstance();
         RenderTarget main = mc.getMainRenderTarget();
-        if (main == null || !main.useDepth || main.getDepthTexture() == null) {
+        if (main == null || VanillaCompat.depthTextureGlId(main) == 0) {
             return false;
         }
         if (instance == null) {
@@ -46,25 +48,28 @@ public final class SceneDepth extends AbstractTexture {
         if (instance == null || instance.snapshot == null) {
             return 0;
         }
-        GpuTexture depth = instance.snapshot.getDepthTexture();
-        return depth instanceof GlTexture gl ? gl.glId() : 0;
+        return VanillaCompat.depthTextureGlId(instance.snapshot);
     }
 
     private boolean capture(RenderTarget src) {
         if (snapshot == null) {
-            snapshot = new TextureTarget("amnetic_scene_depth", src.width, src.height, true);
+            snapshot = VanillaCompat.textureTarget("amnetic_scene_depth", src.width, src.height, true);
         } else if (snapshot.width != src.width || snapshot.height != src.height) {
-            snapshot.resize(src.width, src.height);
+            VanillaCompat.resize(snapshot, src.width, src.height);
             directCopyProven = false;
         }
-        if (snapshot.getDepthTexture() == null) {
+        if (VanillaCompat.depthTextureGlId(snapshot) == 0) {
             return false;
         }
         if (!fastCopyDepth(src)) {
             snapshot.copyDepthFrom(src);
         }
+        //? if >=1.21.5 {
         this.texture = snapshot.getDepthTexture();
         this.textureView = snapshot.getDepthTextureView();
+        //?} else {
+        /*this.id = snapshot.getDepthTextureId();
+        *///?}
         return true;
     }
 
@@ -72,9 +77,9 @@ public final class SceneDepth extends AbstractTexture {
         if (!directCopy) {
             return false;
         }
-        if (!(src.getDepthTexture() instanceof GlTexture from)
-                || !(snapshot.getDepthTexture() instanceof GlTexture to)
-                || !GL.getCapabilities().OpenGL43) {
+        int from = VanillaCompat.depthTextureGlId(src);
+        int to = VanillaCompat.depthTextureGlId(snapshot);
+        if (from == 0 || to == 0 || !GL.getCapabilities().OpenGL43) {
             directCopy = false;
             return false;
         }
@@ -84,8 +89,8 @@ public final class SceneDepth extends AbstractTexture {
             }
         }
         GL43.glCopyImageSubData(
-                from.glId(), GL11.GL_TEXTURE_2D, 0, 0, 0, 0,
-                to.glId(), GL11.GL_TEXTURE_2D, 0, 0, 0, 0,
+                from, GL11.GL_TEXTURE_2D, 0, 0, 0, 0,
+                to, GL11.GL_TEXTURE_2D, 0, 0, 0, 0,
                 src.width, src.height, 1);
         if (!directCopyProven) {
             directCopyProven = true;
@@ -100,4 +105,10 @@ public final class SceneDepth extends AbstractTexture {
     @Override
     public void close() {
     }
+
+    //? if <1.21.5 {
+    /*@Override
+    public void load(ResourceManager resourceManager) {
+    }
+    *///?}
 }

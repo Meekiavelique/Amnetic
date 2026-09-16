@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.taa.internal;
 
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 
 public final class TaaJitter {
     public static final TaaJitter INSTANCE = new TaaJitter();
@@ -17,7 +18,8 @@ public final class TaaJitter {
 
     private final Matrix4f scratch = new Matrix4f();
     private int frame;
-    private float jitterX, jitterY; // NDC units
+    private float jitterX, jitterY;
+    private boolean resolved;
 
     private TaaJitter() {}
 
@@ -35,7 +37,12 @@ public final class TaaJitter {
         frame = (frame + 1) % CYCLE;
         jitterX = HALTON_X[frame] * 2f / Math.max(1, width);
         jitterY = HALTON_Y[frame] * 2f / Math.max(1, height);
+        resolved = false;
     }
+
+    public void markResolved() { resolved = true; }
+
+    public boolean resolved() { return resolved; }
 
     public float jitterX() { return jitterX; }
     public float jitterY() { return jitterY; }
@@ -44,12 +51,13 @@ public final class TaaJitter {
         scratch.translation(jitterX, jitterY, 0f).mul(proj, proj);
     }
 
-    public Matrix4f unjitter(Matrix4f viewProj, Matrix4f dest) {
+    public Matrix4f unjitter(Matrix4fc viewProj, Matrix4f dest) {
         return scratch.translation(-jitterX, -jitterY, 0f).mul(viewProj, dest);
     }
 
     public void reset() {
         jitterX = 0f;
         jitterY = 0f;
+        resolved = false;
     }
 }

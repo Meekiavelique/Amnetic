@@ -100,6 +100,7 @@ public final class TaaPass extends ScreenPass {
         } finally {
             MainTargetFramebuffer.restore(prevFbo);
         }
+        TaaJitter.INSTANCE.markResolved();
 
         usingA = !usingA;
         historyValid = true;

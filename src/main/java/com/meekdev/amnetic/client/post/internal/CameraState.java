@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.post.internal;
 
+import com.meekdev.amnetic.client.taa.internal.TaaJitter;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -16,7 +17,7 @@ public final class CameraState {
 
     public static void update(Matrix4fc projection, Matrix4fc viewRotation,
                               double x, double y, double z, float far) {
-        PROJECTION.set(projection);
+        TaaJitter.INSTANCE.unjitter(projection, PROJECTION);
         VIEW_ROTATION.set(viewRotation);
         CAMERA_POS.set((float) x, (float) y, (float) z);
         depthFar = far;

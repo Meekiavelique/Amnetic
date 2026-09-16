@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.camera.internal;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 
@@ -32,6 +32,6 @@ public final class Orthographic {
         var window = Minecraft.getInstance().getWindow();
         float aspect = (float) window.getWidth() / Math.max(1, window.getHeight());
         float h = halfHeight;
-        return into.setOrtho(-h * aspect, h * aspect, -h, h, 0.05f, depth, RenderSystem.getDevice().isZZeroToOne());
+        return into.setOrtho(-h * aspect, h * aspect, -h, h, 0.05f, depth, VanillaCompat.zeroToOne());
     }
 }

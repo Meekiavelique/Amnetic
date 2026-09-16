@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
@@ -11,8 +12,6 @@ import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.shadow.ShadowSettings;
 import com.meekdev.amnetic.client.shadow.Shadows;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
-import com.mojang.blaze3d.textures.GpuTexture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
@@ -518,8 +517,7 @@ public final class ShadowMapPass {
     private static int blockAtlasGlId() {
         try {
             AbstractTexture t = Minecraft.getInstance().getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS);
-            GpuTexture g = t.getTexture();
-            return (g instanceof GlTexture gl) ? gl.glId() : 0;
+            return VanillaCompat.glId(t);
         } catch (Throwable e) {
             return 0;
         }

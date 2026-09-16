@@ -16,7 +16,7 @@ import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import com.meekdev.amnetic.client.render.LevelCamera;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
@@ -25,7 +25,8 @@ import org.lwjgl.opengl.GL33;
 
 public final class BloomRenderer {
 
-    private static final InstancePhase PHASE = InstancePhase.WORLD_LAST;
+    private static final InstancePhase[] PHASES = {
+            InstancePhase.WORLD_LAST, InstancePhase.WORLD_TRANSLUCENT };
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/fullscreen.vsh");
     private static final Identifier DOWN_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/downsample.fsh");
     private static final Identifier UP_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/upsample.fsh");
@@ -49,9 +50,12 @@ public final class BloomRenderer {
     private int staleQueryFrames;
     private static final int STALE_QUERY_LIMIT = 4;
 
-    public void render(LevelRenderContext ctx, BloomSettings s) {
+    public void render(LevelCamera cam, BloomSettings s) {
         if (!s.isEnabled()) return;
-        boolean instEmissive = InstanceMeshRegistry.INSTANCE.hasEmissive(PHASE, s.isAll());
+        boolean instEmissive = false;
+        for (InstancePhase phase : PHASES) {
+            if (InstanceMeshRegistry.INSTANCE.hasEmissive(phase, s.isAll())) { instEmissive = true; break; }
+        }
         boolean hookEmissive = !EmissiveSources.isEmpty();
         boolean gbufferEmissive = GBufferTargets.INSTANCE.isPopulated();
         boolean sceneBloom = s.threshold() > 0.0f;
@@ -71,7 +75,7 @@ public final class BloomRenderer {
         }
         GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, brightQuery);
         try {
-            renderSources(ctx, s, instEmissive, hookEmissive, gbufferEmissive, sceneBloom);
+            renderSources(cam, s, instEmissive, hookEmissive, gbufferEmissive, sceneBloom);
         } finally {
             GL15.glEndQuery(GL33.GL_ANY_SAMPLES_PASSED);
         }
@@ -84,7 +88,7 @@ public final class BloomRenderer {
         runPyramidAndComposite(s);
     }
 
-    private void renderSources(LevelRenderContext ctx, BloomSettings s, boolean instEmissive,
+    private void renderSources(LevelCamera cam, BloomSettings s, boolean instEmissive,
                                boolean hookEmissive, boolean gbufferEmissive, boolean sceneBloom) {
         emissiveBuf.begin();
         emissiveBuf.clear(0f, 0f, 0f, 0f);
@@ -95,7 +99,9 @@ public final class BloomRenderer {
                 GL11.glDepthFunc(GL11.GL_LEQUAL); // visible surfaces (equal depth) bloom
             }
             if (instEmissive) {
-                InstanceMeshRegistry.INSTANCE.renderEmissive(PHASE, ctx, emissiveBuf, s.isAll());
+                for (InstancePhase phase : PHASES) {
+                    InstanceMeshRegistry.INSTANCE.renderEmissive(phase, cam, emissiveBuf, s.isAll());
+                }
             }
             if (hookEmissive) {
                 emitRegisteredSources(s.isOcclude());

@@ -1,7 +1,9 @@
 package com.meekdev.amnetic.client.entityfx;
 
 import com.meekdev.amnetic.client.entityfx.internal.EffectUniforms;
+//? if >=1.21.5 {
 import com.meekdev.amnetic.client.entityfx.internal.EntityEffectPipeline;
+//?}
 import com.meekdev.amnetic.client.entityfx.internal.EntityEffectRegistry;
 import com.meekdev.amnetic.client.entityfx.internal.SceneColorSnapshot;
 import com.meekdev.amnetic.client.particle.SceneDepth;
@@ -11,7 +13,12 @@ import java.util.Map;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleSupplier;
+//? if >=1.21.9 {
 import net.minecraft.client.renderer.rendertype.RenderType;
+//?} else {
+/*import net.minecraft.client.renderer.RenderType;
+import org.slf4j.LoggerFactory;
+*///?}
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 
@@ -37,6 +44,9 @@ public final class EntityEffect {
     private int fadeRemaining;
     private int fadeChannel = -1;
     private boolean removed;
+    //? if <1.21.5 {
+    /*private static boolean warnedUnsupported;
+    *///?}
 
     EntityEffect(Entity entity, Identifier vsh, Identifier fsh, boolean replaceBody,
                  boolean needsSkin, boolean needsSceneColor, boolean needsDepth,
@@ -87,6 +97,13 @@ public final class EntityEffect {
     }
 
     public RenderType renderType(Identifier skinId) {
+        //? if <1.21.5 {
+        /*if (!warnedUnsupported) {
+            warnedUnsupported = true;
+            LoggerFactory.getLogger("Amnetic/EntityEffect").warn("entity shader effects are not supported on this Minecraft version");
+        }
+        return null;
+        *///?} else {
         Identifier key = needsSkin && skinId != null ? skinId : NO_SKIN;
         return bySkin.computeIfAbsent(key, k -> {
             uploadUniforms();
@@ -96,6 +113,7 @@ public final class EntityEffect {
                     "amnetic_entityfx/" + SEQ.getAndIncrement(), vsh, fsh, uniforms.id(),
                     needsSkin ? skinId : null, needsSceneColor, needsDepth, extraSamplers);
         });
+        //?}
     }
 
     public void uploadUniforms() {

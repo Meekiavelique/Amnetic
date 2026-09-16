@@ -1,20 +1,15 @@
 package com.meekdev.amnetic.client.emissive.internal;
 
+import com.meekdev.amnetic.client.compat.BlockQuads;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.geometry.BakedQuad;
-import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
-import org.joml.Vector3fc;
 
 public final class BlockEmissiveGeometry {
 
@@ -22,14 +17,6 @@ public final class BlockEmissiveGeometry {
 
     private static final float[] NONE = new float[0];
     private static final Map<BlockState, float[]> CACHE = new IdentityHashMap<>();
-
-    private static final Direction[] FACES_PLUS_NULL = new Direction[Direction.values().length + 1];
-
-    static {
-        Direction[] dirs = Direction.values();
-        System.arraycopy(dirs, 0, FACES_PLUS_NULL, 0, dirs.length);
-        FACES_PLUS_NULL[dirs.length] = null;
-    }
 
     private BlockEmissiveGeometry() {}
 
@@ -46,43 +33,20 @@ public final class BlockEmissiveGeometry {
     }
 
     private static float[] compute(BlockState state) {
-        BlockStateModel model;
-        try {
-            model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
-        } catch (Throwable t) {
-            return null;
-        }
-        if (model == null) return null;
-
-        List<BlockStateModelPart> parts = new ArrayList<>(4);
-        try {
-            model.collectParts(RandomSource.create(42L), parts);
-        } catch (Throwable t) {
-            return null;
-        }
+        List<BlockQuads.Quad> quads = BlockQuads.of(state);
+        if (quads == null) return null;
 
         float blockEmission = state.getLightEmission() / 15f;
         List<Float> out = new ArrayList<>();
 
-        for (BlockStateModelPart part : parts) {
-            for (Direction dir : FACES_PLUS_NULL) {
-                List<BakedQuad> quads;
-                try {
-                    quads = part.getQuads(dir);
-                } catch (Throwable t) {
-                    continue;
-                }
-                for (BakedQuad q : quads) {
-                    BakedQuad.MaterialInfo info = q.materialInfo();
-                    float quadEmission = info.lightEmission() > 0
-                            ? info.lightEmission() / 15f
-                            : blockEmission;
-                    if (quadEmission <= 0f) continue;
+        for (BlockQuads.Quad q : quads) {
+            float quadEmission = q.lightEmission() > 0
+                    ? q.lightEmission() / 15f
+                    : blockEmission;
+            if (quadEmission <= 0f) continue;
 
-                    TextureAtlasSprite mask = maskFor(info.sprite());
-                    emitQuad(out, q, info.sprite(), mask, quadEmission);
-                }
-            }
+            TextureAtlasSprite mask = maskFor(q.sprite());
+            emitQuad(out, q, q.sprite(), mask, quadEmission);
         }
         if (out.isEmpty()) return null;
         float[] arr = new float[out.size()];
@@ -95,8 +59,12 @@ public final class BlockEmissiveGeometry {
         Identifier name = sprite.contents().name();
         Identifier maskId = Identifier.fromNamespaceAndPath(name.getNamespace(), name.getPath() + "_e");
         try {
+            //? if >=1.21.9 {
             TextureAtlas atlas = Minecraft.getInstance().getAtlasManager()
                     .getAtlasOrThrow(TextureAtlas.LOCATION_BLOCKS);
+            //?} else {
+            /*TextureAtlas atlas = Minecraft.getInstance().getModelManager().getAtlas(TextureAtlas.LOCATION_BLOCKS);
+            *///?}
             TextureAtlasSprite found = atlas.getSprite(maskId);
             if (found == null) return null;
             return maskId.equals(found.contents().name()) ? found : null;
@@ -105,7 +73,7 @@ public final class BlockEmissiveGeometry {
         }
     }
 
-    private static void emitQuad(List<Float> out, BakedQuad q, TextureAtlasSprite sprite,
+    private static void emitQuad(List<Float> out, BlockQuads.Quad q, TextureAtlasSprite sprite,
                                  TextureAtlasSprite mask, float emission) {
         vertex(out, q, 0, sprite, mask, emission);
         vertex(out, q, 1, sprite, mask, emission);
@@ -115,12 +83,10 @@ public final class BlockEmissiveGeometry {
         vertex(out, q, 3, sprite, mask, emission);
     }
 
-    private static void vertex(List<Float> out, BakedQuad q, int i, TextureAtlasSprite sprite,
+    private static void vertex(List<Float> out, BlockQuads.Quad q, int i, TextureAtlasSprite sprite,
                                TextureAtlasSprite mask, float emission) {
-        Vector3fc p = q.position(i);
-        long uv = q.packedUV(i);
-        float u = Float.intBitsToFloat((int) (uv >>> 32));
-        float v = Float.intBitsToFloat((int) (uv & 0xFFFFFFFFL));
+        float u = q.u(i);
+        float v = q.v(i);
 
         float mu = u;
         float mv = v;
@@ -138,7 +104,7 @@ public final class BlockEmissiveGeometry {
             }
         }
 
-        out.add(p.x()); out.add(p.y()); out.add(p.z());
+        out.add(q.x(i)); out.add(q.y(i)); out.add(q.z(i));
         out.add(u); out.add(v);
         out.add(mu); out.add(mv);
         out.add(emission); out.add(hasMask);

@@ -8,7 +8,6 @@ import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.UniformValue;
 import net.minecraft.world.entity.player.Player;
 
 public final class UniformSuppliers {

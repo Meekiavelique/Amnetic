@@ -63,7 +63,11 @@ public final class ImportedTextures {
         if (cached != null) return cached;
         try (InputStream in = Files.newInputStream(file)) {
             NativeImage img = NativeImage.read(in);
+            //? if >=1.21.5 {
             DynamicTexture tex = new DynamicTexture(() -> "amnetic_imported/" + idPath, img);
+            //?} else {
+            /*DynamicTexture tex = new DynamicTexture(img);
+            *///?}
             tex.upload();
             Identifier id = Identifier.fromNamespaceAndPath("amnetic", idPath);
             Minecraft.getInstance().getTextureManager().register(id, tex);

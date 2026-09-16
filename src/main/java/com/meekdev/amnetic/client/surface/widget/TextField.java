@@ -120,7 +120,11 @@ public class TextField extends Widget {
     }
 
     private static boolean shiftHeld() {
+        //? if >=1.21.9 {
         var window = Minecraft.getInstance().getWindow();
+        //?} else {
+        /*long window = Minecraft.getInstance().getWindow().getWindow();
+        *///?}
         return InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_SHIFT)
                 || InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
     }

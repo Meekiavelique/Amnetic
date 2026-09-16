@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.light.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import java.util.List;
 import java.util.ArrayList;
 import com.meekdev.amnetic.client.light.Light;
@@ -20,9 +21,7 @@ import com.meekdev.amnetic.client.shadow.internal.ShadowMapPass;
 import com.meekdev.amnetic.client.shadow.internal.SpotShadowAtlas;
 import com.meekdev.amnetic.client.shadow.internal.SunShadowCascades;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.SimpleTexture;
 import org.joml.FrustumIntersection;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -252,20 +251,16 @@ public final class DeferredLightingPass extends ScreenPass {
     private final Set<Identifier> loadedCookies = new HashSet<>();
 
     private static int levelLightmapGlId() {
-        var renderer = Minecraft.getInstance().gameRenderer;
-        if (renderer == null) return 0;
-        var view = renderer.levelLightmap();
-        return (view != null && view.texture() instanceof GlTexture gl) ? gl.glId() : 0;
+        return VanillaCompat.levelLightmapGlId();
     }
 
     private int cookieGlId(Identifier id) {
         if (id == null) return 0;
         var tm = Minecraft.getInstance().getTextureManager();
         if (!ImportedTextures.isImported(id) && loadedCookies.add(id)) {
-            try { tm.registerAndLoad(id, new SimpleTexture(id)); }
+            try { VanillaCompat.loadTexture(tm, id); }
             catch (Throwable t) { return 0; }
         }
-        var tex = tm.getTexture(id);
-        return (tex != null && tex.getTexture() instanceof GlTexture gl) ? gl.glId() : 0;
+        return VanillaCompat.glId(tm.getTexture(id));
     }
 }

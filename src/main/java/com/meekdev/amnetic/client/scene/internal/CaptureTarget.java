@@ -1,9 +1,8 @@
 package com.meekdev.amnetic.client.scene.internal;
 
-import com.mojang.blaze3d.opengl.GlTexture;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.textures.GpuTexture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 
@@ -19,11 +18,11 @@ public final class CaptureTarget {
         int w = Math.max(1, Math.round(main.width * scale));
         int h = Math.max(1, Math.round(main.height * scale));
         if (target == null) {
-            target = new TextureTarget("amnetic_capture", w, h, true);
+            target = VanillaCompat.textureTarget("amnetic_capture", w, h, true);
             width = w;
             height = h;
         } else if (w != width || h != height) {
-            target.resize(w, h);
+            VanillaCompat.resize(target, w, h);
             width = w;
             height = h;
         }
@@ -36,14 +35,12 @@ public final class CaptureTarget {
 
     public int colorTextureGlId() {
         if (target == null) return 0;
-        GpuTexture color = target.getColorTexture();
-        return color instanceof GlTexture gl ? gl.glId() : 0;
+        return VanillaCompat.colorTextureGlId(target);
     }
 
     public int depthTextureGlId() {
         if (target == null) return 0;
-        GpuTexture depth = target.getDepthTexture();
-        return depth instanceof GlTexture gl ? gl.glId() : 0;
+        return VanillaCompat.depthTextureGlId(target);
     }
 
     public void registerColor(Identifier id) {
