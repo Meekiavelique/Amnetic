@@ -96,6 +96,10 @@ public final class ShadingModelRegistry {
         return true;
     }
 
+    public synchronized boolean hasCustomModels() {
+        return snippets.size() > 1;
+    }
+
     public synchronized boolean hasVertexSnippets() {
         return !vertexSnippets.isEmpty();
     }

@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.grade.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.grade.ColorGradeSettings;
@@ -9,12 +10,9 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlTexture;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.resources.Identifier;
 
 public final class ColorGradePass extends ScreenPass {
@@ -83,12 +81,8 @@ public final class ColorGradePass extends ScreenPass {
     private int loadTextureGlId(Identifier id) {
         var tm = Minecraft.getInstance().getTextureManager();
         if (!ImportedTextures.isImported(id) && loadedLuts.add(id)) {
-            tm.registerAndLoad(id, new SimpleTexture(id));
+            VanillaCompat.loadTexture(tm, id);
         }
-        AbstractTexture tex = tm.getTexture(id);
-        if (tex != null && tex.getTexture() instanceof GlTexture gl) {
-            return gl.glId();
-        }
-        return 0;
+        return VanillaCompat.glId(tm.getTexture(id));
     }
 }

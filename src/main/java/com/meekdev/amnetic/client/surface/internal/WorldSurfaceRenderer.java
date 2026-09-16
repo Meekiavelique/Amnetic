@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
@@ -349,7 +350,7 @@ public final class WorldSurfaceRenderer {
         }
 
         pointerOverSurface = best != null;
-        boolean attack = GLFW.glfwGetMouseButton(mc.getWindow().handle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        boolean attack = GLFW.glfwGetMouseButton(VanillaCompat.windowHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
         if (best != null) {
             float mx = bestU * best.canvasW();
             float my = (1f - bestV) * best.canvasH();

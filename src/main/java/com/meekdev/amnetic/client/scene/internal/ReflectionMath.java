@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.scene.internal;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -42,7 +42,7 @@ public final class ReflectionMath {
         float denom = planeView.dot(q);
         if (Math.abs(denom) < 1e-9f) return;
 
-        boolean zeroToOne = RenderSystem.getDevice().isZZeroToOne();
+        boolean zeroToOne = VanillaCompat.zeroToOne();
         Vector4f c = new Vector4f(planeView).mul((zeroToOne ? 1f : 2f) / denom);
         if (zeroToOne) {
             out.m02(c.x); out.m12(c.y); out.m22(c.z); out.m32(c.w);

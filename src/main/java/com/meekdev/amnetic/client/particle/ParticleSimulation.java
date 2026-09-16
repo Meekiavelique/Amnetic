@@ -211,14 +211,17 @@ public final class ParticleSimulation {
         for (ParticleMaterial m : materials) {
             Affector[] affectors = m.affectors;
             Collider collider = m.collider;
+            boolean staticSpan = m.billboardMode == BillboardMode.BEAM;
             Particle[] live = m.live;
             int n = m.liveCount;
             for (int i = 0; i < n; i++) {
                 Particle p = live[i];
-                for (Affector a : affectors) a.apply(p, dt, ctx);
                 double ox = p.x, oy = p.y, oz = p.z;
-                p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-                if (collider != null) collider.resolve(p, ox, oy, oz, dt, ctx);
+                if (!staticSpan) {
+                    for (Affector a : affectors) a.apply(p, dt, ctx);
+                    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+                    if (collider != null) collider.resolve(p, ox, oy, oz, dt, ctx);
+                }
                 p.rot += p.rotSpeed * dt;
                 p.age += dt;
                 if (m.trail && p.trail != null && stepCount % m.trailInterval == 0) {
@@ -282,7 +285,13 @@ public final class ParticleSimulation {
             float size = m.sizeTrack != null
                     ? m.sizeTrack.eval(t, seed)
                     : lerp(p.size0, p.size1, p.sizeEasing.apply(t));
-            if (!visible(projView, cx, cy, cz, size, m00, m11)) continue;
+            float bound = size;
+            if (m.billboardMode == BillboardMode.BEAM) {
+                bound = Math.max(size, (float) Math.sqrt(p.vx * p.vx + p.vy * p.vy + p.vz * p.vz));
+            } else if (m.billboardMode == BillboardMode.VELOCITY_STRETCHED) {
+                bound = size * 9.0f;
+            }
+            if (!visible(projView, cx, cy, cz, bound, m00, m11)) continue;
 
             float light = m.lightmap ? p.brightness : 1f;
             p.rCx = cx; p.rCy = cy; p.rCz = cz;

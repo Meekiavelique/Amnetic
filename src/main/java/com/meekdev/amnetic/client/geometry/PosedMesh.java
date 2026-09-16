@@ -4,7 +4,9 @@ import com.meekdev.amnetic.client.geometry.internal.CapturingConsumer;
 import com.meekdev.amnetic.client.geometry.internal.MeshTapRegistry;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.Model;
+//? if >=1.21.2 {
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
+//?}
 import net.minecraft.world.entity.Entity;
 
 public final class PosedMesh {
@@ -48,9 +50,13 @@ public final class PosedMesh {
         MeshTapRegistry.INSTANCE.remove(entity);
     }
 
+    //? if >=1.21.2 {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void captureFrom(Model model, EntityRenderState state, PoseStack poseStack) {
         ((Model) model).setupAnim(state);   // ensure this frame's pose (deferred draw poses at draw time)
+    //?} else {
+    /*public void captureFrom(Model model, PoseStack poseStack) {
+    *///?}
         consumer.begin();
         model.renderToBuffer(poseStack, consumer, 0, 0);
         captured = true;

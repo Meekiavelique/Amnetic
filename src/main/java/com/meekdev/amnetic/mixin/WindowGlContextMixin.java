@@ -14,7 +14,11 @@ public final class WindowGlContextMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/GL");
 
     @Redirect(
+            //? if >=26.1 {
             method = "createGlfwWindow",
+            //?} else {
+            /*method = "<init>",
+            *///?}
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J"

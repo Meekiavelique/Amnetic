@@ -1,9 +1,8 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.textures.GpuTexture;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
@@ -30,12 +29,10 @@ public final class MainTargetFramebuffer {
     public static int bind() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null) return -1;
-        GpuTexture color = main.getColorTexture();
-        if (!(color instanceof GlTexture glColor)) return -1;
-        GpuTexture depth = main.useDepth ? main.getDepthTexture() : null;
+        int colorId = VanillaCompat.colorTextureGlId(main);
+        if (colorId <= 0) return -1;
 
-        int colorId = glColor.glId();
-        int mainDepthId = (depth instanceof GlTexture glDepth) ? glDepth.glId() : 0;
+        int mainDepthId = VanillaCompat.depthTextureGlId(main);
         int depthId = depthOverride > 0 ? depthOverride : mainDepthId;
 
         if (fbo == 0) fbo = GL30.glGenFramebuffers();

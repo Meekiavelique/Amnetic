@@ -1,9 +1,8 @@
 package com.meekdev.amnetic.client.gbuffer.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.textures.GpuTexture;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -48,11 +47,9 @@ public final class GBufferTargets {
     public int bind() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null) return -1;
-        GpuTexture color = main.getColorTexture();
-        if (!(color instanceof GlTexture glColor)) return -1;
-        GpuTexture depth = main.useDepth ? main.getDepthTexture() : null;
-        int colorId = glColor.glId();
-        int depthId = (depth instanceof GlTexture glDepth) ? glDepth.glId() : 0;
+        int colorId = VanillaCompat.colorTextureGlId(main);
+        if (colorId <= 0) return -1;
+        int depthId = VanillaCompat.depthTextureGlId(main);
 
         ensureTextures(main.width, main.height);
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
@@ -123,7 +120,7 @@ public final class GBufferTargets {
         savedViewport[3] = main.height;
         // only re-read the bound FBO when the main target was (re)created (its color texture id changes on
         // resize / same-size reload). steady state does no GL query at all, so no pipeline drain
-        int colorId = (main.getColorTexture() instanceof GlTexture glColor) ? glColor.glId() : -1;
+        int colorId = VanillaCompat.colorTextureGlId(main);
         if (colorId != outerKey) {
             outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
             outerKey = colorId;

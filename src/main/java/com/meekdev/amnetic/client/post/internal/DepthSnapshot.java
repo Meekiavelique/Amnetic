@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.post.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 
@@ -14,16 +15,15 @@ final class DepthSnapshot {
     }
 
     void capture(RenderTarget source) {
-        if (!source.useDepth) return;
-        if (source.getDepthTexture() == null) return;
+        if (VanillaCompat.depthTextureGlId(source) == 0) return;
 
         if (snapshot == null) {
-            snapshot = new TextureTarget(name, source.width, source.height, true);
+            snapshot = VanillaCompat.textureTarget(name, source.width, source.height, true);
         } else if (snapshot.width != source.width || snapshot.height != source.height) {
-            snapshot.resize(source.width, source.height);
+            VanillaCompat.resize(snapshot, source.width, source.height);
         }
 
-        if (snapshot.getDepthTexture() == null) return;
+        if (VanillaCompat.depthTextureGlId(snapshot) == 0) return;
 
         snapshot.copyDepthFrom(source);
         pendingRestore = true;
@@ -34,8 +34,7 @@ final class DepthSnapshot {
         pendingRestore = false;
 
         if (snapshot == null) return false;
-        if (!target.useDepth) return false;
-        if (snapshot.getDepthTexture() == null || target.getDepthTexture() == null) return false;
+        if (VanillaCompat.depthTextureGlId(snapshot) == 0 || VanillaCompat.depthTextureGlId(target) == 0) return false;
         if (snapshot.width != target.width || snapshot.height != target.height) return false;
 
         target.copyDepthFrom(snapshot);

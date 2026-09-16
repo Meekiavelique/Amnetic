@@ -11,12 +11,16 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+//? if >=26.1 {
 import net.minecraft.client.TextureFilteringMethod;
+//?}
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.renderer.culling.Frustum;
+//? if >=26.1 {
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+//?}
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -62,6 +66,10 @@ public final class CaptureManager {
 
     public void runCaptures(GameRenderer renderer, DeltaTracker ticker) {
         if (!enabled || capturing || registry.isEmpty()) return;
+        //? if <26.1 {
+        /*LOG.warn("[Capture] perspective captures are not supported on this Minecraft version yet");
+        enabled = false;
+        *///?} else {
 
         Minecraft mc = Minecraft.getInstance();
         LevelRenderer lr = mc.levelRenderer;
@@ -89,7 +97,9 @@ public final class CaptureManager {
         for (int i = 0; i < n; i++) {
             renderOne(active.get(i), renderer, ticker, mc, lr, cam, crs, pt);
         }
+        //?}
     }
+    //? if >=26.1 {
 
     private void renderOne(PerspectiveCapture capture, GameRenderer renderer, DeltaTracker ticker,
                            Minecraft mc, LevelRenderer lr, Camera cam, CameraRenderState crs, float pt) {
@@ -195,4 +205,5 @@ public final class CaptureManager {
                 grs.optionsRenderState.glintStrength, gameTime, ticker,
                 grs.optionsRenderState.menuBackgroundBlurriness, pos, rgss);
     }
+    //?}
 }

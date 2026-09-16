@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
@@ -99,7 +100,7 @@ public final class SceneView {
         float aspect = (float) width / (float) height;
         // match the device's clip-space convention: MC 26 runs 0..1 depth (glClipControl), a -1..1
         // JOML projection under that produces torn, z-fighting depth
-        boolean zeroToOne = com.mojang.blaze3d.systems.RenderSystem.getDevice().isZZeroToOne();
+        boolean zeroToOne = VanillaCompat.zeroToOne();
         Matrix4f projView = new Matrix4f().perspective(fov, aspect, near, far, zeroToOne)
                 .mul(new Matrix4f().lookAt(eye, look, UP));
 

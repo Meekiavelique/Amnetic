@@ -1,9 +1,8 @@
 package com.meekdev.amnetic.client.render;
 
 import com.meekdev.amnetic.client.camera.internal.FrameView;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
@@ -33,12 +32,14 @@ public final class CameraSnapshot {
     public static CameraSnapshot current() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.getMainRenderTarget() == null) return null;
+        //? if >=26.1 {
         var grs = mc.gameRenderer.getGameRenderState();
-        if (grs == null || grs.levelRenderState == null || grs.levelRenderState.cameraRenderState == null) {
-            return null;
-        }
-        CameraRenderState crs = grs.levelRenderState.cameraRenderState;
-        if (crs.projectionMatrix == null || crs.viewRotationMatrix == null) return null;
+        if (grs == null || grs.levelRenderState == null) return null;
+        LevelCamera crs = LevelCamera.of(grs.levelRenderState.cameraRenderState);
+        //?} else {
+        /*LevelCamera crs = LevelCamera.main();
+        *///?}
+        if (crs == null) return null;
 
         Matrix4f projection = FrameView.INSTANCE.getProjection(PROJ_SCRATCH, crs.projectionMatrix);
         Matrix4f view = FrameView.INSTANCE.get(VIEW_SCRATCH, crs.viewRotationMatrix);
@@ -53,7 +54,7 @@ public final class CameraSnapshot {
         Matrix4f viewProj = new Matrix4f(proj).mul(v);
         Matrix4f invViewProj = new Matrix4f(viewProj).invert();
         cached = new CameraSnapshot(crs.pos, proj, v, viewProj, invViewProj,
-                RenderSystem.getDevice().isZZeroToOne());
+                VanillaCompat.zeroToOne());
         return cached;
     }
 }

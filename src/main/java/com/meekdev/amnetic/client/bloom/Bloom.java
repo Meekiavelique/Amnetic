@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.bloom;
 
 import com.meekdev.amnetic.client.bloom.internal.BloomRenderer;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import com.meekdev.amnetic.client.render.LevelCamera;
 import org.slf4j.LoggerFactory;
 
 public final class Bloom {
@@ -16,16 +16,16 @@ public final class Bloom {
     }
 
     public static void enable() {
-        SETTINGS.enabled(true).all(true);
+        SETTINGS.enabled(true);
     }
 
     public static void disable() {
         SETTINGS.enabled(false);
     }
 
-    public static void render(LevelRenderContext ctx) {
+    public static void render(LevelCamera camera) {
         try {
-            RENDERER.render(ctx, SETTINGS);
+            RENDERER.render(camera, SETTINGS);
         } catch (Exception e) {
             // never let a bloom failure take down world rendering
             LoggerFactory.getLogger("Amnetic/Bloom").error("bloom render failed", e);

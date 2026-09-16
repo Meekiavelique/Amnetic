@@ -40,8 +40,13 @@ public final class SpawnTarget {
             return hit.getLocation();
         }
         Camera cam = mc.gameRenderer.getMainCamera();
+        //? if >=1.21.2 {
         Vec3 pos = cam.position();
         Vector3fc look = cam.forwardVector();
+        //?} else {
+        /*Vec3 pos = cam.getPosition();
+        Vector3fc look = cam.getLookVector();
+        *///?}
         double dist = 4.0;
         return pos.add(look.x() * dist, look.y() * dist, look.z() * dist);
     }

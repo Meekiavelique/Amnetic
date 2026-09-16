@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.render.LevelCamera;
 import com.meekdev.amnetic.client.camera.internal.FrameView;
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
@@ -8,9 +9,7 @@ import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -81,8 +80,8 @@ public final class InstanceMeshRegistry {
         }
     }
 
-    public void renderAll(InstancePhase phase, LevelRenderContext fabricCtx) {
-        InstanceRenderContext ctx = buildContext(fabricCtx);
+    public void renderAll(InstancePhase phase, LevelCamera cam) {
+        InstanceRenderContext ctx = buildContext(cam);
         if (ctx == null) return;
 
         int prevFbo = MainTargetFramebuffer.bind();
@@ -93,9 +92,9 @@ public final class InstanceMeshRegistry {
         }
     }
 
-    public void renderEmissive(InstancePhase phase, LevelRenderContext fabricCtx,
+    public void renderEmissive(InstancePhase phase, LevelCamera cam,
                                Framebuffer target, boolean all) {
-        InstanceRenderContext ctx = buildContext(fabricCtx);
+        InstanceRenderContext ctx = buildContext(cam);
         if (ctx == null) return;
 
         target.begin();
@@ -115,9 +114,8 @@ public final class InstanceMeshRegistry {
         }
     }
 
-    private InstanceRenderContext buildContext(LevelRenderContext fabricCtx) {
-        CameraRenderState cam = fabricCtx.levelState().cameraRenderState;
-        if (cam == null || cam.projectionMatrix == null || cam.viewRotationMatrix == null) return null;
+    private InstanceRenderContext buildContext(LevelCamera cam) {
+        if (cam == null) return null;
 
         Minecraft client = Minecraft.getInstance();
         float deltaTick = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
@@ -178,9 +176,9 @@ public final class InstanceMeshRegistry {
         }
     }
 
-    public void renderGBuffer(InstancePhase phase, LevelRenderContext fabricCtx) {
+    public void renderGBuffer(InstancePhase phase, LevelCamera cam) {
         if (!GBuffer.isEnabled()) return;
-        InstanceRenderContext ctx = buildContext(fabricCtx);
+        InstanceRenderContext ctx = buildContext(cam);
         if (ctx == null) return;
 
         boolean any = false;

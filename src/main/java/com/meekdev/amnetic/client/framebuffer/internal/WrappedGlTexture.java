@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.framebuffer.internal;
 
+//? if >=1.21.5 {
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.textures.TextureFormat;
 
@@ -10,3 +11,4 @@ public final class WrappedGlTexture extends GlTexture {
                 width, height, 1, 1, glId);
     }
 }
+//?}

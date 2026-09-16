@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.compute.ComputeCapabilities;
 import com.meekdev.amnetic.client.instanced.InstanceBatch;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
@@ -7,7 +8,6 @@ import com.meekdev.amnetic.client.instanced.InstancedMesh;
 import com.meekdev.amnetic.client.model.TextureFilter;
 import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
@@ -29,7 +29,6 @@ import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
@@ -298,14 +297,15 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         var textureManager = Minecraft.getInstance().getTextureManager();
         if (!textureRegistered) {
             if (!ImportedTextures.isImported(textureId)) {
-                textureManager.registerAndLoad(textureId, new SimpleTexture(textureId));
+                VanillaCompat.loadTexture(textureManager, textureId);
             }
             textureRegistered = true;
         }
         AbstractTexture texture = textureManager.getTexture(textureId);
-        if (texture.getTexture() instanceof GlTexture glTexture) {
+        int textureGlId = VanillaCompat.glId(texture);
+        if (textureGlId > 0) {
             GlStateManager._activeTexture(GL13.GL_TEXTURE0);
-            GlStateManager._bindTexture(glTexture.glId());
+            GlStateManager._bindTexture(textureGlId);
             // a sampler object bound to this unit by whatever drew last wins over the texture's own
             // parameters, so the mesh inherited a filter nobody chose. that is a texel sized skin
             // drawn blurred, with the transparent black around a face bleeding into its edges
@@ -336,12 +336,13 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
                 }
                 if (sampler.fileBacked() && !ImportedTextures.isImported(sampler.textureId())
                         && registeredExtras.add(sampler.textureId())) {
-                    textureManager.registerAndLoad(sampler.textureId(), new SimpleTexture(sampler.textureId()));
+                    VanillaCompat.loadTexture(textureManager, sampler.textureId());
                 }
                 AbstractTexture texture = textureManager.getTexture(sampler.textureId());
-                if (texture != null && texture.getTexture() instanceof GlTexture glTexture) {
+                int samplerGlId = VanillaCompat.glId(texture);
+                if (samplerGlId > 0) {
                     GlStateManager._activeTexture(GL13.GL_TEXTURE0 + sampler.unit());
-                    GlStateManager._bindTexture(glTexture.glId());
+                    GlStateManager._bindTexture(samplerGlId);
                     shader.uploadSamplerUnit(sampler.uniformName(), sampler.unit());
                 }
             } catch (IllegalStateException ignored) {
@@ -355,7 +356,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         ClientLevel level = mc.level;
         if (level == null) return SUN.set(0f, 1f, 0f);
         float partial = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
-        float ticks = (level.getDefaultClockTime() % 24000L) + partial;
+        float ticks = (VanillaCompat.dayTime(level) % 24000L) + partial;
         double phi = ((ticks - 6000.0) / 24000.0) * 2.0 * Math.PI;
         return SUN.set((float) -Math.sin(phi), (float) Math.cos(phi), 0f);
     }

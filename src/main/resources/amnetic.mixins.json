@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.meekdev.amnetic.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "${java}",
   "mixins": [],
   "client": [
     "GameRendererMixin",
@@ -21,10 +21,7 @@
     "LivingEntityRendererMixin",
     "accessor.CameraInvoker",
     "accessor.LevelRendererAccessor",
-    "accessor.GlGpuBufferAccessor",
-    "accessor.PostEffectPassAccessor",
-    "accessor.PostEffectProcessorAccessor",
-    "accessor.ShaderLoaderAccessor",
+    "accessor.LightTextureAccessor",
     "FrustumMixin"
   ],
   "injectors": {

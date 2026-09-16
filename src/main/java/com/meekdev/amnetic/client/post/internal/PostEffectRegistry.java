@@ -2,7 +2,6 @@ package com.meekdev.amnetic.client.post.internal;
 
 import com.meekdev.amnetic.client.post.RenderPhase;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.resources.Identifier;
@@ -32,9 +31,9 @@ public final class PostEffectRegistry {
         entries.remove(entry);
     }
 
-    public void applyAll(RenderPhase phase, float deltaTick, GraphicsResourceAllocator allocator) {
+    public void applyAll(RenderPhase phase, float deltaTick) {
         for (PostEffectEntry entry : entries) {
-            entry.apply(phase, deltaTick, allocator);
+            entry.apply(phase, deltaTick);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.camera;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.camera.internal.CameraController;
 import com.meekdev.amnetic.client.camera.internal.Orthographic;
 import com.meekdev.amnetic.client.post.internal.CameraState;
@@ -70,47 +71,71 @@ public final class AmneticCamera {
 
     public static Vec3 position() {
         Camera c = mcCamera();
+        //? if >=1.21.2 {
         return c != null ? c.position() : Vec3.ZERO;
+        //?} else {
+        /*return c != null ? c.getPosition() : Vec3.ZERO;
+        *///?}
     }
 
     public static Vec3 forward() {
         Camera c = mcCamera();
         if (c == null) return new Vec3(0, 0, -1);
+        //? if >=1.21.2 {
         var f = c.forwardVector();
+        //?} else {
+        /*var f = c.getLookVector();
+        *///?}
         return new Vec3(f.x(), f.y(), f.z());
     }
 
     public static Vec3 up() {
         Camera c = mcCamera();
         if (c == null) return new Vec3(0, 1, 0);
+        //? if >=1.21.2 {
         var u = c.upVector();
+        //?} else {
+        /*var u = c.getUpVector();
+        *///?}
         return new Vec3(u.x(), u.y(), u.z());
     }
 
     public static Vec3 right() {
         Camera c = mcCamera();
         if (c == null) return new Vec3(1, 0, 0);
+        //? if >=1.21.2 {
         var l = c.leftVector();
+        //?} else {
+        /*var l = c.getLeftVector();
+        *///?}
         return new Vec3(-l.x(), -l.y(), -l.z());
     }
 
     public static float yaw() {
         Camera c = mcCamera();
+        //? if >=1.21.2 {
         return c != null ? c.yRot() : 0f;
+        //?} else {
+        /*return c != null ? c.getYRot() : 0f;
+        *///?}
     }
 
     public static float pitch() {
         Camera c = mcCamera();
+        //? if >=1.21.2 {
         return c != null ? c.xRot() : 0f;
+        //?} else {
+        /*return c != null ? c.getXRot() : 0f;
+        *///?}
     }
 
     public static float fov() {
         Camera c = mcCamera();
-        return c != null ? c.getFov() : 70f;
+        return c != null ? VanillaCompat.fov(c) : 70f;
     }
 
     public static float near() {
-        return Camera.PROJECTION_Z_NEAR;
+        return VanillaCompat.nearPlane();
     }
 
     public static float far() {
@@ -189,7 +214,11 @@ public final class AmneticCamera {
 
     public static boolean isVisible(Vec3 point) {
         Frustum f = frustum();
+        //? if >=1.21.2 {
         return f != null && f.pointInFrustum(point.x, point.y, point.z);
+        //?} else {
+        /*return f != null && f.isVisible(new AABB(point, point));
+        *///?}
     }
 
     public static boolean isVisible(AABB box) {
@@ -268,6 +297,6 @@ public final class AmneticCamera {
 
     private static Frustum frustum() {
         Camera c = mcCamera();
-        return c != null ? c.getCullFrustum() : null;
+        return c != null ? VanillaCompat.cullFrustum(c) : null;
     }
 }

@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
@@ -8,7 +9,6 @@ import com.meekdev.amnetic.client.model.internal.OffscreenModelRenderer;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL45;
@@ -206,7 +206,7 @@ public final class ModelView {
         float aspect = (float) width / (float) height;
 
         Matrix4f proj = new Matrix4f().perspective(fov, aspect, near, far,
-                RenderSystem.getDevice().isZZeroToOne());
+                VanillaCompat.zeroToOne());
         Matrix4f view = new Matrix4f().lookAt(eye, center, UP);
         return proj.mul(view);
     }

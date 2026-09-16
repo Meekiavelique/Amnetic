@@ -2,10 +2,14 @@ package com.meekdev.amnetic.client.entityfx.internal;
 
 import com.meekdev.amnetic.client.particle.SceneDepth;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+//? if >=26.1 {
 import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.CompareOp;
+//?} else {
+/*import com.mojang.blaze3d.platform.DepthTestFunction;
+*///?}
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -36,9 +40,16 @@ public final class EntityEffectPipeline {
                 .withUniform("Projection", UniformType.UNIFORM_BUFFER)
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Globals", UniformType.UNIFORM_BUFFER)
+                //? if >=26.1 {
                 .withVertexFormat(DefaultVertexFormat.ENTITY, VertexFormat.Mode.QUADS)
                 .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
                 .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+                //?} else {
+                /*.withVertexFormat(DefaultVertexFormat.NEW_ENTITY, VertexFormat.Mode.QUADS)
+                .withBlend(BlendFunction.TRANSLUCENT)
+                .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+                .withDepthWrite(true)
+                *///?}
                 .withCull(true)
                 .build();
 

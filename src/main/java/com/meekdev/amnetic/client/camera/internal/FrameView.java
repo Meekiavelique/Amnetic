@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.camera.internal;
 
+import com.meekdev.amnetic.client.taa.internal.TaaJitter;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 
@@ -26,6 +27,7 @@ public final class FrameView {
     }
 
     public Matrix4f getProjection(Matrix4f dest, Matrix4fc fallback) {
-        return projectionValid ? dest.set(projection) : dest.set(fallback);
+        Matrix4fc source = projectionValid ? projection : fallback;
+        return TaaJitter.INSTANCE.resolved() ? TaaJitter.INSTANCE.unjitter(source, dest) : dest.set(source);
     }
 }

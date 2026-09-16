@@ -20,12 +20,14 @@ public interface LevelRendererAccessor {
     @Accessor("visibleSections")
     void amnetic$setVisibleSections(ObjectArrayList<SectionRenderDispatcher.RenderSection> sections);
 
+    //? if >=1.21.2 {
     @Accessor("nearbyVisibleSections")
     ObjectArrayList<SectionRenderDispatcher.RenderSection> amnetic$getNearbyVisibleSections();
 
     @Mutable
     @Accessor("nearbyVisibleSections")
     void amnetic$setNearbyVisibleSections(ObjectArrayList<SectionRenderDispatcher.RenderSection> sections);
+    //?}
 
     @Invoker("compileSections")
     void amnetic$compileSections(Camera camera);

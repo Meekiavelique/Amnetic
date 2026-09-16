@@ -2,10 +2,14 @@ package com.meekdev.amnetic.client.render;
 
 import com.meekdev.amnetic.client.particle.SceneDepth;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+//? if >=26.1 {
 import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.CompareOp;
+//?} else {
+/*import com.mojang.blaze3d.platform.DepthTestFunction;
+*///?}
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -68,8 +72,14 @@ public final class MeshPipeline {
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Globals", UniformType.UNIFORM_BUFFER)
                 .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.QUADS)
+                //? if >=26.1 {
                 .withColorTargetState(ColorTargetState.DEFAULT)
                 .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+                //?} else {
+                /*.withoutBlend()
+                .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+                .withDepthWrite(true)
+                *///?}
                 .withCull(false)
                 .build();
     }
@@ -86,8 +96,14 @@ public final class MeshPipeline {
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Globals", UniformType.UNIFORM_BUFFER)
                 .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.QUADS)
+                //? if >=26.1 {
                 .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
                 .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
+                //?} else {
+                /*.withBlend(BlendFunction.TRANSLUCENT)
+                .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+                .withDepthWrite(false)
+                *///?}
                 .withCull(true)
                 .build();
     }

@@ -32,5 +32,7 @@ public final class CaptureConsumer implements VertexConsumer {
     @Override public VertexConsumer setUv1(int u, int v) { return this; }
     @Override public VertexConsumer setUv2(int u, int v) { return this; }
     @Override public VertexConsumer setNormal(float x, float y, float z) { return this; }
+    //? if >=1.21.9 {
     @Override public VertexConsumer setLineWidth(float width) { return this; }
+    //?}
 }

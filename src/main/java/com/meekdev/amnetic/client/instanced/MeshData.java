@@ -130,6 +130,40 @@ public final class MeshData {
 
     // each face is counter clockwise seen from outside, get one backwards and it vanishes under
     // the default backface culling instead of drawing wrong
+    public static MeshData openCylinder(int segments, int rings) {
+        if (segments < 3) throw new IllegalArgumentException("segments must be >= 3");
+        if (rings < 1) throw new IllegalArgumentException("rings must be >= 1");
+
+        int cols = segments + 1;
+        float[] v = new float[cols * (rings + 1) * 5];
+        int w = 0;
+        for (int r = 0; r <= rings; r++) {
+            float t = r / (float) rings;
+            for (int c = 0; c < cols; c++) {
+                double angle = 2.0 * Math.PI * c / segments;
+                v[w++] = (float) Math.cos(angle);
+                v[w++] = t;
+                v[w++] = (float) Math.sin(angle);
+                v[w++] = c / (float) segments;
+                v[w++] = t;
+            }
+        }
+
+        int[] idx = new int[segments * rings * 6];
+        int k = 0;
+        for (int r = 0; r < rings; r++) {
+            for (int c = 0; c < segments; c++) {
+                int a = r * cols + c;
+                int b = a + 1;
+                int d = a + cols;
+                int e = d + 1;
+                idx[k++] = a; idx[k++] = d; idx[k++] = e;
+                idx[k++] = a; idx[k++] = e; idx[k++] = b;
+            }
+        }
+        return new MeshData(v, idx, 5, true);
+    }
+
     public static MeshData unitCube() {
         float[] v = {
 

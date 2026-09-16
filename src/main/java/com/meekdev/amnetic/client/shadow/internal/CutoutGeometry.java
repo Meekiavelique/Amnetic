@@ -1,14 +1,7 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
-import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
-import net.minecraft.client.resources.model.geometry.BakedQuad;
-import net.minecraft.core.Direction;
-import net.minecraft.util.RandomSource;
+import com.meekdev.amnetic.client.compat.BlockQuads;
 import net.minecraft.world.level.block.state.BlockState;
-import org.joml.Vector3fc;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -27,13 +20,6 @@ public final class CutoutGeometry {
     private static final Result NONE = new Result(null, null);
     private static final Map<BlockState, Result> CACHE = new IdentityHashMap<>();
 
-    private static final Direction[] FACES_PLUS_NULL = new Direction[Direction.values().length + 1];
-    static {
-        Direction[] dirs = Direction.values();
-        System.arraycopy(dirs, 0, FACES_PLUS_NULL, 0, dirs.length);
-        FACES_PLUS_NULL[dirs.length] = null;
-    }
-
     private CutoutGeometry() {}
 
     public static void clear() { CACHE.clear(); }
@@ -47,39 +33,16 @@ public final class CutoutGeometry {
     }
 
     private static Result compute(BlockState state) {
-        BlockStateModel model;
-        try {
-            model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
-        } catch (Throwable t) {
-            return null;
-        }
-        if (model == null) return null;
-
-        List<BlockStateModelPart> parts = new ArrayList<>(4);
-        try {
-            model.collectParts(RandomSource.create(42L), parts);
-        } catch (Throwable t) {
-            return null;
-        }
+        List<BlockQuads.Quad> quads = BlockQuads.of(state);
+        if (quads == null) return null;
 
         List<Float> cutout = new ArrayList<>();
         List<Float> translucent = new ArrayList<>();
         boolean hasSolid = false;
-        for (BlockStateModelPart part : parts) {
-            for (Direction dir : FACES_PLUS_NULL) {
-                List<BakedQuad> quads;
-                try {
-                    quads = part.getQuads(dir);
-                } catch (Throwable t) {
-                    continue;
-                }
-                for (BakedQuad q : quads) {
-                    ChunkSectionLayer layer = q.materialInfo().layer();
-                    if (layer == ChunkSectionLayer.SOLID) hasSolid = true;
-                    else if (layer == ChunkSectionLayer.CUTOUT) emitQuad(cutout, q);
-                    else if (layer == ChunkSectionLayer.TRANSLUCENT) emitQuad(translucent, q);
-                }
-            }
+        for (BlockQuads.Quad q : quads) {
+            if (q.layer() == BlockQuads.Layer.SOLID) hasSolid = true;
+            else if (q.layer() == BlockQuads.Layer.CUTOUT) emitQuad(cutout, q);
+            else if (q.layer() == BlockQuads.Layer.TRANSLUCENT) emitQuad(translucent, q);
         }
         if (hasSolid) return null;
         Result r = new Result(toArray(cutout), toArray(translucent));
@@ -93,16 +56,13 @@ public final class CutoutGeometry {
         return arr;
     }
 
-    private static void emitQuad(List<Float> out, BakedQuad q) {
+    private static void emitQuad(List<Float> out, BlockQuads.Quad q) {
         vertex(out, q, 0); vertex(out, q, 1); vertex(out, q, 2);
         vertex(out, q, 0); vertex(out, q, 2); vertex(out, q, 3);
     }
 
-    private static void vertex(List<Float> out, BakedQuad q, int i) {
-        Vector3fc p = q.position(i);
-        long uv = q.packedUV(i);
-        out.add(p.x()); out.add(p.y()); out.add(p.z());
-        out.add(Float.intBitsToFloat((int) (uv >>> 32))); // u
-        out.add(Float.intBitsToFloat((int) (uv & 0xFFFFFFFFL))); // v
+    private static void vertex(List<Float> out, BlockQuads.Quad q, int i) {
+        out.add(q.x(i)); out.add(q.y(i)); out.add(q.z(i));
+        out.add(q.u(i)); out.add(q.v(i));
     }
 }

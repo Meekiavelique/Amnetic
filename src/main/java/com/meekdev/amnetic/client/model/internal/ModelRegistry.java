@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.render.LevelCamera;
 import com.meekdev.amnetic.client.material.internal.ShadingModelRegistry;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,10 +22,8 @@ import com.meekdev.amnetic.client.ibl.internal.EnvProbe;
 import com.meekdev.amnetic.client.model.ModelLighting;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import org.lwjgl.opengl.GL13;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.LightLayer;
@@ -138,21 +137,21 @@ public final class ModelRegistry {
         frameCallbacks.add(cb);
     }
 
-    public void flush(LevelRenderContext fabricCtx) {
+    public void flush(LevelCamera cam) {
         GlReaper.drain();
-        render(fabricCtx.levelState().cameraRenderState, false);
+        render(cam, false);
     }
 
-    public void flushCapture(CameraRenderState cam) {
+    public void flushCapture(LevelCamera cam) {
         render(cam, true);
     }
 
-    private void render(CameraRenderState cam, boolean capture) {
+    private void render(LevelCamera cam, boolean capture) {
         for (Model m : models) {
             m.internalUploadPendingIfAny();
         }
 
-        if (cam == null || cam.projectionMatrix == null || cam.viewRotationMatrix == null) {
+        if (cam == null) {
             return;
         }
 
@@ -483,7 +482,7 @@ public final class ModelRegistry {
         }
     }
 
-    private InstanceRenderContext buildContext(CameraRenderState cam) {
+    private InstanceRenderContext buildContext(LevelCamera cam) {
         Minecraft client = Minecraft.getInstance();
         float delta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         Matrix4f view = FrameView.INSTANCE.get(new Matrix4f(), cam.viewRotationMatrix);

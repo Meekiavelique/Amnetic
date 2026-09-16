@@ -62,8 +62,16 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+//? if >=26.1 {
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+//?} else if >=1.21.9 {
+/*import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+*///?} else {
+/*import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+*///?}
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resources.Identifier;
@@ -72,10 +80,14 @@ import net.minecraft.server.packs.resources.ResourceManager;
 
 public class AmneticClient implements ClientModInitializer {
 
+    //? if >=26.1 {
     private static LevelRenderContext pendingPostCtx;
+    //?} else {
+    /*private static WorldRenderContext pendingPostCtx;
+    *///?}
 
     public static void renderPost() {
-        LevelRenderContext ctx = pendingPostCtx;
+        var ctx = pendingPostCtx;
         pendingPostCtx = null;
         if (ctx == null || CaptureManager.INSTANCE.isCapturing()) return;
 
@@ -99,9 +111,9 @@ public class AmneticClient implements ClientModInitializer {
 
     private static void registerDefaultPasses() {
         Pipeline.add(RenderStage.GEOMETRY, 10, "GBuffer Normal Fill", ctx -> GBufferNormalFill.INSTANCE.render());
-        Pipeline.add(RenderStage.GEOMETRY, 20, "Instanced Mesh (GBuffer)", ctx -> InstanceMeshRegistry.INSTANCE.renderGBuffer(InstancePhase.WORLD_LAST, ctx.fabric()));
-        Pipeline.add(RenderStage.GEOMETRY, 30, "Instanced Mesh (World)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_LAST, ctx.fabric()));
-        Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.fabric()));
+        Pipeline.add(RenderStage.GEOMETRY, 20, "Instanced Mesh (GBuffer)", ctx -> InstanceMeshRegistry.INSTANCE.renderGBuffer(InstancePhase.WORLD_LAST, ctx.levelCamera()));
+        Pipeline.add(RenderStage.GEOMETRY, 30, "Instanced Mesh (World)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_LAST, ctx.levelCamera()));
+        Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 50, "Decals", ctx -> Decals.render());
 
         Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> ShadowMapPass.INSTANCE.render(ctx.camera()));
@@ -112,12 +124,12 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.SCREEN_SPACE, 20, "SSGI", ctx -> Ssgi.render());
         Pipeline.add(RenderStage.SCREEN_SPACE, 30, "SSR", ctx -> Ssr.render());
 
-        Pipeline.add(RenderStage.AFTER_WATER, 10, "Instanced Mesh (Translucent)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_TRANSLUCENT, ctx.fabric()));
+        Pipeline.add(RenderStage.AFTER_WATER, 10, "Instanced Mesh (Translucent)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_TRANSLUCENT, ctx.levelCamera()));
 
         Pipeline.add(RenderStage.ATMOSPHERE, 10, "Volumetric", ctx -> VolumetricPass.INSTANCE.render());
 
         Pipeline.add(RenderStage.POST, 5, "TAA", ctx -> Taa.render());
-        Pipeline.add(RenderStage.POST, 10, "Bloom", ctx -> Bloom.render(ctx.fabric()));
+        Pipeline.add(RenderStage.POST, 10, "Bloom", ctx -> Bloom.render(ctx.levelCamera()));
         Pipeline.add(RenderStage.POST, 20, "Color Grade", ctx -> ColorGrade.render());
         Pipeline.add(RenderStage.POST, 30, "CAS Sharpen", ctx -> Taa.renderSharpen());
 
@@ -181,7 +193,13 @@ public class AmneticClient implements ClientModInitializer {
 
         registerDefaultPasses();
 
+        //? if >=26.1 {
         LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> {
+        //?} else if >=1.21.9 {
+        /*WorldRenderEvents.BEFORE_TRANSLUCENT.register(ctx -> {
+        *///?} else {
+        /*WorldRenderEvents.BEFORE_DEBUG_RENDER.register(ctx -> {
+        *///?}
             if (CaptureManager.INSTANCE.isCapturing()) return;
             boolean captured = ParticleSimulation.INSTANCE.captureSceneDepth();
             int snapshot = captured ? SceneDepth.snapshotDepthGlId() : 0;
@@ -193,7 +211,13 @@ public class AmneticClient implements ClientModInitializer {
             Pipeline.runStage(RenderStage.SETUP, new FrameContext(CameraSnapshot.current(), ctx, snapshot));
         });
 
+        //? if >=26.1 {
         LevelRenderEvents.END_MAIN.register(ctx -> {
+        //?} else if >=1.21.9 {
+        /*WorldRenderEvents.END_MAIN.register(ctx -> {
+        *///?} else {
+        /*WorldRenderEvents.AFTER_TRANSLUCENT.register(ctx -> {
+        *///?}
             pendingPostCtx = null;
             if (CaptureManager.INSTANCE.isCapturing()) return;
             ModelRegistry.INSTANCE.warmup();
