@@ -1,0 +1,184 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version "${moddev_version}"
+    id 'idea'
+}
+
+version = rootProject.mod_version
+group = rootProject.maven_group
+
+base {
+    archivesName = "${rootProject.archives_base_name}-neoforge"
+}
+
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://api.modrinth.com/maven"
+                name = "Modrinth"
+            }
+        }
+        filter {
+            includeGroup("maven.modrinth")
+        }
+    }
+    maven {
+        url = "https://maven.sinytra.org"
+        name = "Sinytra"
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://maven.ryanhcode.dev/releases"
+                name = "RyanHCode Maven"
+            }
+        }
+        filter {
+            includeGroup("foundry.imguimc")
+        }
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir rootProject.file("src/main/java")
+        }
+        resources {
+            srcDir rootProject.file("src/main/resources")
+            exclude "fabric.mod.json"
+        }
+    }
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
+}
+
+neoForge {
+    version = rootProject.neoforge_version
+
+    runs {
+        neoForgeClient {
+            client()
+            ideName = "Amnetic NeoForge Client"
+            gameDirectory = project.file("run/client")
+        }
+        neoForgeIrisClient {
+            client()
+            ideName = "Amnetic NeoForge Iris Client"
+            gameDirectory = project.file("run/iris")
+            providers.gradleProperty("quick_play_world").orNull?.with { world ->
+                programArguments.addAll "--quickPlaySingleplayer", world
+            }
+        }
+        neoForgeServer {
+            server()
+            ideName = "Amnetic NeoForge Server"
+            gameDirectory = project.file("run/server")
+            programArgument "--nogui"
+        }
+        neoForgeData {
+            clientData()
+            ideName = "Amnetic NeoForge Data"
+            gameDirectory = project.file("run/data")
+            programArguments.addAll "--mod", "amnetic", "--all",
+                    "--output", rootProject.file("src/generated/resources").absolutePath,
+                    "--existing", rootProject.file("src/main/resources").absolutePath
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    mods {
+        amnetic {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    implementation "org.sinytra.forgified-fabric-api:forgified-fabric-api:${rootProject.forgified_fabric_api_version}"
+    compileOnly "maven.modrinth:iris:${rootProject.iris_neoforge_version}"
+    localRuntime "maven.modrinth:iris:${rootProject.iris_neoforge_version}"
+    localRuntime "maven.modrinth:sodium:${rootProject.sodium_neoforge_version}"
+
+    implementation "de.javagl:jgltf-model:2.0.4"
+    implementation "de.javagl:jgltf-impl-v2:2.0.4"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.13.4.2"
+    implementation "com.fasterxml.jackson.core:jackson-core:2.13.4"
+    implementation "com.fasterxml.jackson.core:jackson-annotations:2.13.4"
+    implementation files(rootProject.file("libs/bb4j.jar"))
+
+    implementation "org.lwjgl:lwjgl-assimp:${rootProject.lwjgl_version}"
+    ["natives-windows", "natives-linux", "natives-macos", "natives-macos-arm64"].each { platform ->
+        runtimeOnly "org.lwjgl:lwjgl-assimp:${rootProject.lwjgl_version}:${platform}"
+    }
+
+    compileOnly "foundry.imguimc:imguimc-common-26.1:${rootProject.imguimc_version}"
+    compileOnly "io.github.spair:imgui-java-binding:1.92.0"
+    localRuntime "foundry.imguimc:imguimc-neoforge-26.1:${rootProject.imguimc_version}"
+
+    jarJar("de.javagl:jgltf-model:2.0.4") {
+        version { strictly "[2.0.4]" }
+    }
+    jarJar("de.javagl:jgltf-impl-v2:2.0.4") {
+        version { strictly "[2.0.4]" }
+    }
+    jarJar("com.fasterxml.jackson.core:jackson-databind:2.13.4.2") {
+        version { strictly "[2.13.4.2]" }
+    }
+    jarJar("com.fasterxml.jackson.core:jackson-core:2.13.4") {
+        version { strictly "[2.13.4]" }
+    }
+    jarJar("com.fasterxml.jackson.core:jackson-annotations:2.13.4") {
+        version { strictly "[2.13.4]" }
+    }
+    jarJar("org.lwjgl:lwjgl-assimp:${rootProject.lwjgl_version}") {
+        version { strictly "[${rootProject.lwjgl_version}]" }
+    }
+}
+
+tasks.withType(ProcessResources).configureEach {
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", rootProject.minecraft_version
+    inputs.property "neoforge_version", rootProject.neoforge_version
+    inputs.property "imguimc_version", rootProject.imguimc_version
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand "version": project.version,
+                "minecraft_version": rootProject.minecraft_version,
+                "neoforge_version": rootProject.neoforge_version,
+                "imguimc_version": rootProject.imguimc_version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release.set(25)
+}
+
+tasks.named("jar", Jar) {
+    from(zipTree(rootProject.file("libs/bb4j.jar"))) {
+        exclude "META-INF/MANIFEST.MF"
+    }
+    from(rootProject.file("LICENSE")) {
+        rename { "${it}_${rootProject.archives_base_name}" }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = "${rootProject.archives_base_name}-neoforge"
+            from components.java
+        }
+    }
+}

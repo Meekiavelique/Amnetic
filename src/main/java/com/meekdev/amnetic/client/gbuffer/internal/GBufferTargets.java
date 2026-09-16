@@ -28,12 +28,10 @@ public final class GBufferTargets {
     private int cachedNormal = -1;
     private int cachedMaterial = -1;
     private int cachedEmissive = -1;
+    private GpuTexture cachedColorTexture;
+    private GpuTexture cachedDepthTexture;
     private final int[] savedViewport = new int[4];
-    // outer framebuffer to restore to. querying it (glGetInteger) drains the GL pipeline so we read it at
-    // most once per main-target (re)creation, keyed on the main color texture's GL id
     private int outerFbo;
-    private int outerKey = -1;
-    private boolean attachedThisFrame;
     private boolean populated;
 
     private GBufferTargets() {}
@@ -57,17 +55,11 @@ public final class GBufferTargets {
         ensureTextures(main.width, main.height);
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
 
-        // outer FBO/viewport were captured once this frame in captureOuterState, reusing them avoids a
-        // glGetInteger driver sync on every per-object bind
         int prevFbo = outerFbo;
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
 
-        // re-attach only once per frame (or when an attachment id changes), not on every per-object bind.
-        // GL reuses freed texture ids so an id-only cache can miss a resize that hands back the same id at a
-        // new size (model rendered into limbo after going fullscreen). targets never change size mid-frame and
-        // captureOuterState() clears attachedThisFrame each frame, so re-attaching once per frame keeps the
-        // resize safety while cutting per-model churn
-        if (!attachedThisFrame || colorId != cachedColor || depthId != cachedDepth
+        if (color != cachedColorTexture || depth != cachedDepthTexture
+                || colorId != cachedColor || depthId != cachedDepth
                 || normalTex != cachedNormal || materialTex != cachedMaterial || emissiveTex != cachedEmissive) {
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorId, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT1, GL11.GL_TEXTURE_2D, normalTex, 0);
@@ -84,7 +76,8 @@ public final class GBufferTargets {
             cachedNormal = normalTex;
             cachedMaterial = materialTex;
             cachedEmissive = emissiveTex;
-            attachedThisFrame = true;
+            cachedColorTexture = color;
+            cachedDepthTexture = depth;
         }
 
         GlStateManager._viewport(0, 0, main.width, main.height);
@@ -114,20 +107,11 @@ public final class GBufferTargets {
     public void captureOuterState() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null) return;
-        // new frame: force one FBO re-attach for resize safety, then skip it for later binds
-        attachedThisFrame = false;
-        // viewport at bind() time is always the main target's full size, derive it instead of querying GL
         savedViewport[0] = 0;
         savedViewport[1] = 0;
         savedViewport[2] = main.width;
         savedViewport[3] = main.height;
-        // only re-read the bound FBO when the main target was (re)created (its color texture id changes on
-        // resize / same-size reload). steady state does no GL query at all, so no pipeline drain
-        int colorId = (main.getColorTexture() instanceof GlTexture glColor) ? glColor.glId() : -1;
-        if (colorId != outerKey) {
-            outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-            outerKey = colorId;
-        }
+        outerFbo = GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
     }
 
     public void beginFrame() {
@@ -146,6 +130,7 @@ public final class GBufferTargets {
         if (emissiveTex != 0) { GlStateManager._deleteTexture(emissiveTex); emissiveTex = 0; }
         width = height = 0;
         cachedColor = cachedDepth = cachedNormal = cachedMaterial = cachedEmissive = -1;
+        cachedColorTexture = cachedDepthTexture = null;
         populated = false;
     }
 
@@ -160,7 +145,7 @@ public final class GBufferTargets {
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         allocTexture(normalTex, GL30.GL_RGBA16F, GL11.GL_RGBA, GL11.GL_FLOAT, w, h);
         allocTexture(materialTex, GL11.GL_RGBA8, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, w, h);
-        allocTexture(emissiveTex, GL30.GL_RGBA16F, GL11.GL_RGBA, GL11.GL_FLOAT, w, h);
+        allocTexture(emissiveTex, GL30.GL_R11F_G11F_B10F, GL11.GL_RGB, GL11.GL_FLOAT, w, h);
         GlStateManager._bindTexture(0);
     }
 

@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.mixin;
 
 import com.meekdev.amnetic.client.camera.internal.FrameView;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderLayer;
 import com.meekdev.amnetic.client.pipeline.RenderStage;
@@ -95,7 +96,10 @@ public abstract class GameRendererMixin {
             )
     )
     private void amnetic$sceneCapture(DeltaTracker ticker, boolean renderLevel, CallbackInfo ci) {
-        if (renderLevel) CaptureManager.INSTANCE.runCaptures((GameRenderer) (Object) this, ticker);
+        // Iris's world pipeline is not reentrant, so keep the previous capture while shaders are active.
+        if (renderLevel && !IrisCompat.isShaderPackInUse()) {
+            CaptureManager.INSTANCE.runCaptures((GameRenderer) (Object) this, ticker);
+        }
     }
 
     @Inject(

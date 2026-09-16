@@ -11,13 +11,11 @@ import org.lwjgl.opengl.GL30;
 public final class MainTargetFramebuffer {
 
     private static int fbo;
-    private static int cachedColorId = -1;
-    private static int cachedDepthId = -1;
     private static int depthOverride;
-    // outer framebuffer to restore to. querying it (glGetInteger) drains the GL pipeline, a huge stall when
-    // bind() runs per forward draw (e.g. instanced grass). read it only when the main target is (re)created
-    private static int outerFbo;
-    private static int outerKey = -1;
+    private static GpuTexture attachedColor;
+    private static GpuTexture attachedDepth;
+    private static int attachedColorId = -1;
+    private static int attachedDepthId = -1;
 
     private static final int[] SAVED_VIEWPORT = new int[4];
 
@@ -38,29 +36,31 @@ public final class MainTargetFramebuffer {
         int mainDepthId = (depth instanceof GlTexture glDepth) ? glDepth.glId() : 0;
         int depthId = depthOverride > 0 ? depthOverride : mainDepthId;
 
+        // Iris swaps this binding during world, composite and shadow passes. GlStateManager tracks it
+        // without the driver stall caused by a raw glGetInteger call.
+        int previousFbo = GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
+
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
-        // re-attach every bind: GL reuses freed texture ids after a resize, so an id-equality cache can keep us
-        // pointing at stale storage (model/effects rendered into limbo after going fullscreen). cheap + correct
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
-        GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorId, 0);
-        GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, depthId, 0);
-        cachedColorId = colorId;
-        cachedDepthId = depthId;
+        if (color != attachedColor || depth != attachedDepth
+                || colorId != attachedColorId || depthId != attachedDepthId) {
+            GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0,
+                    GL11.GL_TEXTURE_2D, colorId, 0);
+            GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT,
+                    GL11.GL_TEXTURE_2D, depthId, 0);
+            attachedColor = color;
+            attachedDepth = depth;
+            attachedColorId = colorId;
+            attachedDepthId = depthId;
+        }
 
         // viewport to restore is always the main target's full size, derive it instead of querying GL
         SAVED_VIEWPORT[0] = 0;
         SAVED_VIEWPORT[1] = 0;
         SAVED_VIEWPORT[2] = main.width;
         SAVED_VIEWPORT[3] = main.height;
-        // outer FBO changes only when the main target is (re)created (its color texture id changes)
-        if (colorId != outerKey) {
-            outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-            outerKey = colorId;
-        }
-
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
         GlStateManager._viewport(0, 0, main.width, main.height);
-        return outerFbo;
+        return previousFbo;
     }
 
     public static void restore(int prevFbo) {

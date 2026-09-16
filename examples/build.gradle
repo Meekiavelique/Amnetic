@@ -9,13 +9,49 @@ base {
     archivesName = "amnetic-examples"
 }
 
+repositories {
+    maven {
+        url = "https://maven.quiltmc.org/repository/release"
+        name = "Quilt"
+    }
+}
+
+def loaderPlatform = providers.gradleProperty("loader_platform").getOrElse("fabric")
+
 dependencies {
     minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+    if (loaderPlatform == "quilt") {
+        implementation "org.quiltmc:quilt-loader:${rootProject.quilt_loader_version}"
+    } else {
+        implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+    }
     implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_version}"
 
     // depend on the Amnetic lib; both projects use the same (Mojang) mappings, so no remap is needed
     implementation project(':')
+}
+
+if (loaderPlatform == "quilt") {
+    def fabricApiJar = configurations.runtimeClasspath.incoming.artifactView {
+        componentFilter { component ->
+            component instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier &&
+                    component.group == "net.fabricmc.fabric-api" && component.module == "fabric-api"
+        }
+    }.files
+    def prepareQuiltRunMods = tasks.register("prepareQuiltRunMods", Sync) {
+        dependsOn tasks.named("jar"), rootProject.tasks.named("jar")
+        from tasks.named("jar").flatMap { it.archiveFile }
+        from rootProject.tasks.named("jar").flatMap { it.archiveFile }
+        from fabricApiJar
+        into layout.buildDirectory.dir("run/quilt/mods")
+    }
+
+    loom.runs.configureEach {
+        runDir "build/run/quilt"
+    }
+    tasks.matching { it.name.startsWith("run") }.configureEach {
+        dependsOn prepareQuiltRunMods
+    }
 }
 
 loom {

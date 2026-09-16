@@ -10,3 +10,4 @@ pluginManagement {
 }
 
 include 'examples'
+include 'neoforge'

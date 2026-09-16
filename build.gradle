@@ -18,6 +18,21 @@ fabricApi {
 }
 
 repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://api.modrinth.com/maven"
+                name = "Modrinth"
+            }
+        }
+        filter {
+            includeGroup("maven.modrinth")
+        }
+    }
+    maven {
+        url = "https://maven.quiltmc.org/repository/release"
+        name = "Quilt"
+    }
     exclusiveContent { // ImGuiMC (optional helper-UI dependency)
         forRepository {
             maven {
@@ -35,11 +50,26 @@ repositories {
     }
 }
 
+def loaderPlatform = providers.gradleProperty("loader_platform").getOrElse("fabric")
+if (!(loaderPlatform in ["fabric", "quilt"])) {
+    throw new GradleException("Unsupported loader_platform '${loaderPlatform}'. Expected 'fabric' or 'quilt'.")
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    if (loaderPlatform == "quilt") {
+        implementation "org.quiltmc:quilt-loader:${project.quilt_loader_version}"
+        // Quilt Loader publishes the libraries supplied by its installer separately.
+        implementation "org.quiltmc:quilt-loader-dependencies:${project.quilt_loader_version}"
+    } else {
+        implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    }
 
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    compileOnly "maven.modrinth:iris:${project.iris_fabric_version}"
+    localRuntime "maven.modrinth:iris:${project.iris_fabric_version}"
+    localRuntime "maven.modrinth:sodium:${project.sodium_fabric_version}"
 
     include implementation("de.javagl:jgltf-model:2.0.4")
     include implementation("de.javagl:jgltf-impl-v2:2.0.4")
@@ -56,9 +86,58 @@ dependencies {
         include "org.lwjgl:lwjgl-assimp:${project.lwjgl_version}:${platform}"
     }
 
-    compileOnly "foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}"
+    compileOnly("foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}") {
+        exclude group: "net.fabricmc", module: "fabric-loader"
+    }
     compileOnly "io.github.spair:imgui-java-binding:1.92.0"
-    localRuntime "foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}"
+    localRuntime("foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}") {
+        exclude group: "net.fabricmc", module: "fabric-loader"
+    }
+}
+
+loom {
+    runs {
+        irisClient {
+            client()
+            configName = "Amnetic Iris Client"
+            ideConfigGenerated = true
+            runDir loaderPlatform == "quilt" ? "build/run/quilt-iris" : "build/run/iris"
+            providers.gradleProperty("quick_play_world").orNull?.with { world ->
+                programArgs "--quickPlaySingleplayer", world
+            }
+        }
+    }
+}
+
+if (loaderPlatform == "quilt") {
+    def fabricApiJar = configurations.runtimeClasspath.incoming.artifactView {
+        componentFilter { component ->
+            component instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier &&
+                    component.group == "net.fabricmc.fabric-api" && component.module == "fabric-api"
+        }
+    }.files
+    def imguiMcJar = configurations.runtimeClasspath.incoming.artifactView {
+        componentFilter { component ->
+            component instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier &&
+                    component.group == "foundry.imguimc" && component.module == "imguimc-fabric-26.1"
+        }
+    }.files
+    def prepareQuiltRunMods = tasks.register("prepareQuiltRunMods", Sync) {
+        dependsOn tasks.named("jar")
+        from tasks.named("jar").flatMap { it.archiveFile }
+        from fabricApiJar
+        from imguiMcJar
+        into layout.buildDirectory.dir("run/quilt/mods")
+    }
+
+    loom.runs.configureEach {
+        if (name != "irisClient") {
+            runDir "build/run/quilt"
+        }
+    }
+    tasks.matching { it.name.startsWith("run") }.configureEach {
+        dependsOn prepareQuiltRunMods
+    }
 }
 
 processResources {

@@ -5,7 +5,7 @@ out vec4 FragColor;
 
 uniform sampler2D Sampler; // scene color, only used as the no-g-buffer fallback
 uniform sampler2D DepthSampler; // scene depth, excludes the sky
-uniform sampler2D EmissiveSampler; // g-buffer emissive target: rgb = emissive color, a = strength
+uniform sampler2D EmissiveSampler;
 uniform int HasGBuffer;
 uniform float Threshold;
 uniform float Knee;
@@ -18,9 +18,7 @@ void main() {
 
     vec3 c;
     if (HasGBuffer == 1) {
-        vec4 em = texture(EmissiveSampler, vUV);
-        if (em.a <= 0.0) discard;
-        c = em.rgb; // already true HDR emissive, alpha is just the coverage mask
+        c = texture(EmissiveSampler, vUV).rgb;
     } else {
         c = texture(Sampler, vUV).rgb;
     }

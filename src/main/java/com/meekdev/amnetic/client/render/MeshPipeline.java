@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.render;
 
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.particle.SceneDepth;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.ColorTargetState;
@@ -11,7 +12,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.HashMap;
 import java.util.Map;
-import net.minecraft.client.renderer.rendertype.AmneticRenderTypeAccess;
+import com.meekdev.amnetic.mixin.accessor.RenderTypeInvoker;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.resources.Identifier;
@@ -34,7 +35,7 @@ public final class MeshPipeline {
                     .withTexture("Sampler1", texture1)
                     .withTexture("DepthSampler", SceneDepth.ID)
                     .createRenderSetup();
-            return AmneticRenderTypeAccess.create("amnetic_mesh/" + RENDER_TYPES.size(), setup);
+            return RenderTypeInvoker.amnetic$create("amnetic_mesh/" + RENDER_TYPES.size(), setup);
         });
     }
 
@@ -51,13 +52,13 @@ public final class MeshPipeline {
                     .withTexture("Sampler1", texture1)
                     .withTexture("DepthSampler", SceneDepth.ID)
                     .createRenderSetup();
-            return AmneticRenderTypeAccess.create("amnetic_mesh_cutout/" + RENDER_TYPES.size(), setup);
+            return RenderTypeInvoker.amnetic$create("amnetic_mesh_cutout/" + RENDER_TYPES.size(), setup);
         });
     }
 
     private static RenderPipeline buildCutoutPipeline(Identifier location, Identifier vertexShader,
                                                       Identifier fragmentShader) {
-        return RenderPipeline.builder()
+        RenderPipeline pipeline = RenderPipeline.builder()
                 .withLocation(location)
                 .withVertexShader(vertexShader)
                 .withFragmentShader(fragmentShader)
@@ -72,10 +73,12 @@ public final class MeshPipeline {
                 .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
                 .withCull(false)
                 .build();
+        IrisCompat.registerWorldPipeline(pipeline, false);
+        return pipeline;
     }
 
     private static RenderPipeline buildPipeline(Identifier vertexShader, Identifier fragmentShader) {
-        return RenderPipeline.builder()
+        RenderPipeline pipeline = RenderPipeline.builder()
                 .withLocation(fragmentShader)
                 .withVertexShader(vertexShader)
                 .withFragmentShader(fragmentShader)
@@ -90,5 +93,7 @@ public final class MeshPipeline {
                 .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
                 .withCull(true)
                 .build();
+        IrisCompat.registerWorldPipeline(pipeline, true);
+        return pipeline;
     }
 }

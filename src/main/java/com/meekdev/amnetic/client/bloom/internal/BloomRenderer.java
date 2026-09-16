@@ -56,29 +56,29 @@ public final class BloomRenderer {
         boolean gbufferEmissive = GBufferTargets.INSTANCE.isPopulated();
         boolean sceneBloom = s.threshold() > 0.0f;
         if (!instEmissive && !hookEmissive && !gbufferEmissive && !sceneBloom) return;
+        boolean explicitSource = instEmissive || hookEmissive;
 
         ensureChain(s.scale(), s.levels(), s.isOcclude());
 
-        if (brightQuery == 0) {
-            brightQuery = GL15.glGenQueries();
-        } else if (GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT_AVAILABLE) == GL11.GL_TRUE) {
-            hadBloom = GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT) != 0;
-            staleQueryFrames = 0;
-        } else if (++staleQueryFrames > STALE_QUERY_LIMIT) {
-            // the result never arrived; fail open rather than latch bloom off indefinitely
-            hadBloom = true;
-            staleQueryFrames = 0;
-        }
-        GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, brightQuery);
-        try {
+        if (explicitSource) {
             renderSources(ctx, s, instEmissive, hookEmissive, gbufferEmissive, sceneBloom);
-        } finally {
-            GL15.glEndQuery(GL33.GL_ANY_SAMPLES_PASSED);
+        } else {
+            if (brightQuery == 0) {
+                brightQuery = GL15.glGenQueries();
+            } else if (GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT_AVAILABLE) == GL11.GL_TRUE) {
+                hadBloom = GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT) != 0;
+                staleQueryFrames = 0;
+            } else if (++staleQueryFrames > STALE_QUERY_LIMIT) {
+                hadBloom = true;
+                staleQueryFrames = 0;
+            }
+            GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, brightQuery);
+            try {
+                renderSources(ctx, s, instEmissive, hookEmissive, gbufferEmissive, sceneBloom);
+            } finally {
+                GL15.glEndQuery(GL33.GL_ANY_SAMPLES_PASSED);
+            }
         }
-        // the query only measures what passed the depth test last frame, so it cannot be
-        // trusted to gate an explicitly registered source: looking away for one frame would
-        // otherwise switch bloom off and keep it off
-        boolean explicitSource = instEmissive || hookEmissive || gbufferEmissive;
         if (!hadBloom && !explicitSource) return;
 
         runPyramidAndComposite(s);
@@ -237,7 +237,7 @@ public final class BloomRenderer {
         if (occlude) emissive.depthTexture();
         emissiveBuf = Framebuffers.screen("Bloom Emissive", scale, emissive.build());
         sceneCapture = Framebuffers.screen("Bloom Scene Capture", scale,
-                FramebufferSpec.builder().color(ColorFormat.RGBA16F).depthTexture().build());
+                FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
 
         FramebufferSpec spec = FramebufferSpec.builder().color(ColorFormat.RGBA16F).build();
         mips = new Framebuffer[levels];
@@ -256,4 +256,22 @@ public final class BloomRenderer {
     private static void bindTexture(int glId) { GlState.bindTexture(0, glId); }
 
     private static void restoreState() { GlState.endFullscreen(); }
+
+    public void dispose() {
+        downsample.close();
+        upsample.close();
+        composite.close();
+        prefilter.close();
+        if (mips != null) {
+            for (Framebuffer fb : mips) fb.dispose();
+            mips = null;
+        }
+        if (emissiveBuf != null) { emissiveBuf.dispose(); emissiveBuf = null; }
+        if (sceneCapture != null) { sceneCapture.dispose(); sceneCapture = null; }
+        if (brightQuery != 0) { GL15.glDeleteQueries(brightQuery); brightQuery = 0; }
+        baseScale = -1f;
+        levelCount = -1;
+        hadBloom = true;
+        staleQueryFrames = 0;
+    }
 }

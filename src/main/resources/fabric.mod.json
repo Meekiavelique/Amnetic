@@ -27,5 +27,9 @@
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
     "minecraft": "${minecraft_version}"
+  },
+  "suggests": {
+    "iris": "*",
+    "sodium": "*"
   }
 }

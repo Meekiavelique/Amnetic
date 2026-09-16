@@ -6,36 +6,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Window.class)
 public final class WindowGlContextMixin {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/GL");
 
-    @Redirect(
+    @Inject(
             method = "createGlfwWindow",
             at = @At(
                     value = "INVOKE",
-                    target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J"
+                    target = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J",
+                    shift = At.Shift.BEFORE
             )
     )
-    private static long amnetic$createWindowWithGlVersion(int width, int height, CharSequence title,
-                                                          long monitor, long share) {
+    private static void amnetic$applyGlVersionHints(CallbackInfoReturnable<Long> cir) {
         int major = Integer.getInteger("amnetic.opengl.major", 4);
         int minor = Integer.getInteger("amnetic.opengl.minor", 6);
         boolean debug = Boolean.getBoolean("amnetic.opengl.debug");
 
         applyHints(major, minor, debug);
-        long handle = GLFW.glfwCreateWindow(width, height, title, monitor, share);
-        if (handle != 0L) {
-            LOGGER.info("Created OpenGL {}.{} core context (compute-capable)", major, minor);
-            return handle;
-        }
-
-        LOGGER.warn("OpenGL {}.{} context creation failed; falling back to 3.3", major, minor);
-        applyHints(3, 3, false);
-        return GLFW.glfwCreateWindow(width, height, title, monitor, share);
+        LOGGER.info("Requesting OpenGL {}.{} core context (compute-capable)", major, minor);
     }
 
     private static void applyHints(int major, int minor, boolean debug) {

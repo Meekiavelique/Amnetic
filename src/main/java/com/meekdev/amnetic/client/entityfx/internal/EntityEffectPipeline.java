@@ -10,7 +10,7 @@ import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.Map;
-import net.minecraft.client.renderer.rendertype.AmneticRenderTypeAccess;
+import com.meekdev.amnetic.mixin.accessor.RenderTypeInvoker;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.resources.Identifier;
@@ -51,6 +51,6 @@ public final class EntityEffectPipeline {
             setup.withTexture(e.getKey(), e.getValue());
         }
 
-        return AmneticRenderTypeAccess.create(debugName, setup.createRenderSetup());
+        return RenderTypeInvoker.amnetic$create(debugName, setup.createRenderSetup());
     }
 }

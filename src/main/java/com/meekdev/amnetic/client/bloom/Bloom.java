@@ -32,4 +32,8 @@ public final class Bloom {
             SETTINGS.enabled(false);
         }
     }
+
+    public static void dispose() {
+        RENDERER.dispose();
+    }
 }

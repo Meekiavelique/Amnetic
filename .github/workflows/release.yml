@@ -14,10 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Set up Java 25
         uses: actions/setup-java@v4
         with:
-          java-version: "21"
+          java-version: "25"
           distribution: temurin
 
       - name: Setup Gradle
@@ -28,15 +28,19 @@ jobs:
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build
-        run: ./gradlew build -Pmod_version=${{ steps.version.outputs.version }}
+        run: ./gradlew :build :examples:build :neoforge:build -Ploader_platform=fabric -Pmod_version=${{ steps.version.outputs.version }}
 
       - name: Collect jars
         id: jars
         run: |
           main=$(ls build/libs/*[0-9].jar | grep -v sources | grep -v dev | head -1)
           sources=$(ls build/libs/*-sources.jar 2>/dev/null || true)
+          neoforge=$(ls neoforge/build/libs/*-neoforge-*[0-9].jar | grep -v sources | head -1)
+          neoforge_sources=$(ls neoforge/build/libs/*-sources.jar 2>/dev/null || true)
           echo "main=$main" >> "$GITHUB_OUTPUT"
           echo "sources=$sources" >> "$GITHUB_OUTPUT"
+          echo "neoforge=$neoforge" >> "$GITHUB_OUTPUT"
+          echo "neoforge_sources=$neoforge_sources" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -47,3 +51,5 @@ jobs:
           files: |
             ${{ steps.jars.outputs.main }}
             ${{ steps.jars.outputs.sources }}
+            ${{ steps.jars.outputs.neoforge }}
+            ${{ steps.jars.outputs.neoforge_sources }}

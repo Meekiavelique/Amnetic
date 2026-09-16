@@ -5,13 +5,13 @@
 
   <img src="https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
 
-  <img src="https://img.shields.io/badge/Running%20on-Fabric-2C2C2C?style=for-the-badge&logo=openjdk&logoColor=white" alt="Running on Fabric" />
+  <img src="https://img.shields.io/badge/Running%20on-Fabric%20%7C%20Quilt%20%7C%20NeoForge-2C2C2C?style=for-the-badge&logo=openjdk&logoColor=white" alt="Running on Fabric, Quilt, or NeoForge" />
   <a href=" "><img src="https://img.shields.io/badge/Wiki-Documentation-4A90E2?style=for-the-badge&logo=gitbook&logoColor=white" alt="Wiki" /></a>
   <a href="https://discord.gg/avSH2JTfef"><img src="https://img.shields.io/badge/Discord-online-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" />
 </p>
 
 <p align="center">
-A Fabric rendering utility library for Minecraft 26.1.2 
+A Fabric, Quilt, and NeoForge rendering utility library for Minecraft 26.1.2
 </p>
 
 ## Installation
@@ -19,11 +19,14 @@ A Fabric rendering utility library for Minecraft 26.1.2
 Amnetic is a **standalone mod**. Install it as a separate mod (e.g. from Modrinth)
 alongside any mod that uses it. Please **do not bundle it (Jar-in-Jar) inside your own mod**.
 Bundling is unsupported: a single shared install is supportable, and when multiple mods
-each ship their own copy, Fabric loads one and shadows the rest, causing version
+each ship their own copy, the loader selects one and shadows the rest, causing version
 mismatches and conflicts. Amnetic logs a warning if it detects it was loaded nested.
 
-**Players:** download Amnetic from Modrinth and drop it in your `mods` folder next to the
-mods that depend on it.
+**Players:** download the Amnetic jar for your loader from Modrinth and drop it in your
+`mods` folder next to the mods that depend on it. Fabric and Quilt use the shared
+Fabric/Quilt jar plus upstream Fabric API. NeoForge uses the `-neoforge` jar plus
+Forgified Fabric API. ImGuiMC is optional and enables the editor overlay; use its artifact
+for your loader.
 
 **Developers:** depend on it without bundling. Add the repository and a `modImplementation`
 dependency to your `build.gradle`:
@@ -46,6 +49,78 @@ Then declare it as a dependency in your `fabric.mod.json` so users are pointed t
     "amnetic": ">={version}"
 }
 ```
+
+For a native Quilt mod, declare the equivalent dependency in `quilt.mod.json`:
+
+```json
+"depends": [
+    {
+        "id": "amnetic",
+        "versions": ">={version}"
+    }
+]
+```
+
+Amnetic intentionally keeps `fabric.mod.json` as its distribution metadata. Quilt Loader
+supports Fabric metadata and entrypoints, which lets the same jar work on both loaders.
+The source can be compiled against either loader when testing:
+
+```sh
+./gradlew :build -Ploader_platform=fabric
+./gradlew :build -Ploader_platform=quilt
+```
+
+NeoForge is built as a dedicated artifact with native NeoForge metadata:
+
+```sh
+./gradlew :neoforge:build
+```
+
+The output is `neoforge/build/libs/amnetic-neoforge-{version}.jar`. Consumers should use
+the normal NeoForge `implementation` dependency on that artifact and declare `amnetic`
+in `META-INF/neoforge.mods.toml`.
+
+## Development runs
+
+Use Java 25 and launch the desired Gradle run:
+
+```sh
+# Fabric
+./gradlew :runClient -Ploader_platform=fabric
+
+# Quilt
+./gradlew :runClient -Ploader_platform=quilt
+
+# NeoForge
+./gradlew :neoforge:runNeoForgeClient
+
+# Fabric/Quilt with Iris + Sodium installed in an isolated run directory
+./gradlew :runIrisClient -Ploader_platform=fabric
+./gradlew :runIrisClient -Ploader_platform=quilt
+
+# NeoForge with Iris + Sodium installed in an isolated run directory
+./gradlew :neoforge:runNeoForgeIrisClient
+```
+
+The NeoForge subproject also provides `runNeoForgeServer` and `runNeoForgeData`. Refresh
+the Gradle project in IntelliJ to generate the named **Amnetic NeoForge Client**,
+**Amnetic Iris Client**, **Amnetic NeoForge Iris Client**, **Amnetic NeoForge Server**,
+and **Amnetic NeoForge Data** IDE run configurations. To jump directly into an existing
+test world, add `-Pquick_play_world=WorldFolderName` to either Iris Gradle command.
+
+## Iris and Sodium compatibility
+
+Iris and Sodium are optional development/runtime integrations, not required dependencies
+of the published Amnetic jars. When an Iris shader pack is active, Amnetic registers its
+world render pipelines with Iris, avoids running its pipeline during Iris's shadow render,
+and schedules its deferred and screen-space stages after Iris's final shader-pack composite.
+This keeps custom models, particles, decals, SSAO, SSGI, SSR, bloom, grading, and post
+effects visible instead of having Iris overwrite them.
+
+Perspective captures (camera feeds and planar reflections) are held on their last valid
+frame while a shader pack is active. Iris does not support recursively entering its world
+pipeline, so attempting to refresh those captures would corrupt the main or capture
+framebuffer. They resume automatically when the shader pack is disabled.
 
 
 ## Features
