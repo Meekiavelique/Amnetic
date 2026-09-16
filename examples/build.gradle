@@ -1,21 +1,36 @@
 plugins {
-    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'net.fabricmc.fabric-loom' version '1.16.3'
 }
 
-version = rootProject.mod_version + "-examples"
+version = project.mod_version + "-examples"
 group = "com.example"
 
 base {
     archivesName = "amnetic-examples"
 }
 
-dependencies {
-    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
-    implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_version}"
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://maven.ryanhcode.dev/releases"
+                name = "RyanHCode Maven"
+            }
+        }
+        filter {
+            includeGroup("foundry.imguimc")
+        }
+    }
+}
 
-    // depend on the Amnetic lib; both projects use the same (Mojang) mappings, so no remap is needed
-    implementation project(':')
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    implementation project(':26.1.2')
+
+    localRuntime "foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}"
 }
 
 loom {
@@ -25,7 +40,7 @@ loom {
         }
         // load the Amnetic lib as a mod in the examples dev run (the examples mod depends on it)
         "amnetic" {
-            sourceSet project(":").sourceSets.main
+            sourceSet project(":26.1.2").sourceSets.main
         }
     }
 }
