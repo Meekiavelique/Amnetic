@@ -1,5 +1,9 @@
 package com.meekdev.amnetic.client.surface.internal;
 
+import com.meekdev.amnetic.client.framebuffer.ColorFormat;
+import com.meekdev.amnetic.client.framebuffer.Framebuffer;
+import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
+import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.surface.material.SurfaceMaterial;
@@ -18,6 +22,9 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 
 import java.nio.FloatBuffer;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 public final class UiBatcher {
 
@@ -41,6 +48,15 @@ public final class UiBatcher {
     private float clipX0, clipY0, clipX1, clipY1;
 
     private float m00 = 1, m01, m10, m11 = 1, m02, m12;
+
+    private static final long LAYER_IDLE_NANOS = 5_000_000_000L;
+
+    private static final class Layer {
+        Framebuffer target;
+        long used;
+    }
+
+    private final Map<Object, Layer> layers = new HashMap<>();
 
     private UiBatcher() {}
 
@@ -227,6 +243,70 @@ public final class UiBatcher {
         float[] trimmed = new float[count];
         System.arraycopy(out, 0, trimmed, 0, count);
         return trimmed;
+    }
+
+    public int layer(Object key, float x, float y, float w, float h, int pixelsW, int pixelsH, Runnable draw) {
+        flush();
+        long now = System.nanoTime();
+        Iterator<Map.Entry<Object, Layer>> idle = layers.entrySet().iterator();
+        while (idle.hasNext()) {
+            Map.Entry<Object, Layer> entry = idle.next();
+            if (entry.getKey() != key && now - entry.getValue().used > LAYER_IDLE_NANOS) {
+                entry.getValue().target.dispose();
+                idle.remove();
+            }
+        }
+        Layer layer = layers.computeIfAbsent(key, k -> new Layer());
+        layer.used = now;
+        if (layer.target != null && (layer.target.width() != pixelsW || layer.target.height() != pixelsH)) {
+            layer.target.dispose();
+            layer.target = null;
+        }
+        if (layer.target == null) {
+            layer.target = Framebuffers.fixed(pixelsW, pixelsH, FramebufferSpec.builder().color(ColorFormat.RGBA8).build());
+        }
+
+        Matrix4f outerOrtho = new Matrix4f(ortho);
+        float outerW = guiW, outerH = guiH;
+        float[] outerClip = {clipX0, clipY0, clipX1, clipY1};
+        float[] outerTransform = transform();
+        boolean depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+
+        layer.target.begin();
+        layer.target.clear(0f, 0f, 0f, 0f);
+        GlStateManager._depthMask(false); GL11.glDepthMask(false);
+        GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
+        applyBlend(SurfaceMaterial.Blend.MIX);
+        guiW = w;
+        guiH = h;
+        ortho.setOrtho(x, x + w, y + h, y, -1000, 1000);
+        clearClip();
+        setTransform(new float[] {1, 0, 0, 1, 0, 0});
+        try {
+            draw.run();
+            flush();
+        } finally {
+            verts.clear();
+            segments = 0;
+            layer.target.end();
+            ortho.set(outerOrtho);
+            guiW = outerW;
+            guiH = outerH;
+            setClip(outerClip[0], outerClip[1], outerClip[2], outerClip[3]);
+            setTransform(outerTransform);
+            if (depth) {
+                GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
+            }
+        }
+        return layer.target.colorTextureGlId(0);
+    }
+
+    public void premultiplied(int texture, float x, float y, float w, float h, int argb) {
+        flush();
+        applyBlend(SurfaceMaterial.Blend.PREMUL);
+        imageRegion(texture, x, y, x + w, y + h, 0, 1, 1, 0, argb, false);
+        flush();
+        applyBlend(SurfaceMaterial.Blend.MIX);
     }
 
     public void glyph(int atlasTexture, float x0, float y0, float x1, float y1,

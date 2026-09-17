@@ -108,6 +108,17 @@ public final class UiDraw {
         return this;
     }
 
+    public UiDraw group(Object key, float x, float y, float w, float h, float density, int argb, Runnable content) {
+        if (w <= 0 || h <= 0) return this;
+        int pixelsW = Math.max(1, Math.round(w * density));
+        int pixelsH = Math.max(1, Math.round(h * density));
+        int texture = batcher.layer(key, x, y, w, h, pixelsW, pixelsH, content);
+        float a = ((argb >>> 24) & 0xFF) / 255f;
+        int r = Math.round(((argb >> 16) & 0xFF) * a), g = Math.round(((argb >> 8) & 0xFF) * a), b = Math.round((argb & 0xFF) * a);
+        batcher.premultiplied(texture, x, y, w, h, (argb & 0xFF000000) | r << 16 | g << 8 | b);
+        return this;
+    }
+
     public UiDraw border(float x, float y, float w, float h, float radius, float borderWidth, int argb) {
         batcher.rect(x, y, w, h, radius, borderWidth, 0f, argb);
         return this;
