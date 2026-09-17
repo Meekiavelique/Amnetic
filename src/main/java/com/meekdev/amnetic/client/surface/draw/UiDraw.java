@@ -40,7 +40,13 @@ public final class UiDraw {
     }
 
     public UiDraw pushClip(float x, float y, float w, float h) {
-        float x0 = x, y0 = y, x1 = x + w, y1 = y + h;
+        float[] t = batcher.transform();
+        float ax = t[0] * x + t[1] * y + t[4], ay = t[2] * x + t[3] * y + t[5];
+        float bx = t[0] * (x + w) + t[1] * y + t[4], by = t[2] * (x + w) + t[3] * y + t[5];
+        float cx = t[0] * x + t[1] * (y + h) + t[4], cy = t[2] * x + t[3] * (y + h) + t[5];
+        float dx = t[0] * (x + w) + t[1] * (y + h) + t[4], dy = t[2] * (x + w) + t[3] * (y + h) + t[5];
+        float x0 = Math.min(Math.min(ax, bx), Math.min(cx, dx)), y0 = Math.min(Math.min(ay, by), Math.min(cy, dy));
+        float x1 = Math.max(Math.max(ax, bx), Math.max(cx, dx)), y1 = Math.max(Math.max(ay, by), Math.max(cy, dy));
         float[] prev = clips.peek();
         if (prev != null) {
             x0 = Math.max(x0, prev[0]); y0 = Math.max(y0, prev[1]);
@@ -93,6 +99,12 @@ public final class UiDraw {
 
     public UiDraw gradient(float x, float y, float w, float h, float radius, int topArgb, int bottomArgb) {
         batcher.rectGradient(x, y, w, h, radius, 0f, 0f, topArgb, bottomArgb);
+        return this;
+    }
+
+    public UiDraw gradient(float x, float y, float w, float h, float radius, float borderWidth, float[] stops,
+                           int[] argbs, float rotation, float offsetX, float offsetY) {
+        batcher.rectStops(x, y, w, h, radius, borderWidth, stops, argbs, rotation, offsetX, offsetY);
         return this;
     }
 

@@ -149,6 +149,86 @@ public final class UiBatcher {
         vert(cx + ew, cy + eh,  ew,  eh, br, bg, bb, ba, 0f, radius, hw, hh, borderW, softness);
     }
 
+    public void rectStops(float x, float y, float w, float h, float radius, float borderW,
+                          float[] stops, int[] argbs, float rotation, float offsetX, float offsetY) {
+        if (stops.length == 0 || w <= 0 || h <= 0) return;
+        segment(0);
+        float hw = w * 0.5f, hh = h * 0.5f;
+        float cx = x + hw, cy = y + hh;
+        float e = 1f;
+        float cos = (float) Math.cos(rotation), sin = (float) Math.sin(rotation);
+        float ax = cos / w, ay = sin / h;
+        float at = 0.5f - (cx / w + offsetX) * cos - (cy / h + offsetY) * sin;
+        float[] quad = {cx - hw - e, cy - hh - e, cx + hw + e, cy - hh - e, cx + hw + e, cy + hh + e, cx - hw - e, cy + hh + e};
+        for (int n = 0; n <= stops.length; n++) {
+            float lo = n == 0 ? Float.NEGATIVE_INFINITY : stops[n - 1];
+            float hi = n == stops.length ? Float.POSITIVE_INFINITY : stops[n];
+            if (hi < lo) continue;
+            float[] piece = clip(clip(quad, ax, ay, at, lo, true), ax, ay, at, hi, false);
+            int corners = piece.length / 2;
+            if (corners < 3) continue;
+            grow((corners - 2) * 3 * FLOATS);
+            for (int k = 1; k < corners - 1; k++) {
+                stop(piece, 0, cx, cy, ax, ay, at, stops, argbs, radius, hw, hh, borderW);
+                stop(piece, k, cx, cy, ax, ay, at, stops, argbs, radius, hw, hh, borderW);
+                stop(piece, k + 1, cx, cy, ax, ay, at, stops, argbs, radius, hw, hh, borderW);
+            }
+        }
+    }
+
+    private void stop(float[] piece, int corner, float cx, float cy, float ax, float ay, float at, float[] stops,
+                      int[] argbs, float radius, float hw, float hh, float borderW) {
+        float px = piece[corner * 2], py = piece[corner * 2 + 1];
+        int argb = sample(stops, argbs, ax * px + ay * py + at);
+        float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
+        float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+        vert(px, py, px - cx, py - cy, r, g, b, a, 0f, radius, hw, hh, borderW, 0f);
+    }
+
+    private static int sample(float[] stops, int[] argbs, float t) {
+        if (t <= stops[0]) return argbs[0];
+        for (int n = 1; n < stops.length; n++) {
+            if (t > stops[n]) continue;
+            float span = stops[n] - stops[n - 1];
+            float f = span <= 0 ? 1 : (t - stops[n - 1]) / span;
+            return lerp(argbs[n - 1], argbs[n], f);
+        }
+        return argbs[argbs.length - 1];
+    }
+
+    private static int lerp(int from, int to, float f) {
+        int a = Math.round(((from >>> 24) & 0xFF) + (((to >>> 24) & 0xFF) - ((from >>> 24) & 0xFF)) * f);
+        int r = Math.round(((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * f);
+        int g = Math.round(((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * f);
+        int b = Math.round((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * f);
+        return a << 24 | r << 16 | g << 8 | b;
+    }
+
+    private static float[] clip(float[] polygon, float ax, float ay, float at, float limit, boolean above) {
+        if (Float.isInfinite(limit)) return polygon;
+        int corners = polygon.length / 2;
+        float[] out = new float[(corners + 2) * 2];
+        int count = 0;
+        for (int n = 0; n < corners; n++) {
+            float x0 = polygon[n * 2], y0 = polygon[n * 2 + 1];
+            float x1 = polygon[(n + 1) % corners * 2], y1 = polygon[(n + 1) % corners * 2 + 1];
+            float d0 = (ax * x0 + ay * y0 + at - limit) * (above ? 1 : -1);
+            float d1 = (ax * x1 + ay * y1 + at - limit) * (above ? 1 : -1);
+            if (d0 >= 0) {
+                out[count++] = x0;
+                out[count++] = y0;
+            }
+            if ((d0 >= 0) != (d1 >= 0)) {
+                float f = d0 / (d0 - d1);
+                out[count++] = x0 + (x1 - x0) * f;
+                out[count++] = y0 + (y1 - y0) * f;
+            }
+        }
+        float[] trimmed = new float[count];
+        System.arraycopy(out, 0, trimmed, 0, count);
+        return trimmed;
+    }
+
     public void glyph(int atlasTexture, float x0, float y0, float x1, float y1,
                       float u0, float v0, float u1, float v1,
                       float r, float g, float b, float a) {
