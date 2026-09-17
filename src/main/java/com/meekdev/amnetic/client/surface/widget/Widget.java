@@ -136,12 +136,16 @@ public abstract class Widget {
         boolean xf = hasTransform();
         if (xf) d.pushTransform(x + w * 0.5f, y + h * 0.5f, channelDx, channelDy, channelScale, channelRotation);
         drawSelf(d, alpha);
-        for (Widget c : children) c.draw(d, alpha);
+        if (drawsChildren()) {
+            for (Widget c : children) c.draw(d, alpha);
+        }
         drawAfterChildren(d);
         if (xf) d.popTransform();
     }
 
     protected void drawSelf(UiDraw d, float alpha) {}
+
+    protected boolean drawsChildren() { return true; }
 
     public void drawAfterChildren(UiDraw d) {}
 
