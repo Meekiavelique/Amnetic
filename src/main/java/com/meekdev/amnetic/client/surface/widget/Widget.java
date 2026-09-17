@@ -175,6 +175,7 @@ public abstract class Widget {
     public boolean onChar(int codepoint) { return false; }
     public boolean onKey(int key, int modifiers) { return false; }
     public void onFocusLost() {}
+    public void onFocusGained() {}
 
     Object dragPayload;
     Consumer<Object> dropHandler;

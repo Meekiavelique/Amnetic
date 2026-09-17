@@ -355,6 +355,7 @@ public final class WorldSurfaceRenderer {
             float mx = bestU * best.canvasW();
             float my = (1f - bestV) * best.canvasH();
             best.internalInput().mouseMoved(mx, my);
+            if (attack && attackWasDown) best.internalInput().mouseDragged(mx, my);
             if (attack && !attackWasDown) best.internalInput().mouseDown(mx, my, 0);
             if (!attack && attackWasDown) best.internalInput().mouseUp(mx, my, 0);
         }

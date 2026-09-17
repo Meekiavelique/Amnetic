@@ -12,6 +12,7 @@ public final class InputRouter {
 
     private Widget dragSource, dragging;
     private float dragX, dragY, pressX, pressY;
+    private float mouseX = -1, mouseY = -1;
 
     public InputRouter(Widget root) {
         this.root = root;
@@ -27,8 +28,12 @@ public final class InputRouter {
 
     public float dragX() { return dragX; }
     public float dragY() { return dragY; }
+    public float mouseX() { return mouseX; }
+    public float mouseY() { return mouseY; }
 
     public void mouseMoved(float mx, float my) {
+        mouseX = mx;
+        mouseY = my;
         Widget hit = root.hitTest(mx, my);
         if (hit != hovered) {
             if (hovered != null) hovered.hovered = false;
@@ -100,6 +105,10 @@ public final class InputRouter {
         return false;
     }
 
+    public boolean scroll(float amount) {
+        return mouseX >= 0 && mouseY >= 0 && scroll(mouseX, mouseY, amount);
+    }
+
     public boolean charTyped(int codepoint) {
         return focused != null && focused.onChar(codepoint);
     }
@@ -119,7 +128,10 @@ public final class InputRouter {
             focused.onFocusLost();
         }
         focused = target;
-        if (focused != null) focused.focused = true;
+        if (focused != null) {
+            focused.focused = true;
+            focused.onFocusGained();
+        }
     }
 
     private void cycleFocus() {
