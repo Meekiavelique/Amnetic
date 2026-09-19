@@ -40,10 +40,12 @@ public final class AmneticEditorBridge {
         /*KeyBindingHelper.registerKeyBinding(toggleKey);
         *///?}
 
+        //? if >=1.21 {
         if (FabricLoader.getInstance().isModLoaded(IMGUIMC)) {
             AmneticEditor.init();
             available = true;
         }
+        //?}
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> tick());
     }
@@ -54,9 +56,13 @@ public final class AmneticEditorBridge {
         while (toggleKey.consumeClick()) toggled = true;
         if (!toggled) return;
 
+        //? if >=1.21 {
         if (available) {
             AmneticEditor.toggle();
-        } else if (!warned) {
+            return;
+        }
+        //?}
+        if (!warned) {
             warned = true;
             LOGGER.info("Install the ImGuiMC mod to use the Amnetic editor overlay.");
         }

@@ -110,7 +110,7 @@ public final class DeferredLightingPass extends ScreenPass {
                 || ShadingModelRegistry.INSTANCE.hasCustomModels();
 
         if (!volumetricOnly) capture.blitColorFromMain();
-        if (needsFullscreen || !gbufferDepth) capture.blitDepthFromMain();
+        if (needsFullscreen || !gbufferDepth || volumes) capture.blitDepthFromMain();
 
         boolean toHalf = volumetricOnly && volumetricTarget != null;
         int prevFbo = -1;
@@ -144,65 +144,7 @@ public final class DeferredLightingPass extends ScreenPass {
             MaterialParams.INSTANCE.bind(1);
 
             program.begin();
-            program.setSampler("AlbedoSampler", 0);
-            program.setSampler("DepthSampler", 1);
-            program.setSampler("GNormalSampler", 2);
-            program.setSampler("GMaterialSampler", 3);
-            program.setSampler("SpotShadowAtlas", 4);
-            program.setSampler("PointShadowArray", 5);
-            program.setSampler("SpotShadowColor", 6);
-            program.setSampler("LightmapSampler", 9);
-            program.setInt("ShadowActive", shadows ? 1 : 0);
-            if (shadows) {
-                ShadowSettings ss = ShadowSettings.defaults();
-                program.setMatrix4Array("SpotViewProj", ShadowMapPass.INSTANCE.spotViewProj(), ShadowSettings.MAX_SPOT);
-                program.setFloat("ShadowAtlasSize", SpotShadowAtlas.atlasSize());
-                program.setFloat("ShadowTileSize", SpotShadowAtlas.tileSize());
-                program.setInt("ShadowGridX", SpotShadowAtlas.GRID);
-                program.setFloat("ShadowBias", ss.bias());
-                program.setFloat("ShadowNormalBias", ss.normalBias());
-                program.setFloat("ShadowSoftnessTexels", ss.softness());
-                program.setFloat("ShadowFadeStart", ss.fadeStartDistance());
-                program.setFloat("ShadowFadeEnd", ss.maxDistance());
-                program.setInt("ShadowPcss", ss.pcss() ? 1 : 0);
-                program.setFloat("ShadowLightSize", ss.lightSize());
-            }
-            program.setSampler("SunShadowMap", 8);
-            program.setInt("SunShadowActive", sunShadows ? 1 : 0);
-            if (sunShadows) {
-                ShadowMapPass pass = ShadowMapPass.INSTANCE;
-                program.setMatrix4Array("SunViewProj", pass.sunViewProj(), ShadowSettings.MAX_CASCADES);
-                float[] radii = pass.sunCascadeRadius();
-                for (int c = 0; c < ShadowSettings.MAX_CASCADES; c++) {
-                    program.setFloat("SunCascadeRadius[" + c + "]", radii[c]);
-                }
-                program.setInt("SunCascadeCount", pass.sunCascadeCount());
-                program.setFloat("SunShadowRes", SunShadowCascades.resolution());
-                program.setFloat("SunShadowDistance", ShadowSettings.defaults().sunDistance());
-            }
-            program.setInt("HasGBuffer", hasGBuffer ? 1 : 0);
-            program.setMatrix4("InvViewProj", cam.invViewProj);
-            program.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
-            program.setInt("LightCount", count);
-            program.setFloat("LightTime", (float) ((System.nanoTime() / 1.0e9) % 3600.0));
-            program.setInt("SkipLocalLights", volumes ? 1 : 0);
-            LightSettings ls = LightSettings.defaults();
-            program.setInt("VolumetricSteps", ls.volumetricSteps());
-            program.setFloat("VolumetricStrength", ls.volumetricStrength());
-            program.setFloat("VolumetricDensity", ls.volumetricDensity());
-            program.setFloat("VolumetricAniso", ls.volumetricAniso());
-            program.setInt("VolumetricShadows", (shadows && ls.volumetricShadows()) ? 1 : 0);
-            program.setMatrix4("ViewProj", cam.viewProj);
-            program.setInt("ContactSteps", ls.contactSteps());
-            program.setFloat("ContactDistance", ls.contactDistance());
-            program.setFloat("ContactThickness", ls.contactThickness());
-            int cookieGl = cookieGlId(ls.cookieTexture());
-            if (cookieGl != 0) GlState.bindTexture(7, cookieGl);
-            program.setSampler("CookieSampler", 7);
-            program.setInt("HasCookie", cookieGl != 0 ? 1 : 0);
-            program.setInt("DebugMode", debugMode);
-            program.setInt("VolumetricOnly", volumetricOnly ? 1 : 0);
-            program.setFloat("TemporalOffset", volumetricOnly ? (frameCounter & 7) / 8f : 0f);
+            applyShared(program, cam, shadows, sunShadows, hasGBuffer, count, volumes);
 
             if (toHalf) {
                 GlStateManager._disableBlend();
@@ -217,13 +159,11 @@ public final class DeferredLightingPass extends ScreenPass {
             if (needsFullscreen) program.draw();
 
             if (volumes) {
-                if (!needsFullscreen && gbufferDepth) {
-                    GlState.bindTexture(1, GBufferTargets.INSTANCE.depthGlId());
-                }
                 GlState.bindTexture(0, capture.colorTextureGlId(0));
                 GlState.bindTexture(1, capture.depthTextureGlId());
                 LightVolumePass.INSTANCE.render(cam, packed,
-                        capture.width(), capture.height());
+                        capture.width(), capture.height(),
+                        p -> applyShared(p, cam, shadows, sunShadows, hasGBuffer, count, volumes));
             }
         } finally {
             GlState.bindTexture(4, 0);
@@ -263,4 +203,68 @@ public final class DeferredLightingPass extends ScreenPass {
         }
         return VanillaCompat.glId(tm.getTexture(id));
     }
+
+    private void applyShared(ShaderProgram p, CameraSnapshot cam, boolean shadows, boolean sunShadows,
+                             boolean hasGBuffer, int count, boolean volumes) {
+        p.setSampler("AlbedoSampler", 0);
+        p.setSampler("DepthSampler", 1);
+        p.setSampler("GNormalSampler", 2);
+        p.setSampler("GMaterialSampler", 3);
+        p.setSampler("SpotShadowAtlas", 4);
+        p.setSampler("PointShadowArray", 5);
+        p.setSampler("SpotShadowColor", 6);
+        p.setSampler("LightmapSampler", 9);
+        p.setInt("ShadowActive", shadows ? 1 : 0);
+        if (shadows) {
+            ShadowSettings ss = ShadowSettings.defaults();
+            p.setMatrix4Array("SpotViewProj", ShadowMapPass.INSTANCE.spotViewProj(), ShadowSettings.MAX_SPOT);
+            p.setFloat("ShadowAtlasSize", SpotShadowAtlas.atlasSize());
+            p.setFloat("ShadowTileSize", SpotShadowAtlas.tileSize());
+            p.setInt("ShadowGridX", SpotShadowAtlas.GRID);
+            p.setFloat("ShadowBias", ss.bias());
+            p.setFloat("ShadowNormalBias", ss.normalBias());
+            p.setFloat("ShadowSoftnessTexels", ss.softness());
+            p.setFloat("ShadowFadeStart", ss.fadeStartDistance());
+            p.setFloat("ShadowFadeEnd", ss.maxDistance());
+            p.setInt("ShadowPcss", ss.pcss() ? 1 : 0);
+            p.setFloat("ShadowLightSize", ss.lightSize());
+        }
+        p.setSampler("SunShadowMap", 8);
+        p.setInt("SunShadowActive", sunShadows ? 1 : 0);
+        if (sunShadows) {
+            ShadowMapPass pass = ShadowMapPass.INSTANCE;
+            p.setMatrix4Array("SunViewProj", pass.sunViewProj(), ShadowSettings.MAX_CASCADES);
+            float[] radii = pass.sunCascadeRadius();
+            for (int c = 0; c < ShadowSettings.MAX_CASCADES; c++) {
+                p.setFloat("SunCascadeRadius[" + c + "]", radii[c]);
+            }
+            p.setInt("SunCascadeCount", pass.sunCascadeCount());
+            p.setFloat("SunShadowRes", SunShadowCascades.resolution());
+            p.setFloat("SunShadowDistance", ShadowSettings.defaults().sunDistance());
+        }
+        p.setInt("HasGBuffer", hasGBuffer ? 1 : 0);
+        p.setMatrix4("InvViewProj", cam.invViewProj);
+        p.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
+        p.setInt("LightCount", count);
+        p.setFloat("LightTime", (float) ((System.nanoTime() / 1.0e9) % 3600.0));
+        p.setInt("SkipLocalLights", volumes ? 1 : 0);
+        LightSettings ls = LightSettings.defaults();
+        p.setInt("VolumetricSteps", ls.volumetricSteps());
+        p.setFloat("VolumetricStrength", ls.volumetricStrength());
+        p.setFloat("VolumetricDensity", ls.volumetricDensity());
+        p.setFloat("VolumetricAniso", ls.volumetricAniso());
+        p.setInt("VolumetricShadows", (shadows && ls.volumetricShadows()) ? 1 : 0);
+        p.setMatrix4("ViewProj", cam.viewProj);
+        p.setInt("ContactSteps", ls.contactSteps());
+        p.setFloat("ContactDistance", ls.contactDistance());
+        p.setFloat("ContactThickness", ls.contactThickness());
+        int cookieGl = cookieGlId(ls.cookieTexture());
+        if (cookieGl != 0) GlState.bindTexture(7, cookieGl);
+        p.setSampler("CookieSampler", 7);
+        p.setInt("HasCookie", cookieGl != 0 ? 1 : 0);
+        p.setInt("DebugMode", debugMode);
+        p.setInt("VolumetricOnly", volumetricOnly ? 1 : 0);
+        p.setFloat("TemporalOffset", volumetricOnly ? (frameCounter & 7) / 8f : 0f);
+    }
+
 }

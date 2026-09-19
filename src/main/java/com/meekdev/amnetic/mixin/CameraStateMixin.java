@@ -4,7 +4,6 @@ import com.meekdev.amnetic.client.AmneticClient;
 import com.meekdev.amnetic.client.camera.internal.FrameView;
 import com.meekdev.amnetic.client.post.internal.CameraState;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,6 +37,11 @@ import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.culling.Frustum;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Shadow;
+*///?}
+//? if >=1.21 {
+import net.minecraft.client.DeltaTracker;
+//?} else {
+/*import com.mojang.blaze3d.vertex.PoseStack;
 *///?}
 
 @Mixin(LevelRenderer.class)
@@ -92,7 +96,7 @@ public abstract class CameraStateMixin {
     private void amnetic$renderPost(CallbackInfo ci) {
         AmneticClient.renderPost();
     }
-    *///?} else {
+    *///?} else if >=1.21 {
     /*@Shadow private Frustum cullingFrustum;
 
     @Inject(method = "renderLevel", at = @At("HEAD"))
@@ -110,6 +114,32 @@ public abstract class CameraStateMixin {
 
     @Inject(method = "prepareCullFrustum", at = @At("TAIL"))
     private void amnetic$recordCullFrustum(Vec3 pos, Matrix4f viewRotation, Matrix4f projection, CallbackInfo ci) {
+        VanillaCompat.recordCullFrustum(cullingFrustum);
+    }
+
+    @Inject(method = "renderLevel", at = @At("TAIL"))
+    private void amnetic$renderPost(CallbackInfo ci) {
+        AmneticClient.renderPost();
+    }
+    *///?} else {
+    /*@Shadow private Frustum cullingFrustum;
+
+    @Inject(method = "renderLevel", at = @At("HEAD"))
+    private void amnetic$captureCameraState(PoseStack poseStack, float partialTick, long nanoTime,
+                                            boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer,
+                                            LightTexture lightTexture, Matrix4f projection, CallbackInfo ci) {
+        Matrix4f viewRotation = new Matrix4f(poseStack.last().pose());
+        Vec3 pos = camera.getPosition();
+        LevelCamera.record(pos, projection, viewRotation);
+        CameraState.update(projection, viewRotation, pos.x, pos.y, pos.z, gameRenderer.getDepthFar());
+
+        if (!CaptureManager.INSTANCE.isCapturing()) {
+            FrameView.INSTANCE.set(viewRotation);
+        }
+    }
+
+    @Inject(method = "prepareCullFrustum", at = @At("TAIL"))
+    private void amnetic$recordCullFrustum(PoseStack poseStack, Vec3 pos, Matrix4f projection, CallbackInfo ci) {
         VanillaCompat.recordCullFrustum(cullingFrustum);
     }
 

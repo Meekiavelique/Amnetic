@@ -8,6 +8,7 @@ import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import java.nio.FloatBuffer;
 import java.util.List;
+import java.util.function.Consumer;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.lwjgl.BufferUtils;
@@ -27,9 +28,12 @@ public final class LightVolumePass {
             Identifier.fromNamespaceAndPath("amnetic", "shaders/light/volume.fsh");
 
     private ShaderProgram program;
+    private final Matrix4f viewProj = new Matrix4f();
     private int vao;
     private int vbo;
     private int vertexCount;
+
+    private static final float NEAR_MARGIN = 0.25f;
 
     private LightVolumePass() {}
 
@@ -37,12 +41,12 @@ public final class LightVolumePass {
         return type != LightType.DIRECTIONAL;
     }
 
-    public void render(CameraSnapshot cam, List<Light> packed, float screenW, float screenH) {
+    public void render(CameraSnapshot cam, List<Light> packed, float screenW, float screenH, Consumer<ShaderProgram> shared) {
         if (packed.isEmpty()) return;
         ensureMesh();
         if (program == null) program = new ShaderProgram(VSH, FSH);
 
-        Matrix4f viewProj = new Matrix4f(cam.projection).mul(new Matrix4f(cam.view));
+        viewProj.set(cam.projection).mul(cam.view);
 
         GlStateManager._enableBlend();
         GL11.glEnable(GL11.GL_BLEND);
@@ -50,12 +54,13 @@ public final class LightVolumePass {
         GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
         GlStateManager._depthMask(false);
         GL11.glDepthMask(false);
-        GlStateManager._disableDepthTest();
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GlStateManager._enableDepthTest();
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
         GlStateManager._enableCull();
         GL11.glEnable(GL11.GL_CULL_FACE);
 
         program.begin();
+        shared.accept(program);
         program.setSampler("AlbedoSampler", 0);
         program.setSampler("DepthSampler", 1);
         program.setSampler("GNormalSampler", 2);
@@ -71,15 +76,17 @@ public final class LightVolumePass {
         for (int i = 0; i < packed.size(); i++) {
             Light light = packed.get(i);
             if (!handles(light.type())) continue;
-            float range = light.range();
+            float range = light.range() + Math.max(Math.max(light.areaW(), light.areaH()), light.tubeLen() * 0.5f);
             float px = (float) (light.x() - cam.eye.x);
             float py = (float) (light.y() - cam.eye.y);
             float pz = (float) (light.z() - cam.eye.z);
 
-            // camera inside the volume: its front faces are behind us, so draw the back faces
             float d = px * px + py * py + pz * pz;
             float pad = range * 1.05f;
-            GL11.glCullFace(d < pad * pad ? GL11.GL_FRONT : GL11.GL_BACK);
+            float inside = pad + NEAR_MARGIN;
+            boolean cameraInside = d < inside * inside;
+            GL11.glCullFace(cameraInside ? GL11.GL_FRONT : GL11.GL_BACK);
+            GlStateManager._depthFunc(cameraInside ? GL11.GL_GEQUAL : GL11.GL_LEQUAL);
 
             program.setInt("LightIndex", i);
             program.setVec3("LightPos", px, py, pz);
@@ -89,6 +96,7 @@ public final class LightVolumePass {
         GL30.glBindVertexArray(0);
 
         GL11.glCullFace(GL11.GL_BACK);
+        GlStateManager._depthFunc(GL11.GL_LEQUAL);
         GlStateManager._depthMask(true);
         GL11.glDepthMask(true);
     }

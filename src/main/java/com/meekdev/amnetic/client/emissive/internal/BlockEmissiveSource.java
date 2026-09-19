@@ -14,12 +14,13 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import org.joml.Matrix4f;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.system.MemoryUtil;
 
 public final class BlockEmissiveSource {
 
@@ -32,6 +33,8 @@ public final class BlockEmissiveSource {
 
     private static final int STRIDE = BlockEmissiveGeometry.FLOATS_PER_VERTEX;
     private static final int MAX_VERTICES = 400_000;
+    private static final int INITIAL_VERTICES = 4096;
+    private static final int MISSED_CHUNK_RETRY_FRAMES = 20;
 
     private ShaderProgram program;
 
@@ -40,9 +43,13 @@ public final class BlockEmissiveSource {
     private int vertexCount;
     private int capacityVertices;
 
+    private FloatBuffer scratch;
+    private final Matrix4f viewProj = new Matrix4f();
+
     private int anchorX = Integer.MIN_VALUE, anchorY, anchorZ;
     private boolean dirty = true;
     private boolean missedChunk;
+    private int retryCooldown;
     private int chunkRadius = 4;
     private float intensity = 1f;
 
@@ -77,9 +84,9 @@ public final class BlockEmissiveSource {
         int cy = (int) Math.floor(ctx.cameraPos().y);
         int cz = (int) Math.floor(ctx.cameraPos().z);
 
-        boolean movedSection = (cx >> 4) != (anchorX >> 4) || (cz >> 4) != (anchorZ >> 4)
-                || (cy >> 4) != (anchorY >> 4);
-        if (dirty || anchorX == Integer.MIN_VALUE || movedSection) {
+        boolean movedChunk = (cx >> 4) != (anchorX >> 4) || (cz >> 4) != (anchorZ >> 4);
+        boolean retry = missedChunk && --retryCooldown <= 0;
+        if (dirty || anchorX == Integer.MIN_VALUE || movedChunk || retry) {
             rebuild(level, cx, cy, cz);
         }
         if (vertexCount == 0) return;
@@ -87,7 +94,7 @@ public final class BlockEmissiveSource {
         int atlas = atlasGlId();
         if (atlas == 0) return;
 
-        Matrix4f viewProj = new Matrix4f(ctx.projection()).mul(new Matrix4f(ctx.view()));
+        viewProj.set(ctx.projection()).mul(ctx.view());
 
         GlState.bindTexture(0, atlas);
         if (program == null) program = new ShaderProgram(VSH, FSH);
@@ -111,8 +118,10 @@ public final class BlockEmissiveSource {
         anchorX = cx; anchorY = cy; anchorZ = cz;
         vertexCount = 0;
 
-        FloatBuffer buf = BufferUtils.createFloatBuffer(MAX_VERTICES * STRIDE);
+        if (scratch == null) scratch = MemoryUtil.memAllocFloat(INITIAL_VERTICES * STRIDE);
+        scratch.clear();
         BlockPos.MutableBlockPos mut = new BlockPos.MutableBlockPos();
+        int radius = Math.min(chunkRadius, Math.max(1, Minecraft.getInstance().options.getEffectiveRenderDistance()));
 
         int chunkX = cx >> 4;
         int chunkZ = cz >> 4;
@@ -124,12 +133,11 @@ public final class BlockEmissiveSource {
         int sectionCount = level.getSectionsCount();
 
         outer:
-        for (int dx = -chunkRadius; dx <= chunkRadius; dx++) {
-            for (int dz = -chunkRadius; dz <= chunkRadius; dz++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
                 ChunkAccess chunk = level.getChunk(chunkX + dx, chunkZ + dz,
-                        net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
+                        ChunkStatus.FULL, false);
                 if (chunk == null) {
-                    // still streaming in; retry next frame instead of caching an empty result
                     missedChunk = true;
                     continue;
                 }
@@ -139,7 +147,6 @@ public final class BlockEmissiveSource {
                     LevelChunkSection section = sections[si];
                     if (section == null || section.hasOnlyAir()) continue;
 
-                    // palette-level reject: most sections contain no light source at all
                     if (!section.maybeHas(s -> s.getLightEmission() > 0)) continue;
 
                     int baseY = (minSectionY + si) << 4;
@@ -156,7 +163,8 @@ public final class BlockEmissiveSource {
                                 if (quads == null) continue;
 
                                 int verts = quads.length / STRIDE;
-                                if (buf.position() + verts * STRIDE > buf.capacity()) break outer;
+                                if (!ensureRoom(verts)) break outer;
+                                FloatBuffer buf = scratch;
 
                                 mut.set(baseX + lx, baseY + ly, baseZ + lz);
                                 float ox = mut.getX() - anchorX;
@@ -173,9 +181,10 @@ public final class BlockEmissiveSource {
             }
         }
 
+        FloatBuffer buf = scratch;
         buf.flip();
         vertexCount = buf.limit() / STRIDE;
-        if (missedChunk) dirty = true;
+        if (missedChunk) retryCooldown = MISSED_CHUNK_RETRY_FRAMES;
         if (vertexCount == 0) return;
 
         if (vao == 0) vao = GL30.glGenVertexArrays();
@@ -201,6 +210,15 @@ public final class BlockEmissiveSource {
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 
+    private boolean ensureRoom(int verts) {
+        int needed = scratch.position() + verts * STRIDE;
+        if (needed <= scratch.capacity()) return true;
+        if (needed > MAX_VERTICES * STRIDE) return false;
+        int capacity = Math.min(MAX_VERTICES * STRIDE, Math.max(needed, scratch.capacity() * 2));
+        scratch = MemoryUtil.memRealloc(scratch, capacity);
+        return true;
+    }
+
     private static int atlasGlId() {
         AbstractTexture tex = Minecraft.getInstance().getTextureManager()
                 .getTexture(TextureAtlas.LOCATION_BLOCKS);
@@ -210,6 +228,7 @@ public final class BlockEmissiveSource {
     public void dispose() {
         if (vbo != 0) { GL15.glDeleteBuffers(vbo); vbo = 0; }
         if (vao != 0) { GL30.glDeleteVertexArrays(vao); vao = 0; }
+        if (scratch != null) { MemoryUtil.memFree(scratch); scratch = null; }
         vertexCount = 0;
         capacityVertices = 0;
         anchorX = Integer.MIN_VALUE;

@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.bloom.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.bloom.BloomSettings;
 import com.meekdev.amnetic.client.emissive.EmissiveContext;
 import com.meekdev.amnetic.client.emissive.EmissiveSources;
@@ -45,10 +46,11 @@ public final class BloomRenderer {
     private int levelCount = -1;
     private boolean occludeMode;
 
-    private int brightQuery;
-    private boolean hadBloom = true; // assume bloom until the first query result says otherwise
-    private int staleQueryFrames;
-    private static final int STALE_QUERY_LIMIT = 4;
+    private static final int QUERY_RING = 3;
+    private final int[] brightQueries = new int[QUERY_RING];
+    private final boolean[] queryPending = new boolean[QUERY_RING];
+    private int queryIndex;
+    private boolean hadBloom = true;
 
     public void render(LevelCamera cam, BloomSettings s) {
         if (!s.isEnabled()) return;
@@ -57,35 +59,42 @@ public final class BloomRenderer {
             if (InstanceMeshRegistry.INSTANCE.hasEmissive(phase, s.isAll())) { instEmissive = true; break; }
         }
         boolean hookEmissive = !EmissiveSources.isEmpty();
-        boolean gbufferEmissive = GBufferTargets.INSTANCE.isPopulated();
-        boolean sceneBloom = s.threshold() > 0.0f;
+        boolean hasGBuffer = GBufferTargets.INSTANCE.isPopulated();
+        boolean gbufferEmissive = GBufferTargets.INSTANCE.hasEmissive();
+        boolean sceneBloom = !hasGBuffer && s.threshold() > 0.0f;
         if (!instEmissive && !hookEmissive && !gbufferEmissive && !sceneBloom) return;
 
         ensureChain(s.scale(), s.levels(), s.isOcclude());
 
-        if (brightQuery == 0) {
-            brightQuery = GL15.glGenQueries();
-        } else if (GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT_AVAILABLE) == GL11.GL_TRUE) {
-            hadBloom = GL15.glGetQueryObjecti(brightQuery, GL15.GL_QUERY_RESULT) != 0;
-            staleQueryFrames = 0;
-        } else if (++staleQueryFrames > STALE_QUERY_LIMIT) {
-            // the result never arrived; fail open rather than latch bloom off indefinitely
-            hadBloom = true;
-            staleQueryFrames = 0;
-        }
-        GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, brightQuery);
+        pollQueries();
+        int query = brightQueries[queryIndex];
+        GL15.glBeginQuery(GL33.GL_ANY_SAMPLES_PASSED, query);
         try {
             renderSources(cam, s, instEmissive, hookEmissive, gbufferEmissive, sceneBloom);
         } finally {
             GL15.glEndQuery(GL33.GL_ANY_SAMPLES_PASSED);
         }
-        // the query only measures what passed the depth test last frame, so it cannot be
-        // trusted to gate an explicitly registered source: looking away for one frame would
-        // otherwise switch bloom off and keep it off
+        queryPending[queryIndex] = true;
+        queryIndex = (queryIndex + 1) % QUERY_RING;
         boolean explicitSource = instEmissive || hookEmissive || gbufferEmissive;
         if (!hadBloom && !explicitSource) return;
 
         runPyramidAndComposite(s);
+    }
+
+    private void pollQueries() {
+        if (brightQueries[0] == 0) {
+            for (int i = 0; i < QUERY_RING; i++) brightQueries[i] = GL15.glGenQueries();
+            return;
+        }
+        int oldest = queryIndex;
+        if (!queryPending[oldest]) return;
+        if (GL15.glGetQueryObjecti(brightQueries[oldest], GL15.GL_QUERY_RESULT_AVAILABLE) == GL11.GL_TRUE) {
+            hadBloom = GL15.glGetQueryObjecti(brightQueries[oldest], GL15.GL_QUERY_RESULT) != 0;
+        } else {
+            hadBloom = true;
+        }
+        queryPending[oldest] = false;
     }
 
     private void renderSources(LevelCamera cam, BloomSettings s, boolean instEmissive,
@@ -109,16 +118,19 @@ public final class BloomRenderer {
         }
 
         if (sceneBloom || gbufferEmissive) {
-            sceneCapture.blitColorFromMain();
-            sceneCapture.blitDepthFromMain();
+            if (sceneBloom) {
+                sceneCapture.blitColorFromMain();
+                sceneCapture.blitDepthFromMain();
+            }
             emissiveBuf.begin();
             setupFullscreenState();
             GlStateManager._enableBlend();
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
-            boolean hasGBuffer = GBufferTargets.INSTANCE.isPopulated();
-            GlState.bindTexture(0, sceneCapture.colorTextureGlId(0));
-            GlState.bindTexture(1, sceneCapture.depthTextureGlId());
-            GlState.bindTexture(2, hasGBuffer ? GBufferTargets.INSTANCE.emissiveGlId() : sceneCapture.depthTextureGlId());
+            boolean hasGBuffer = gbufferEmissive;
+            int depth = hasGBuffer ? GBufferTargets.INSTANCE.depthGlId() : sceneCapture.depthTextureGlId();
+            GlState.bindTexture(0, hasGBuffer ? GBufferTargets.INSTANCE.emissiveGlId() : sceneCapture.colorTextureGlId(0));
+            GlState.bindTexture(1, depth);
+            GlState.bindTexture(2, hasGBuffer ? GBufferTargets.INSTANCE.emissiveGlId() : depth);
             prefilter.begin();
             prefilter.setSampler("Sampler", 0);
             prefilter.setSampler("DepthSampler", 1);
@@ -167,7 +179,7 @@ public final class BloomRenderer {
 
             EmissiveSources.emitAll(new EmissiveContext(
                     mc.level, cam.eye, cam.view, cam.projection,
-                    mc.getDeltaTracker().getGameTimeDeltaPartialTick(false),
+                    VanillaCompat.partialTick(false),
                     emissiveBuf.width(), emissiveBuf.height()));
         } finally {
             GlStateManager._disablePolygonOffset();
@@ -239,15 +251,15 @@ public final class BloomRenderer {
 
         // both buffers only feed the mip chain, which downsamples to `scale` immediately, so
         // capturing/prefiltering at full resolution would be wasted GPU work
-        FramebufferSpec.Builder emissive = FramebufferSpec.builder().color(ColorFormat.RGBA16F);
+        FramebufferSpec.Builder emissive = FramebufferSpec.builder().color(ColorFormat.R11G11B10F);
         if (occlude) emissive.depthTexture();
         emissiveBuf = Framebuffers.screen("Bloom Emissive", scale, emissive.build());
         sceneCapture = Framebuffers.screen("Bloom Scene Capture", scale,
-                FramebufferSpec.builder().color(ColorFormat.RGBA16F).depthTexture().build());
+                FramebufferSpec.builder().color(ColorFormat.R11G11B10F).depthTexture().build());
 
-        FramebufferSpec spec = FramebufferSpec.builder().color(ColorFormat.RGBA16F).build();
+        FramebufferSpec spec = FramebufferSpec.builder().color(ColorFormat.R11G11B10F).build();
         mips = new Framebuffer[levels];
-        float sc = scale;
+        float sc = scale * 0.5f;
         for (int i = 0; i < levels; i++) {
             mips[i] = Framebuffers.screen("Bloom Mip " + i, sc, spec);
             sc *= 0.5f;

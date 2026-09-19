@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.post;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import org.joml.*;
 
 import java.lang.Math;
@@ -35,7 +36,7 @@ public final class UniformSuppliers {
 
     public static Supplier<List<UniformValue>> partialTick() {
         return () -> {
-            float t = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(true);
+            float t = VanillaCompat.partialTick(true);
             return List.of(new UniformValue.FloatUniform(t));
         };
     }
