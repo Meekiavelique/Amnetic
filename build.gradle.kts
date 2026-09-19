@@ -101,6 +101,10 @@ tasks {
     withType<Jar> {
         from(rootProject.file("LICENSE")) { rename { "${it}_amnetic" } }
     }
+
+    jar {
+        from(zipTree(rootProject.file("libs/bb4j.jar"))) { exclude("META-INF/**") }
+    }
 }
 
 publishing {
