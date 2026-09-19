@@ -121,6 +121,12 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     int iesId = int(lights[i * 8 + 6].y + 0.5);
     int style = int(lights[i * 8 + 6].w + 0.5);
 
+    if (type != 2 && style == 0) {
+        float reach = range + max(max(areaW, areaH), tubeL * 0.5);
+        vec3 toPos = pos - fragPos;
+        if (dot(toPos, toPos) > reach * reach) return vec3(0.0);
+    }
+
     vec3 lp = fragPos;
     if (style > 0) {
         float unusedAtten = 1.0;

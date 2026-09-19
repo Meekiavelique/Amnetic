@@ -355,7 +355,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return SUN.set(0f, 1f, 0f);
-        float partial = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        float partial = VanillaCompat.partialTick(false);
         float ticks = (VanillaCompat.dayTime(level) % 24000L) + partial;
         double phi = ((ticks - 6000.0) / 24000.0) * 2.0 * Math.PI;
         return SUN.set((float) -Math.sin(phi), (float) Math.cos(phi), 0f);

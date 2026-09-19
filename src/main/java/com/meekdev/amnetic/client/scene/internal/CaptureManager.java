@@ -5,18 +5,22 @@ import com.meekdev.amnetic.client.scene.CaptureResult;
 import com.meekdev.amnetic.client.scene.PerspectiveCapture;
 import com.meekdev.amnetic.client.scene.PerspectiveView;
 import com.meekdev.amnetic.mixin.accessor.CameraInvoker;
-import com.meekdev.amnetic.mixin.accessor.LevelRendererAccessor;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.Camera;
+//? if >=1.21 {
 import net.minecraft.client.DeltaTracker;
+//?}
 import net.minecraft.client.Minecraft;
 //? if >=26.1 {
 import net.minecraft.client.TextureFilteringMethod;
 //?}
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
+//? if >=1.20.2 {
+import com.meekdev.amnetic.mixin.accessor.LevelRendererAccessor;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
+//?}
 import net.minecraft.client.renderer.culling.Frustum;
 //? if >=26.1 {
 import net.minecraft.client.renderer.state.level.CameraRenderState;
@@ -51,8 +55,10 @@ public final class CaptureManager {
     private final Matrix4f mainView = new Matrix4f();
     private final Matrix4f mainProj = new Matrix4f();
     private final Matrix4f obliqueProj = new Matrix4f();
+    //? if >=1.20.2 {
     private final ObjectArrayList<SectionRenderDispatcher.RenderSection> isolatedVisible = new ObjectArrayList<>(8192);
     private final ObjectArrayList<SectionRenderDispatcher.RenderSection> isolatedNearby = new ObjectArrayList<>(64);
+    //?}
 
     private CaptureManager() {}
 
@@ -64,7 +70,11 @@ public final class CaptureManager {
     public Matrix4f currentCaptureViewRotation() { return capturing ? currentViewRotation : null; }
     public RenderTarget currentCaptureTarget() { return capturing ? currentTarget : null; }
 
+    //? if >=1.21 {
     public void runCaptures(GameRenderer renderer, DeltaTracker ticker) {
+    //?} else {
+    /*public void runCaptures(GameRenderer renderer) {
+    *///?}
         if (!enabled || capturing || registry.isEmpty()) return;
         //? if <26.1 {
         /*LOG.warn("[Capture] perspective captures are not supported on this Minecraft version yet");

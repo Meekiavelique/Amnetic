@@ -9,8 +9,11 @@ base.archivesName = property("mod.id") as String
 
 val requiredJava: JavaVersion = when {
     sc.current.parsed >= "26.1" -> JavaVersion.VERSION_25
-    else -> JavaVersion.VERSION_21
+    sc.current.parsed >= "1.20.5" -> JavaVersion.VERSION_21
+    else -> JavaVersion.VERSION_17
 }
+val toolchainJava: JavaVersion = maxOf(requiredJava, JavaVersion.VERSION_21)
+val hasImGuiMc = sc.current.parsed >= "1.21"
 
 repositories {
     exclusiveContent {
@@ -46,9 +49,11 @@ dependencies {
         include("org.lwjgl:lwjgl-assimp:$lwjgl:$platform")
     }
 
-    modCompileOnly(imguimc)
     compileOnly("io.github.spair:imgui-java-binding:1.92.0")
-    modLocalRuntime(imguimc)
+    if (hasImGuiMc) {
+        modCompileOnly(imguimc)
+        modLocalRuntime(imguimc)
+    }
 }
 
 fabricApi {
@@ -61,14 +66,16 @@ java {
     withSourcesJar()
     targetCompatibility = requiredJava
     sourceCompatibility = requiredJava
-    toolchain.languageVersion = JavaLanguageVersion.of(requiredJava.majorVersion)
+    toolchain.languageVersion = JavaLanguageVersion.of(toolchainJava.majorVersion)
 }
 
 val absentClasses: List<String> = buildList {
+    if (!hasImGuiMc) addAll(listOf("client/ui/AmneticEditor", "client/ui/TexturePreview", "client/ui/inspector/GBufferInspector"))
+    if (sc.current.parsed < "1.20.2") add("mixin/accessor/LevelRendererAccessor")
     if (sc.current.parsed < "1.21.2") addAll(listOf("mixin/EntityRenderStateMixin", "mixin/EntityRendererMixin", "mixin/WeatherEffectRendererMixin"))
     if (sc.current.parsed < "1.21.5") addAll(listOf("mixin/GlCommandEncoderMixin", "client/render/MeshPipeline",
             "client/entityfx/internal/EntityEffectPipeline", "client/framebuffer/internal/WrappedGlTexture"))
-    if (sc.current.parsed >= "1.21.5") add("mixin/accessor/LightTextureAccessor")
+    if (sc.current.parsed >= "1.21.5") addAll(listOf("mixin/accessor/LightTextureAccessor", "mixin/BufferUploaderMixin"))
 }
 
 tasks {

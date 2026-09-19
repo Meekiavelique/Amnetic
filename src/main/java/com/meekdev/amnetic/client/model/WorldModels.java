@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import net.minecraft.client.Minecraft;
@@ -35,7 +36,7 @@ public final class WorldModels {
         }
         hooked = true;
         Models.onFrame(ctx -> {
-            float dt = Minecraft.getInstance().getDeltaTracker().getRealtimeDeltaTicks() / 20f;
+            float dt = VanillaCompat.realtimeDeltaTicks() / 20f;
             for (Placement placement : PLACEMENTS) {
                 placement.submit(dt);
             }

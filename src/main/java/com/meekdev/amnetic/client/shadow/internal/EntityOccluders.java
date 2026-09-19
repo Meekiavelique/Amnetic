@@ -1,15 +1,17 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
-import org.lwjgl.BufferUtils;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class EntityOccluders {
@@ -18,26 +20,53 @@ public final class EntityOccluders {
     private float[] tri = new float[8192]; // growable triangle vertices (xyz)
     private int triFloats;
     private int vao, vbo, vertexCount, entityCount;
+    private final List<Entity> found = new ArrayList<>();
+    private FloatBuffer upload;
 
     public boolean build(Level level, double lx, double ly, double lz, float range,
                          int anchorX, int anchorY, int anchorZ, boolean models, float partialTick) {
-        vertexCount = 0;
-        entityCount = 0;
-        triFloats = 0;
-        if (level == null) return false;
+        return gather(level, lx, ly, lz, range, partialTick) != 0L
+                && build(anchorX, anchorY, anchorZ, models, partialTick);
+    }
 
+    public long gather(Level level, double lx, double ly, double lz, float range, float partialTick) {
+        found.clear();
+        if (level == null) return 0L;
         AABB area = new AABB(lx - range, ly - range, lz - range, lx + range, ly + range, lz + range);
         List<Entity> entities;
         try {
             entities = level.getEntities((Entity) null, area, e -> !e.isSpectator());
         } catch (Throwable t) {
-            return false;
+            return 0L;
         }
-        if (entities.isEmpty()) return false;
-
         float r2 = range * range;
+        long h = 1469598103934665603L;
         for (Entity e : entities) {
             if (!within(e, lx, ly, lz, r2)) continue;
+            found.add(e);
+            h = mix(h, e.getId());
+            h = mix(h, quantize(e.getX()));
+            h = mix(h, quantize(e.getY()));
+            h = mix(h, quantize(e.getZ()));
+            h = mix(h, Float.floatToIntBits(e.getYRot()));
+            h = mix(h, Float.floatToIntBits(e.getXRot()));
+            h = mix(h, e.getPose().ordinal());
+            if (e instanceof LivingEntity living) {
+                h = mix(h, Float.floatToIntBits(living.yBodyRot));
+                h = mix(h, Float.floatToIntBits(living.yHeadRot));
+                h = mix(h, quantize(living.walkAnimation.position(partialTick)));
+            }
+        }
+        return found.isEmpty() ? 0L : (h == 0L ? 1L : h);
+    }
+
+    public boolean build(int anchorX, int anchorY, int anchorZ, boolean models, float partialTick) {
+        vertexCount = 0;
+        entityCount = 0;
+        triFloats = 0;
+        if (found.isEmpty()) return false;
+
+        for (Entity e : found) {
             boolean captured = false;
             if (models) {
                 capture.reset();
@@ -55,7 +84,12 @@ public final class EntityOccluders {
         }
         if (triFloats == 0) return false;
 
-        FloatBuffer buf = BufferUtils.createFloatBuffer(triFloats);
+        if (upload == null || upload.capacity() < triFloats) {
+            if (upload != null) MemoryUtil.memFree(upload);
+            upload = MemoryUtil.memAllocFloat(Math.max(triFloats, tri.length));
+        }
+        FloatBuffer buf = upload;
+        buf.clear();
         buf.put(tri, 0, triFloats).flip();
 
         if (vao == 0) {
@@ -87,7 +121,17 @@ public final class EntityOccluders {
     public void dispose() {
         if (vbo != 0) { GL15.glDeleteBuffers(vbo); vbo = 0; }
         if (vao != 0) { GL30.glDeleteVertexArrays(vao); vao = 0; }
+        if (upload != null) { MemoryUtil.memFree(upload); upload = null; }
+        found.clear();
         vertexCount = 0;
+    }
+
+    private static long mix(long h, long v) {
+        return (h ^ v) * 1099511628211L;
+    }
+
+    private static long quantize(double v) {
+        return Math.round(v * 64.0);
     }
 
     private void appendCapturedQuads() {

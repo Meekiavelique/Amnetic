@@ -2,7 +2,6 @@ package com.meekdev.amnetic.client.framebuffer.internal;
 
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryUtil;
 
@@ -58,14 +57,15 @@ public final class Attachment {
                 glId = GL11.glGenTextures();
                 GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
                 setTextureParams();
-                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL14.GL_DEPTH_COMPONENT24,
-                        width, height, 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, MemoryUtil.NULL);
+                int depth = DepthFormat.internalFormat();
+                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, depth,
+                        width, height, 0, DepthFormat.pixelFormat(depth), DepthFormat.pixelType(depth), MemoryUtil.NULL);
                 GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
             }
             case DEPTH_RENDERBUFFER -> {
                 glId = GL30.glGenRenderbuffers();
                 GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, glId);
-                GL30.glRenderbufferStorage(GL30.GL_RENDERBUFFER, GL14.GL_DEPTH_COMPONENT24, width, height);
+                GL30.glRenderbufferStorage(GL30.GL_RENDERBUFFER, DepthFormat.internalFormat(), width, height);
                 GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, 0);
             }
         }

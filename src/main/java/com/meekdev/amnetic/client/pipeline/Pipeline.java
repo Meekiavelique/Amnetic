@@ -3,7 +3,9 @@ package com.meekdev.amnetic.client.pipeline;
 import com.meekdev.amnetic.client.pipeline.internal.GpuTimer;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.GlState;
+//? if >=1.21 {
 import com.meekdev.amnetic.client.ui.AmneticEditor;
+//?}
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,15 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/** the render pipeline driver: one explicit ordered place where every pass declares which RenderStage it
- *  runs in. AmneticClient drives the vanilla hooks and asks the pipeline to runStage each stage in frame
- *  order; the pipeline runs that stage's passes by order, isolates each pass so a thrown exception can't
- *  kill the frame, and resets GL state to a clean baseline after the stage so nothing leaks between passes.
- *  third-party mods register the same way as internal passes:
- *  <pre>{@code
- *  PassHandle h = Pipeline.add(RenderStage.AFTER_WATER, ctx -> renderMyBillboards(ctx));
- *  }</pre> */
 public final class Pipeline {
+
+    private static volatile boolean gpuTimings;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Pipeline");
 
@@ -91,6 +87,14 @@ public final class Pipeline {
     }
 
     // true if a stage has any registered pass, lets callers skip work entirely when nothing is registered
+    public static void gpuTimings(boolean enabled) {
+        gpuTimings = enabled;
+    }
+
+    public static boolean gpuTimings() {
+        return gpuTimings;
+    }
+
     public static boolean has(RenderStage stage) {
         return !STAGES.get(stage).isEmpty();
     }
@@ -101,7 +105,11 @@ public final class Pipeline {
         if (list.isEmpty()) return;
         // GL_TIME_ELAPSED queries force driver serialization around every pass, only pay that when the
         // profiler inspector is actually open. CPU timing (nanoTime) is cheap and stays on
-        boolean gpuProfile = AmneticEditor.isEnabled();
+        //? if >=1.21 {
+        boolean gpuProfile = gpuTimings || AmneticEditor.isEnabled();
+        //?} else {
+        /*boolean gpuProfile = gpuTimings;
+        *///?}
         for (PassHandle h : list) {
             if (h.removed || !h.enabled) continue;
             RenderPass pass = h.pass;

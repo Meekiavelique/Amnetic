@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.render.LevelCamera;
 import com.meekdev.amnetic.client.camera.internal.FrameView;
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
@@ -118,7 +119,7 @@ public final class InstanceMeshRegistry {
         if (cam == null) return null;
 
         Minecraft client = Minecraft.getInstance();
-        float deltaTick = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+        float deltaTick = VanillaCompat.partialTick(true);
 
         Matrix4f view = FrameView.INSTANCE
                 .get(new Matrix4f(), cam.viewRotationMatrix);
@@ -195,6 +196,7 @@ public final class InstanceMeshRegistry {
                 if (entry.mesh().phase() != phase || !entry.mesh().writeGBuffer()) continue;
                 try {
                     entry.render(ctx);
+                    if (entry.mesh().isEmissive()) GBufferTargets.INSTANCE.markEmissive();
                 } catch (Exception e) {
                     LOGGER.error("Amnetic: error rendering G-buffer mesh {}", entry.id(), e);
                 }

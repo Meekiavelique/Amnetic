@@ -58,7 +58,11 @@ public final class PosedMesh {
     /*public void captureFrom(Model model, PoseStack poseStack) {
     *///?}
         consumer.begin();
+        //? if >=1.21 {
         model.renderToBuffer(poseStack, consumer, 0, 0);
+        //?} else {
+        /*model.renderToBuffer(poseStack, consumer, 0, 0, 1f, 1f, 1f, 1f);
+        *///?}
         captured = true;
     }
 }

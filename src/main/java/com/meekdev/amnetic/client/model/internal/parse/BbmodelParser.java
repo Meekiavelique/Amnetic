@@ -83,7 +83,7 @@ public final class BbmodelParser {
         if (ordered.isEmpty()) {
             ordered.add(new Tex(ir.addMaterial(blank()), resW, resH));
         }
-        Tex fallback = ordered.getFirst();
+        Tex fallback = ordered.get(0);
 
         List<RenderUtils.RenderableMesh> meshes;
         try {
@@ -310,10 +310,10 @@ public final class BbmodelParser {
     private static float[] point(Keyframe keyframe, float missing) {
         float[] out = {missing, missing, missing};
         List<DataPoint> points = keyframe.getDataPoints();
-        if (points == null || points.isEmpty() || points.getFirst() == null) {
+        if (points == null || points.isEmpty() || points.get(0) == null) {
             return out;
         }
-        DataPoint point = points.getFirst();
+        DataPoint point = points.get(0);
         out[0] = number(point.getX(), missing);
         out[1] = number(point.getY(), missing);
         out[2] = number(point.getZ(), missing);
@@ -402,7 +402,7 @@ public final class BbmodelParser {
             if (steps == null || steps.isEmpty()) {
                 return matrix;
             }
-            return matrix.mul(matrixOf(List.of(steps.getLast())));
+            return matrix.mul(matrixOf(List.of(steps.get(steps.size() - 1))));
         }
 
         void finish() {

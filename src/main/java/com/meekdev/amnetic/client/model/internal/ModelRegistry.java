@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.render.LevelCamera;
 import com.meekdev.amnetic.client.material.internal.ShadingModelRegistry;
 import java.util.ArrayList;
@@ -205,7 +206,7 @@ public final class ModelRegistry {
 
         float time = 0f;
         if (level != null) {
-            float partial = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+            float partial = VanillaCompat.partialTick(false);
             time = (level.getGameTime() + partial) / 20.0f;
         }
 
@@ -314,6 +315,7 @@ public final class ModelRegistry {
             }
             if (useGBuffer) {
                 gbuffer.setPopulated(true);
+                if (config.isEmissive() || model.internalGpu().hasEmissiveMaterial()) gbuffer.markEmissive();
             }
         } catch (Exception e) {
             LOG.error("Amnetic: error rendering model {}", model.name(), e);
@@ -484,7 +486,7 @@ public final class ModelRegistry {
 
     private InstanceRenderContext buildContext(LevelCamera cam) {
         Minecraft client = Minecraft.getInstance();
-        float delta = client.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+        float delta = VanillaCompat.partialTick(true);
         Matrix4f view = FrameView.INSTANCE.get(new Matrix4f(), cam.viewRotationMatrix);
         Matrix4f projection = FrameView.INSTANCE.getProjection(new Matrix4f(), cam.projectionMatrix);
         Vec3 camPos = cam.pos;

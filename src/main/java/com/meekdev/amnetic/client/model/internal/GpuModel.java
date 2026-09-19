@@ -475,6 +475,13 @@ public final class GpuModel implements AutoCloseable {
         return ir;
     }
 
+    public boolean hasEmissiveMaterial() {
+        for (ModelIR.Material mat : ir.materials()) {
+            if (mat.emR > 0f || mat.emG > 0f || mat.emB > 0f) return true;
+        }
+        return false;
+    }
+
     private void bindMaterial(ModelShader shader, int materialIndex, ModelIR.Material mat) {
         resolveTextures(materialIndex, mat);
 

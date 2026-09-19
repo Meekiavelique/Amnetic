@@ -147,6 +147,22 @@ public final class VanillaCompat {
         };
     }
 
+    public static float partialTick(boolean runsNormally) {
+        //? if >=1.21 {
+        return Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(runsNormally);
+        //?} else {
+        /*return Minecraft.getInstance().getFrameTime();
+        *///?}
+    }
+
+    public static float realtimeDeltaTicks() {
+        //? if >=1.21 {
+        return Minecraft.getInstance().getDeltaTracker().getRealtimeDeltaTicks();
+        //?} else {
+        /*return Minecraft.getInstance().getDeltaFrameTime();
+        *///?}
+    }
+
     public static long windowHandle() {
         //? if >=1.21.9 {
         return Minecraft.getInstance().getWindow().handle();

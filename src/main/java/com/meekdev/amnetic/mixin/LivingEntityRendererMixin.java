@@ -99,7 +99,11 @@ public abstract class LivingEntityRendererMixin {
     }
 
     @Inject(method = "render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+            //? if >=1.21 {
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/EntityModel;renderToBuffer(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;III)V"))
+            //?} else {
+            /^at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/EntityModel;renderToBuffer(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;IIFFFF)V"))
+            ^///?}
     private void amnetic$captureMesh(LivingEntity entity, float yaw, float partialTick, PoseStack poseStack,
                                      MultiBufferSource buffers, int light, CallbackInfo ci) {
         if (MeshTapRegistry.INSTANCE.isEmpty()) return;

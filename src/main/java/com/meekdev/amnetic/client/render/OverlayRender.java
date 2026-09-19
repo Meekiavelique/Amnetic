@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.render;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
@@ -15,7 +16,7 @@ public final class OverlayRender {
         CameraSnapshot cam = CameraSnapshot.current();
         if (cam == null) return;
         Minecraft mc = Minecraft.getInstance();
-        float delta = mc.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+        float delta = VanillaCompat.partialTick(true);
 
         int prevFbo = MainTargetFramebuffer.bind();
         try {

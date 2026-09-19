@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
+import com.meekdev.amnetic.client.framebuffer.internal.DepthFormat;
 import com.meekdev.amnetic.client.post.UniformValue;
 import com.meekdev.amnetic.client.render.GlState;
 import com.mojang.blaze3d.opengl.GlStateManager;
@@ -24,7 +25,6 @@ import org.joml.Vector2f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL13;
-import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 
@@ -237,11 +237,13 @@ final class PostPipeline implements AutoCloseable {
         Minecraft mc = Minecraft.getInstance();
         RenderTarget main = mc.getMainRenderTarget();
         program.set("ScreenSize", new UniformValue.Vec2Uniform(new Vector2f(main.width, main.height)));
-        float partial = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        float partial = VanillaCompat.partialTick(false);
         long gameTime = mc.level != null ? mc.level.getGameTime() : 0L;
         program.set("GameTime", new UniformValue.FloatUniform(((gameTime % 24000L) + partial) / 24000f));
         program.set("GlintAlpha", new UniformValue.FloatUniform(mc.options.glintStrength().get().floatValue()));
+        //? if >=1.20.5 {
         program.set("MenuBlurRadius", new UniformValue.IntUniform(mc.options.menuBackgroundBlurriness().get()));
+        //?}
     }
 
     private Surface resolve(Identifier target, Map<Identifier, Surface> frame, Function<Identifier, RenderTarget> external) {
@@ -271,7 +273,8 @@ final class PostPipeline implements AutoCloseable {
             s.width = w;
             s.height = h;
             s.color = texture(GL11.GL_RGBA8, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, w, h);
-            s.depth = texture(GL14.GL_DEPTH_COMPONENT24, GL11.GL_DEPTH_COMPONENT, GL11.GL_UNSIGNED_INT, w, h);
+            int depthFormat = DepthFormat.internalFormat();
+            s.depth = texture(depthFormat, DepthFormat.pixelFormat(depthFormat), DepthFormat.pixelType(depthFormat), w, h);
             internal.put(target, s);
             fresh = true;
         }

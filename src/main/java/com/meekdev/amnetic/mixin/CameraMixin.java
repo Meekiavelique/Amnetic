@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.mixin;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.camera.internal.CameraController;
 import com.meekdev.amnetic.client.camera.internal.Orthographic;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
@@ -87,7 +88,7 @@ public abstract class CameraMixin {
 
         Minecraft mc = Minecraft.getInstance();
         float naturalFov = ((NaturalFov) mc.gameRenderer).amnetic$naturalFov(
-                (Camera) (Object) this, mc.getDeltaTracker().getGameTimeDeltaPartialTick(true));
+                (Camera) (Object) this, VanillaCompat.partialTick(true));
         CameraController c = CameraController.INSTANCE;
         c.frame(position, yRot, xRot, naturalFov);
     *///?} else {
@@ -98,7 +99,7 @@ public abstract class CameraMixin {
 
         Minecraft mc = Minecraft.getInstance();
         float naturalFov = ((NaturalFov) mc.gameRenderer).amnetic$naturalFov(
-                (Camera) (Object) this, mc.getDeltaTracker().getGameTimeDeltaPartialTick(true));
+                (Camera) (Object) this, VanillaCompat.partialTick(true));
         CameraController c = CameraController.INSTANCE;
         c.frame(position, yRot, xRot, naturalFov);
     *///?}

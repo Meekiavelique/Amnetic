@@ -38,7 +38,10 @@ public final class GBufferTargets {
     private GBufferTargets() {}
 
     public boolean isPopulated() { return populated; }
+    public boolean hasEmissive() { return populated && emissiveWritten; }
+    public void markEmissive() { emissiveWritten = true; }
     public void setPopulated(boolean v) { populated = v; }
+    private boolean emissiveWritten;
     public int normalGlId() { return normalTex; }
     public int materialGlId() { return materialTex; }
     public int emissiveGlId() { return emissiveTex; }
@@ -134,6 +137,7 @@ public final class GBufferTargets {
         clearSideTargets();
         restore(prev);
         populated = false;
+        emissiveWritten = false;
     }
 
     public void dispose() {

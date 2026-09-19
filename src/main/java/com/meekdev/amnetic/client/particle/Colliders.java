@@ -41,7 +41,11 @@ public final class Colliders {
 
             BlockHitResult hit = level.clip(new ClipContext(
                     new Vec3(ox, oy, oz), new Vec3(p.x, p.y, p.z),
+                    //? if >=1.20.5 {
                     ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+                    //?} else {
+                    /*ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (net.minecraft.world.entity.Entity) null));
+                    *///?}
 
             if (hit.getType() == HitResult.Type.MISS) { p.colliding = false; return; }
 

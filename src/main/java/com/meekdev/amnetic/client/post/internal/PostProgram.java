@@ -152,18 +152,16 @@ final class PostProgram implements AutoCloseable {
         }
         Integer loc = looseLocations.get(name);
         if (loc == null || loc < 0) return;
-        switch (value) {
-            case UniformValue.FloatUniform f -> GL20.glUniform1f(loc, f.value());
-            case UniformValue.IntUniform v -> GL20.glUniform1i(loc, v.value());
-            case UniformValue.Vec2Uniform v -> GL20.glUniform2f(loc, v.value().x(), v.value().y());
-            case UniformValue.Vec3Uniform v -> GL20.glUniform3f(loc, v.value().x(), v.value().y(), v.value().z());
-            case UniformValue.IVec3Uniform v -> GL20.glUniform3i(loc, v.value().x(), v.value().y(), v.value().z());
-            case UniformValue.Vec4Uniform v -> GL20.glUniform4f(loc, v.value().x(), v.value().y(), v.value().z(), v.value().w());
-            case UniformValue.Matrix4x4Uniform m -> {
-                float[] a = new float[16];
-                m.value().get(a);
-                GL20.glUniformMatrix4fv(loc, false, a);
-            }
+        if (value instanceof UniformValue.FloatUniform v) GL20.glUniform1f(loc, v.value());
+        else if (value instanceof UniformValue.IntUniform v) GL20.glUniform1i(loc, v.value());
+        else if (value instanceof UniformValue.Vec2Uniform v) GL20.glUniform2f(loc, v.value().x(), v.value().y());
+        else if (value instanceof UniformValue.Vec3Uniform v) GL20.glUniform3f(loc, v.value().x(), v.value().y(), v.value().z());
+        else if (value instanceof UniformValue.IVec3Uniform v) GL20.glUniform3i(loc, v.value().x(), v.value().y(), v.value().z());
+        else if (value instanceof UniformValue.Vec4Uniform v) GL20.glUniform4f(loc, v.value().x(), v.value().y(), v.value().z(), v.value().w());
+        else if (value instanceof UniformValue.Matrix4x4Uniform v) {
+            float[] m = new float[16];
+            v.value().get(m);
+            GL20.glUniformMatrix4fv(loc, false, m);
         }
     }
 

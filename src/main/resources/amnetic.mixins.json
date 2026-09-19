@@ -6,6 +6,7 @@
   "mixins": [],
   "client": [
     "GameRendererMixin",
+    "BufferUploaderMixin",
     "ItemInHandRendererMixin",
     "GlCommandEncoderMixin",
     "MinecraftMainTargetMixin",

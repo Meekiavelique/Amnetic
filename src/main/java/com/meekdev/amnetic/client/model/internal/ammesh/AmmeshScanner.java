@@ -43,13 +43,19 @@ public final class AmmeshScanner {
     }
 
     public static void convertAsync(Identifier source, Runnable onComplete) {
-        if (!IN_FLIGHT.add(source)) return;
         EXECUTOR.submit(() -> {
+            boolean owner = IN_FLIGHT.add(source);
             try {
-                convertOne(source);
+                if (owner) convertOne(source);
             } finally {
-                IN_FLIGHT.remove(source);
-                if (onComplete != null) onComplete.run();
+                if (owner) IN_FLIGHT.remove(source);
+                if (onComplete != null) {
+                    try {
+                        onComplete.run();
+                    } catch (Throwable t) {
+                        LOG.error("Amnetic: failed to load converted model {}", source, t);
+                    }
+                }
             }
         });
     }
@@ -61,11 +67,11 @@ public final class AmmeshScanner {
             for (Identifier id : models.keySet()) {
                 try {
                     convertOne(id);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     LOG.error("Amnetic: failed to convert model {} to .ammesh", id, e);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOG.error("Amnetic: model resource scan failed", e);
         }
     }
@@ -75,7 +81,7 @@ public final class AmmeshScanner {
             byte[] sourceBytes = AmmeshCache.readResourceBytes(source);
             if (AmmeshCache.INSTANCE.getCached(source, sourceBytes).isPresent()) return;
             AmmeshCache.INSTANCE.convertAndStore(source, sourceBytes);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOG.error("Amnetic: failed to convert model {} to .ammesh", source, e);
         }
     }

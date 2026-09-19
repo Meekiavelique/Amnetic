@@ -33,9 +33,13 @@ public final class SurfaceScreen extends Screen {
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float partialTick) {
     }
-    //?} else {
+    //?} else if >=1.20.2 {
     /*@Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    }
+    *///?} else {
+    /*@Override
+    public void renderBackground(GuiGraphics graphics) {
     }
     *///?}
 
@@ -93,11 +97,19 @@ public final class SurfaceScreen extends Screen {
     }
     *///?}
 
+    //? if >=1.20.2 {
     @Override
     public boolean mouseScrolled(double mx, double my, double dx, double dy) {
         if (owner.internalInput().scroll((float) mx, (float) my, (float) dy)) return true;
         return super.mouseScrolled(mx, my, dx, dy);
     }
+    //?} else {
+    /*@Override
+    public boolean mouseScrolled(double mx, double my, double dy) {
+        if (owner.internalInput().scroll((float) mx, (float) my, (float) dy)) return true;
+        return super.mouseScrolled(mx, my, dy);
+    }
+    *///?}
 
     //? if >=1.21.9 {
     @Override

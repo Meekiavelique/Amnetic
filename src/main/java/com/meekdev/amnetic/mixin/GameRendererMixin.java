@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.mixin;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.camera.internal.Orthographic;
 import com.meekdev.amnetic.client.camera.internal.FrameView;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
@@ -14,7 +15,6 @@ import com.meekdev.amnetic.client.render.AfterWorldRender;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
 import com.meekdev.amnetic.client.taa.Taa;
 import com.meekdev.amnetic.client.taa.internal.TaaJitter;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.joml.Matrix4f;
@@ -26,16 +26,19 @@ import org.joml.Matrix4fc;
 //?} else if >=1.21.5 {
 /*import com.meekdev.amnetic.client.camera.internal.CameraController;
 import com.meekdev.amnetic.client.compat.NaturalFov;
-import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
 *///?} else {
 /*import com.meekdev.amnetic.client.camera.internal.CameraController;
 import com.meekdev.amnetic.client.compat.NaturalFov;
-import com.meekdev.amnetic.client.compat.VanillaCompat;
 import net.minecraft.client.Camera;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+*///?}
+//? if >=1.21 {
+import net.minecraft.client.DeltaTracker;
+//?} else {
+/*import com.mojang.blaze3d.vertex.PoseStack;
 *///?}
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -100,7 +103,7 @@ public abstract class GameRendererMixin {
         Matrix4f handProjection = new Matrix4f().perspective(
                 getFov(mainCamera, partialTick, false) * (float) (Math.PI / 180.0),
                 (float) minecraft.getWindow().getWidth() / minecraft.getWindow().getHeight(), 0.05f, 100f);
-    *///?} else {
+    *///?} else if >=1.21 {
     /*@Shadow @Final private Camera mainCamera;
     @Shadow private double getFov(Camera camera, float partialTick, boolean worldFov) { throw new AssertionError(); }
     @Shadow public abstract Matrix4f getProjectionMatrix(double fov);
@@ -133,6 +136,44 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void amnetic$skipHandInCapture(Camera camera, float partialTick, Matrix4f viewRotation, CallbackInfo ci) {
+        if (CaptureManager.INSTANCE.isCapturing()) {
+            ci.cancel();
+            return;
+        }
+        Matrix4f handProjection = getProjectionMatrix(getFov(camera, partialTick, false));
+    *///?} else {
+    /*@Shadow @Final private Camera mainCamera;
+    @Shadow private double getFov(Camera camera, float partialTick, boolean worldFov) { throw new AssertionError(); }
+    @Shadow public abstract Matrix4f getProjectionMatrix(double fov);
+
+    @Unique private boolean amnetic$naturalFovQuery;
+
+    @Override
+    public float amnetic$naturalFov(Camera camera, float partialTick) {
+        amnetic$naturalFovQuery = true;
+        try {
+            return (float) getFov(camera, partialTick, true);
+        } finally {
+            amnetic$naturalFovQuery = false;
+        }
+    }
+
+    @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
+    private void amnetic$applyLens(Camera camera, float partialTick, boolean worldFov, CallbackInfoReturnable<Double> cir) {
+        if (!worldFov || camera != mainCamera || amnetic$naturalFovQuery) return;
+        float fov = amnetic$lens((float) (double) cir.getReturnValue());
+        VanillaCompat.recordWorldFov(fov);
+        cir.setReturnValue((double) fov);
+    }
+
+    @ModifyArg(method = "renderLevel", index = 2, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/LevelRenderer;prepareCullFrustum(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/phys/Vec3;Lorg/joml/Matrix4f;)V"))
+    private Matrix4f amnetic$cullOrthographic(Matrix4f cullProjection) {
+        return Orthographic.active() ? Orthographic.matrix(new Matrix4f()) : cullProjection;
+    }
+
+    @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
+    private void amnetic$skipHandInCapture(PoseStack poseStack, Camera camera, float partialTick, CallbackInfo ci) {
         if (CaptureManager.INSTANCE.isCapturing()) {
             ci.cancel();
             return;
@@ -215,13 +256,23 @@ public abstract class GameRendererMixin {
             method = "render",
             at = @At(
                     value = "INVOKE",
+                    //? if >=1.21 {
                     target = "Lnet/minecraft/client/renderer/GameRenderer;renderLevel(Lnet/minecraft/client/DeltaTracker;)V",
+                    //?} else {
+                    /*target = "Lnet/minecraft/client/renderer/GameRenderer;renderLevel(FJLcom/mojang/blaze3d/vertex/PoseStack;)V",
+                    *///?}
                     shift = At.Shift.BEFORE
             )
     )
+    //? if >=1.21 {
     private void amnetic$sceneCapture(DeltaTracker ticker, boolean renderLevel, CallbackInfo ci) {
         if (renderLevel) CaptureManager.INSTANCE.runCaptures((GameRenderer) (Object) this, ticker);
     }
+    //?} else {
+    /*private void amnetic$sceneCapture(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+        if (renderLevel) CaptureManager.INSTANCE.runCaptures((GameRenderer) (Object) this);
+    }
+    *///?}
 
     @Inject(
             method = "renderLevel",
@@ -230,19 +281,22 @@ public abstract class GameRendererMixin {
                     //? if >=1.21.5 {
                     target = "Lcom/mojang/blaze3d/systems/CommandEncoder;clearDepthTexture(Lcom/mojang/blaze3d/textures/GpuTexture;D)V",
                     shift = At.Shift.BEFORE
-                    //?} else {
+                    //?} else if >=1.21 {
                     /*target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/GameRenderer;Lnet/minecraft/client/renderer/LightTexture;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V",
+                    shift = At.Shift.AFTER
+                    *///?} else {
+                    /*target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/vertex/PoseStack;FJZLnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/GameRenderer;Lnet/minecraft/client/renderer/LightTexture;Lorg/joml/Matrix4f;)V",
                     shift = At.Shift.AFTER
                     *///?}
             )
     )
-    private void amnetic$onPostWorldRender(DeltaTracker ticker, CallbackInfo ci) {
+    private void amnetic$onPostWorldRender(CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
         if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.PRE_GUI)
                 || PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
             PostEffectRegistry.INSTANCE.captureWorldDepthSnapshot(mc.getMainRenderTarget());
         }
-        PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_WORLD, ticker.getGameTimeDeltaPartialTick(true));
+        PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_WORLD, VanillaCompat.partialTick(true));
         AfterWorldRender.fire();
         Pipeline.runStage(RenderStage.OVERLAY);
     }
@@ -260,26 +314,34 @@ public abstract class GameRendererMixin {
                     shift = At.Shift.BEFORE
             )
     )
+    //? if >=1.21 {
     private void amnetic$onPreScreenDepthClear(DeltaTracker ticker, boolean renderLevel, CallbackInfo ci) {
+    //?} else {
+    /*private void amnetic$onPreScreenDepthClear(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+    *///?}
         if (!renderLevel) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
             PostEffectRegistry.INSTANCE.capturePostRenderDepthSnapshot(mc.getMainRenderTarget());
         }
-        PostEffectRegistry.INSTANCE.applyAll(RenderPhase.PRE_GUI, ticker.getGameTimeDeltaPartialTick(true));
+        PostEffectRegistry.INSTANCE.applyAll(RenderPhase.PRE_GUI, VanillaCompat.partialTick(true));
         Pipeline.runStage(RenderStage.BEFORE_GUI);
         LayerSystem.INSTANCE.begin(RenderLayer.GUI);
     }
 
     @Inject(method = "render", at = @At("TAIL"))
+    //? if >=1.21 {
     private void amnetic$onPostRender(DeltaTracker ticker, boolean renderLevel, CallbackInfo ci) {
+    //?} else {
+    /*private void amnetic$onPostRender(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+    *///?}
         LayerSystem.INSTANCE.end(RenderLayer.GUI);
         Minecraft mc = Minecraft.getInstance();
         if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
             PostEffectRegistry.INSTANCE.restorePostRenderDepthSnapshotInto(mc.getMainRenderTarget());
         }
-        PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_RENDER, ticker.getGameTimeDeltaPartialTick(true));
+        PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_RENDER, VanillaCompat.partialTick(true));
         Pipeline.runStage(RenderStage.AFTER_GUI);
     }
 }

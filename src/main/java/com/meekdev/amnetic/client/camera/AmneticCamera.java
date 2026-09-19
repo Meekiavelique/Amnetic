@@ -269,10 +269,15 @@ public final class AmneticCamera {
         if (level == null) return null;
 
         Vec3 end = start.add(dir.scale(maxDistance));
+        //? if >=1.20.5 {
         CollisionContext collision = camEntity != null
                 ? CollisionContext.of(camEntity) : CollisionContext.empty();
         BlockHitResult block = level.clip(new ClipContext(
                 start, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, collision));
+        //?} else {
+        /*BlockHitResult block = level.clip(new ClipContext(
+                start, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, camEntity));
+        *///?}
 
         double reach = block.getType() == HitResult.Type.MISS
                 ? maxDistance : start.distanceTo(block.getLocation());

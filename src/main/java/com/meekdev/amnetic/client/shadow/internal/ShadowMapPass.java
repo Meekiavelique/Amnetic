@@ -71,6 +71,8 @@ public final class ShadowMapPass {
     private final Matrix4f dynamicView = new Matrix4f();
     private final Matrix4f dynamicViewProj = new Matrix4f();
     private boolean dynamicCasters;
+    private int casterFlushFrames;
+    private static final int CASTER_FLUSH_FRAMES = 4;
 
     private final float[] spotViewProj = new float[ShadowSettings.MAX_SPOT * 16];
     private final int[] savedViewport = new int[4]; // reused each bake frame (no per-frame allocation)
@@ -140,7 +142,7 @@ public final class ShadowMapPass {
         ShadowSettings s = ShadowSettings.defaults();
         int res = s.resolution();
         float maxDist2 = s.maxDistance() * s.maxDistance();
-        partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        partialTick = VanillaCompat.partialTick(false);
 
         // gather candidates before any GL work so a lightless scene skips it all, notably the glGetInteger
         // state save which drains the GL pipeline (worse under the profiler's per-pass timer queries).
@@ -200,7 +202,10 @@ public final class ShadowMapPass {
             GL11.glEnable(GL11.GL_SCISSOR_TEST);
 
             dirtyBaked = 0;
-            dynamicCasters = ModelRegistry.INSTANCE.hasShadowCasters() || InstanceMeshRegistry.INSTANCE.hasShadowCasters();
+            boolean casters = ModelRegistry.INSTANCE.hasShadowCasters() || InstanceMeshRegistry.INSTANCE.hasShadowCasters();
+            if (casters) casterFlushFrames = CASTER_FLUSH_FRAMES;
+            else if (casterFlushFrames > 0) casterFlushFrames--;
+            dynamicCasters = casters || casterFlushFrames > 0;
 
             final double ex = cam.eye.x, ey = cam.eye.y, ez = cam.eye.z;
             candidates.sort((a, b) -> Double.compare(dist2(a, ex, ey, ez), dist2(b, ex, ey, ez)));
@@ -258,9 +263,7 @@ public final class ShadowMapPass {
         OccluderCache.Collected col = OccluderCache.getOrCompute(l.id(), level,
                 (float) l.x(), (float) l.y(), (float) l.z(), l.range());
         OccluderMesh mesh = meshes.get(l.id(), col);
-        boolean ents = s.entityShadows() && entities.build(level, l.x(), l.y(), l.z(), l.range(),
-                col.anchorX, col.anchorY, col.anchorZ, s.entityModels(), partialTick);
-        if (ents) entityBoxes += entities.boxCount();
+        long entitySig = s.entityShadows() ? entities.gather(level, l.x(), l.y(), l.z(), l.range(), partialTick) : 0L;
 
         float fovDeg = Math.max(1f, 2f * (float) Math.toDegrees(Math.acos(clampCos(l.cosOuter()))));
         float far = Math.max(l.range(), NEAR + 0.1f);
@@ -271,9 +274,11 @@ public final class ShadowMapPass {
                 l.dirX(), l.dirY(), l.dirZ()));
         viewProj.get(spotViewProj, tile * 16);
 
-        if (!shouldBake(l.id(), sigOf(col.list, l.x(), l.y(), l.z(), l.dirX(), l.dirY(), l.dirZ()), tile, ents || dynamicCasters, s)) {
+        if (!shouldBake(l.id(), sigOf(col.list, l.x(), l.y(), l.z(), l.dirX(), l.dirY(), l.dirZ()) ^ entitySig, tile, dynamicCasters, s)) {
             return;
         }
+        boolean ents = entitySig != 0L && entities.build(col.anchorX, col.anchorY, col.anchorZ, s.entityModels(), partialTick);
+        if (ents) entityBoxes += entities.boxCount();
 
         SpotShadowAtlas.bindFbo();
         int px = SpotShadowAtlas.tilePixelX(tile), py = SpotShadowAtlas.tilePixelY(tile), ts = SpotShadowAtlas.tileSize();
@@ -299,13 +304,13 @@ public final class ShadowMapPass {
         OccluderCache.Collected col = OccluderCache.getOrCompute(l.id(), level,
                 (float) l.x(), (float) l.y(), (float) l.z(), l.range());
         OccluderMesh mesh = meshes.get(l.id(), col);
-        boolean ents = s.entityShadows() && entities.build(level, l.x(), l.y(), l.z(), l.range(),
-                col.anchorX, col.anchorY, col.anchorZ, s.entityModels(), partialTick);
-        if (ents) entityBoxes += entities.boxCount();
+        long entitySig = s.entityShadows() ? entities.gather(level, l.x(), l.y(), l.z(), l.range(), partialTick) : 0L;
 
-        if (!shouldBake(l.id(), sigOf(col.list, l.x(), l.y(), l.z(), 0f, 0f, 0f), 1000 + slot, ents || dynamicCasters, s)) {
+        if (!shouldBake(l.id(), sigOf(col.list, l.x(), l.y(), l.z(), 0f, 0f, 0f) ^ entitySig, 1000 + slot, dynamicCasters, s)) {
             return;
         }
+        boolean ents = entitySig != 0L && entities.build(col.anchorX, col.anchorY, col.anchorZ, s.entityModels(), partialTick);
+        if (ents) entityBoxes += entities.boxCount();
 
         float far = Math.max(l.range(), NEAR + 0.1f);
         proj.identity().perspective((float) Math.toRadians(90.0), 1f, NEAR, far);
