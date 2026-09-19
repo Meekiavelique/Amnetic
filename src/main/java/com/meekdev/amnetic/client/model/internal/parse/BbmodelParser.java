@@ -4,6 +4,7 @@ import com.meekdev.amnetic.client.model.TextureFilter;
 import com.danrus.bb4j.api.ReadOptions;
 import com.danrus.bb4j.api.utils.RenderUtils;
 import com.danrus.bb4j.io.BbModelReader;
+import com.danrus.bb4j.migrate.steps.AnimationPre50Migration;
 import com.danrus.bb4j.model.BbModelDocument;
 import com.danrus.bb4j.model.animation.Animation;
 import com.danrus.bb4j.model.animation.DataPoint;
@@ -40,6 +41,9 @@ public final class BbmodelParser {
         }
         if (document == null) {
             throw new ModelLoadException("not a readable .bbmodel: " + source);
+        }
+        if (document.getMeta() == null || document.getMeta().getFormatVersion() == null) {
+            new AnimationPre50Migration().migrate(document);
         }
 
         separateCoplanarFaces(document);
@@ -271,10 +275,10 @@ public final class BbmodelParser {
                     }
                     case ROTATION -> {
                         Vector3f rest = skeleton.restEuler(node);
-                        org.joml.Quaternionf q = new org.joml.Quaternionf().rotationXYZ(
-                                (float) Math.toRadians(rest.x + point[0]),
+                        org.joml.Quaternionf q = new org.joml.Quaternionf().rotationZYX(
+                                (float) Math.toRadians(rest.z + point[2]),
                                 (float) Math.toRadians(rest.y + point[1]),
-                                (float) Math.toRadians(rest.z + point[2]));
+                                (float) Math.toRadians(rest.x + point[0]));
                         channel.values[i * 4] = q.x;
                         channel.values[i * 4 + 1] = q.y;
                         channel.values[i * 4 + 2] = q.z;
@@ -431,10 +435,10 @@ public final class BbmodelParser {
                     (float) ((origin[0] + position[0] - parentOrigin[0]) / PIXELS_PER_BLOCK),
                     (float) ((origin[1] + position[1] - parentOrigin[1]) / PIXELS_PER_BLOCK),
                     (float) ((origin[2] + position[2] - parentOrigin[2]) / PIXELS_PER_BLOCK));
-            node.r.rotationXYZ(
-                    (float) Math.toRadians(rotation[0]),
+            node.r.rotationZYX(
+                    (float) Math.toRadians(rotation[2]),
                     (float) Math.toRadians(rotation[1]),
-                    (float) Math.toRadians(rotation[2]));
+                    (float) Math.toRadians(rotation[0]));
             node.s.set((float) scale[0], (float) scale[1], (float) scale[2]);
             node.rebuildLocal();
 
@@ -494,9 +498,9 @@ public final class BbmodelParser {
             double[] scale = or(step.getScale(), 1.0);
             matrix.translate((float) position[0], (float) position[1], (float) position[2]);
             matrix.translate((float) origin[0], (float) origin[1], (float) origin[2]);
-            matrix.rotateX((float) Math.toRadians(rotation[0]));
-            matrix.rotateY((float) Math.toRadians(rotation[1]));
             matrix.rotateZ((float) Math.toRadians(rotation[2]));
+            matrix.rotateY((float) Math.toRadians(rotation[1]));
+            matrix.rotateX((float) Math.toRadians(rotation[0]));
             matrix.scale((float) scale[0], (float) scale[1], (float) scale[2]);
             matrix.translate((float) -origin[0], (float) -origin[1], (float) -origin[2]);
         }
