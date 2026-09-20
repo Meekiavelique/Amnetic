@@ -62,6 +62,10 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
 
     private final Set<Identifier> registeredExtras = new HashSet<>();
     private static final Vector3f SUN = new Vector3f(0f, 1f, 0f);
+    private static final Identifier DEPTH_VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/instanced/shadow_depth.vsh");
+    private static final Identifier DEPTH_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/instanced/shadow_depth.fsh");
+
+    private static CompiledShader depthProgram;
     private final Matrix4f projViewScratch = new Matrix4f();
 
     InstanceMeshEntry(Identifier id, InstancedMesh<T> mesh) {
@@ -160,12 +164,18 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         if (lastInstanceCount == 0 || vao == 0 || shader == null) return;
         if (mesh.geometry().vertexCount() == 0) return;
 
-        shader.bind();
-        shader.uploadProjView(lightViewProj);
-        shader.uploadCameraPos(lastCamX, lastCamY, lastCamZ);
-        shader.uploadWorldSpace(mesh.worldSpace());
-        bindTextureIfNeeded();
-        bindExtraSamplers();
+        CompiledShader depthOnly = mesh.shadowDepthOnly() ? depthProgram() : null;
+        CompiledShader bake = depthOnly != null ? depthOnly : shader;
+        bake.bind();
+        bake.uploadProjView(lightViewProj);
+        bake.uploadCameraPos(lastCamX, lastCamY, lastCamZ);
+        bake.uploadWorldSpace(mesh.worldSpace());
+        if (depthOnly != null) {
+            depthOnly.uploadPerInstanceCast(mesh.perInstanceShadow());
+        } else {
+            bindTextureIfNeeded();
+            bindExtraSamplers();
+        }
 
         GlStateManager._glBindVertexArray(vao);
 
@@ -183,6 +193,13 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             GlStateManager._glBindVertexArray(0);
             GlStateManager._glUseProgram(0);
         }
+    }
+
+    private static CompiledShader depthProgram() {
+        if (depthProgram == null) {
+            depthProgram = CompiledShader.load(DEPTH_VSH, DEPTH_FSH);
+        }
+        return depthProgram;
     }
 
     private void pointInstanceAttributes(int bufferId) {
@@ -366,6 +383,13 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         if (shader != null) {
             shader.close();
             shader = null;
+        }
+    }
+
+    static void invalidateDepthProgram() {
+        if (depthProgram != null) {
+            depthProgram.close();
+            depthProgram = null;
         }
     }
 

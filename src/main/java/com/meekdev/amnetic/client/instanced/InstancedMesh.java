@@ -28,6 +28,8 @@ public final class InstancedMesh<T> {
     final float emissiveStrength;
     final boolean writeGBuffer;
     final boolean castsShadow;
+    final boolean shadowDepthOnly;
+    final boolean perInstanceShadow;
     final boolean staticInstances;
     final boolean gpuCull;
     final boolean worldSpace;
@@ -54,6 +56,8 @@ public final class InstancedMesh<T> {
         this.emissiveStrength = b.emissiveStrength;
         this.writeGBuffer = b.writeGBuffer;
         this.castsShadow = b.castsShadow;
+        this.shadowDepthOnly = b.shadowDepthOnly;
+        this.perInstanceShadow = b.perInstanceShadow;
         this.staticInstances = b.staticInstances;
         this.gpuCull = b.gpuCull;
         this.worldSpace = b.worldSpace;
@@ -85,6 +89,8 @@ public final class InstancedMesh<T> {
     public float emissiveStrength() { return emissiveStrength; }
     public boolean writeGBuffer() { return writeGBuffer; }
     public boolean castsShadow() { return castsShadow; }
+    public boolean shadowDepthOnly() { return shadowDepthOnly; }
+    public boolean perInstanceShadow() { return perInstanceShadow; }
     public boolean staticInstances() { return staticInstances; }
     public boolean gpuCull() { return gpuCull; }
     public boolean worldSpace() { return worldSpace; }
@@ -120,6 +126,8 @@ public final class InstancedMesh<T> {
         private float emissiveStrength = 1.0f;
         private boolean writeGBuffer = false;
         private boolean castsShadow = false;
+        private boolean shadowDepthOnly = false;
+        private boolean perInstanceShadow = false;
         private boolean staticInstances = false;
         private boolean gpuCull = false;
         private boolean worldSpace = false;
@@ -198,6 +206,17 @@ public final class InstancedMesh<T> {
         public Builder<T> castsShadow() {
             this.castsShadow = true;
             return this;
+        }
+
+        public Builder<T> shadowDepthOnly() {
+            this.castsShadow = true;
+            this.shadowDepthOnly = true;
+            return this;
+        }
+
+        public Builder<T> castsShadowPerInstance() {
+            this.perInstanceShadow = true;
+            return shadowDepthOnly();
         }
 
         public Builder<T> emissive() {

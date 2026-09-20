@@ -27,6 +27,7 @@ final class CompiledShader implements AutoCloseable {
     private final int sunDirLoc;
     private final int cameraPosLoc;
     private final int worldSpaceLoc;
+    private final int perInstanceCastLoc;
 
     private CompiledShader(int program) {
         this.program = program;
@@ -38,6 +39,7 @@ final class CompiledShader implements AutoCloseable {
         this.sunDirLoc = GlStateManager._glGetUniformLocation(program, "SunDir");
         this.cameraPosLoc = GlStateManager._glGetUniformLocation(program, "CameraPos");
         this.worldSpaceLoc = GlStateManager._glGetUniformLocation(program, "WorldSpace");
+        this.perInstanceCastLoc = GlStateManager._glGetUniformLocation(program, "PerInstanceCast");
     }
 
     static CompiledShader load(InstancedMesh<?> mesh) {
@@ -55,6 +57,10 @@ final class CompiledShader implements AutoCloseable {
             fshId = toShaderPath(id, ".fsh");
         }
 
+        return load(vshId, fshId);
+    }
+
+    static CompiledShader load(Identifier vshId, Identifier fshId) {
         String vshSrc = loadSource(vshId);
         String fshSrc = loadSource(fshId);
 
@@ -119,6 +125,11 @@ final class CompiledShader implements AutoCloseable {
             m.get(buf);
             GL20.glUniformMatrix4fv(location, false, buf);
         }
+    }
+
+    void uploadPerInstanceCast(boolean perInstance) {
+        if (perInstanceCastLoc == -1) return;
+        GL20.glUniform1i(perInstanceCastLoc, perInstance ? 1 : 0);
     }
 
     void uploadProjView(Matrix4fc m) { uploadMatrix(projViewMatrixLoc, m); }
