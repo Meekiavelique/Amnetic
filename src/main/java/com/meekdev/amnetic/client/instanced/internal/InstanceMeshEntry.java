@@ -5,6 +5,7 @@ import com.meekdev.amnetic.client.compute.ComputeCapabilities;
 import com.meekdev.amnetic.client.instanced.InstanceBatch;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
+import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.model.TextureFilter;
 import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.mojang.blaze3d.opengl.GlStateManager;
@@ -348,6 +349,10 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     }
 
     private static Vector3f sunDirection() {
+        ModelLighting lighting = ModelLighting.INSTANCE;
+        if (lighting.sunSet()) {
+            return SUN.set(lighting.sunX(), lighting.sunY(), lighting.sunZ()).normalize();
+        }
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return SUN.set(0f, 1f, 0f);

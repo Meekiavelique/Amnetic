@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.ibl.internal;
 
+import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import java.nio.ByteBuffer;
@@ -17,6 +18,7 @@ public final class EnvProbe {
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/env/capture.fsh");
 
     private static final int SIZE = 128;
+    private static final int SUN_STEPS = 24;
     private static final float[][] FACES = {
             { 1, 0, 0, 0,-1, 0, 0, 0,-1},
             {-1, 0, 0, 0,-1, 0, 0, 0, 1},
@@ -31,7 +33,7 @@ public final class EnvProbe {
     private int mipLevels;
     private ShaderProgram capture;
     private boolean ready;
-    private int lastDayBucket = Integer.MIN_VALUE;
+    private int lastSunBucket = Integer.MIN_VALUE;
 
     private EnvProbe() {}
 
@@ -39,24 +41,40 @@ public final class EnvProbe {
     public boolean isReady() { return ready; }
     public int maxLod() { return Math.max(0, mipLevels - 1); }
 
-    // bake the cube. dayFraction in [0,1) drives the sun direction, only re-bakes when the sun moves enough
+    private static int bucketOf(float x, float y, float z) {
+        int bx = Math.round(x * SUN_STEPS);
+        int by = Math.round(y * SUN_STEPS);
+        int bz = Math.round(z * SUN_STEPS);
+        return (bx * 401 + by) * 401 + bz;
+    }
+
+    // bake the cube from the scene sun, only re-baking when it has moved enough to matter
     public void update(float dayFraction) {
-        int bucket = (int) (dayFraction * 96f);
-        if (ready && bucket == lastDayBucket) return;
-        lastDayBucket = bucket;
+        ModelLighting lighting = ModelLighting.INSTANCE;
+        float sunX;
+        float sunY;
+        float sunZ;
+        if (lighting.sunSet()) {
+            sunX = lighting.sunX();
+            sunY = lighting.sunY();
+            sunZ = lighting.sunZ();
+        } else {
+            double phi = (dayFraction - 0.25) * 2.0 * Math.PI;
+            sunX = (float) -Math.sin(phi);
+            sunY = (float) Math.cos(phi);
+            sunZ = 0f;
+        }
+        float inv = 1f / (float) Math.sqrt(sunX * sunX + sunY * sunY + sunZ * sunZ);
+        sunX *= inv; sunY *= inv; sunZ *= inv;
+
+        int bucket = bucketOf(sunX, sunY, sunZ);
+        if (ready && bucket == lastSunBucket) return;
+        lastSunBucket = bucket;
 
         if (capture == null) {
             capture = new ShaderProgram(VSH, FSH);
             allocate();
         }
-
-        // sun direction from time of day, matches the model shader's intent (high at noon)
-        float ang = dayFraction * 6.2831853f;
-        float sunX = (float) Math.sin(ang) * 0.6f;
-        float sunY = (float) Math.cos(ang);
-        float sunZ = 0.35f;
-        float inv = 1f / (float) Math.sqrt(sunX * sunX + sunY * sunY + sunZ * sunZ);
-        sunX *= inv; sunY *= inv; sunZ *= inv;
 
         int prevFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         int[] vp = new int[4];
@@ -115,6 +133,6 @@ public final class EnvProbe {
         if (fbo != 0) { GL30.glDeleteFramebuffers(fbo); fbo = 0; }
         if (cube != 0) { GL11.glDeleteTextures(cube); cube = 0; }
         ready = false;
-        lastDayBucket = Integer.MIN_VALUE;
+        lastSunBucket = Integer.MIN_VALUE;
     }
 }
