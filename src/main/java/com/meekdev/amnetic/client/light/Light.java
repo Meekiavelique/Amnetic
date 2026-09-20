@@ -227,6 +227,14 @@ public final class Light {
         LightRegistry.INSTANCE.remove(this);
     }
 
+    public boolean isRegistered() {
+        return !removed;
+    }
+
+    public void markRemoved() {
+        removed = true;
+    }
+
     public long id() {
         return id;
     }

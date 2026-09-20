@@ -193,6 +193,13 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
             vis = mix(vec3(1.0), vis, sStrength * sFade * lightFade);
         }
     }
+    if (type == 2) {
+        float visL = dot(vis, vec3(1.0 / 3.0));
+        float facing = smoothstep(0.0, 0.35, ndotl);
+        sunShadowOut += intens * facing * (1.0 - visL);
+        return vec3(0.0);
+    }
+
     if (vis.r + vis.g + vis.b <= 0.0) return vec3(0.0);
 
     vec3 H = normalize(L + V);
@@ -200,15 +207,6 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     float shininess = mix(256.0, 4.0, clamp(rough, 0.0, 1.0));
     float spec = pow(ndoth, shininess) * f0;
     specOut += lcol * intens * atten * ndotl * spec * vis;
-
-    // lit scene, not material albedo, so adding sun radiance would double-light everything. instead
-    // the sun only carves shadows: it reports how much direct light the shadow removes and main()
-    // darkens by that amount. intensity therefore controls shadow depth, not brightness
-    if (type == 2) {
-        float visL = dot(vis, vec3(1.0 / 3.0));
-        sunShadowOut += intens * ndotl * (1.0 - visL);
-        return vec3(0.0);
-    }
 
     vec3 radiance = lcol * intens * ndotl * atten * vis;
     return radiance;

@@ -15,7 +15,10 @@ public final class LightRegistry {
 
     public void add(Light light) { if (!lights.contains(light)) lights.add(light); }
     public void remove(Light light) { lights.remove(light); }
-    public void clear() { lights.clear(); }
+    public void clear() {
+        for (Light light : lights) light.markRemoved();
+        lights.clear();
+    }
 
     public List<Light> all() { return lights; }
     public boolean isEmpty() { return lights.isEmpty(); }
