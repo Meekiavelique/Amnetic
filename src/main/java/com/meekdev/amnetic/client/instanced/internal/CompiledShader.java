@@ -10,6 +10,8 @@ import org.lwjgl.system.MemoryStack;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
+import java.util.HashMap;
+import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
@@ -28,6 +30,7 @@ final class CompiledShader implements AutoCloseable {
     private final int cameraPosLoc;
     private final int worldSpaceLoc;
     private final int perInstanceCastLoc;
+    private final Map<String, Integer> customLocations = new HashMap<>();
 
     private CompiledShader(int program) {
         this.program = program;
@@ -124,6 +127,18 @@ final class CompiledShader implements AutoCloseable {
             FloatBuffer buf = stack.mallocFloat(16);
             m.get(buf);
             GL20.glUniformMatrix4fv(location, false, buf);
+        }
+    }
+
+    void uploadCustom(String name, float[] values) {
+        int location = customLocations.computeIfAbsent(name, key -> GlStateManager._glGetUniformLocation(program, key));
+        if (location == -1 || values == null) return;
+        switch (values.length) {
+            case 1 -> GL20.glUniform1f(location, values[0]);
+            case 2 -> GL20.glUniform2f(location, values[0], values[1]);
+            case 3 -> GL20.glUniform3f(location, values[0], values[1], values[2]);
+            case 4 -> GL20.glUniform4f(location, values[0], values[1], values[2], values[3]);
+            default -> { }
         }
     }
 

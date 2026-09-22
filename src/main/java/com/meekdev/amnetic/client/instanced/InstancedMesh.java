@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.minecraft.resources.Identifier;
 
 public final class InstancedMesh<T> {
+    public record CustomUniform(String name, Supplier<float[]> value) {}
 
     final MeshData geometry;
     final InstanceLayout vertexLayout;
@@ -28,6 +30,7 @@ public final class InstancedMesh<T> {
     final float emissiveStrength;
     final boolean writeGBuffer;
     final boolean castsShadow;
+    final List<CustomUniform> customUniforms;
     final boolean shadowDepthOnly;
     final boolean perInstanceShadow;
     final boolean staticInstances;
@@ -56,6 +59,7 @@ public final class InstancedMesh<T> {
         this.emissiveStrength = b.emissiveStrength;
         this.writeGBuffer = b.writeGBuffer;
         this.castsShadow = b.castsShadow;
+        this.customUniforms = List.copyOf(b.customUniforms);
         this.shadowDepthOnly = b.shadowDepthOnly;
         this.perInstanceShadow = b.perInstanceShadow;
         this.staticInstances = b.staticInstances;
@@ -89,6 +93,7 @@ public final class InstancedMesh<T> {
     public float emissiveStrength() { return emissiveStrength; }
     public boolean writeGBuffer() { return writeGBuffer; }
     public boolean castsShadow() { return castsShadow; }
+    public List<CustomUniform> customUniforms() { return customUniforms; }
     public boolean shadowDepthOnly() { return shadowDepthOnly; }
     public boolean perInstanceShadow() { return perInstanceShadow; }
     public boolean staticInstances() { return staticInstances; }
@@ -126,6 +131,7 @@ public final class InstancedMesh<T> {
         private float emissiveStrength = 1.0f;
         private boolean writeGBuffer = false;
         private boolean castsShadow = false;
+        private final List<CustomUniform> customUniforms = new ArrayList<>();
         private boolean shadowDepthOnly = false;
         private boolean perInstanceShadow = false;
         private boolean staticInstances = false;
@@ -205,6 +211,11 @@ public final class InstancedMesh<T> {
 
         public Builder<T> castsShadow() {
             this.castsShadow = true;
+            return this;
+        }
+
+        public Builder<T> uniform(String name, Supplier<float[]> value) {
+            this.customUniforms.add(new CustomUniform(name, value));
             return this;
         }
 

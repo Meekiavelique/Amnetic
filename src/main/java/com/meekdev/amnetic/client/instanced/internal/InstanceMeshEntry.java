@@ -202,6 +202,12 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         return depthProgram;
     }
 
+    private void uploadCustomUniforms(CompiledShader program) {
+        for (InstancedMesh.CustomUniform uniform : mesh.customUniforms()) {
+            program.uploadCustom(uniform.name(), uniform.value().get());
+        }
+    }
+
     private void pointInstanceAttributes(int bufferId) {
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, bufferId);
         mesh.layout().setupVaoAttributes();
@@ -220,6 +226,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             shader.uploadTime(time);
             shader.uploadCameraPos(cameraPos.x, cameraPos.y, cameraPos.z);
             shader.uploadWorldSpace(mesh.worldSpace());
+            uploadCustomUniforms(shader);
             Vector3f sun = sunDirection();
             shader.uploadSunDir(sun.x, sun.y, sun.z);
             bindTextureIfNeeded();
@@ -250,6 +257,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             Vec3 cam = ctx.cameraPos();
             shader.uploadCameraPos(cam.x, cam.y, cam.z);
             shader.uploadWorldSpace(mesh.worldSpace());
+            uploadCustomUniforms(shader);
             Vector3f sun = sunDirection();
             shader.uploadSunDir(sun.x, sun.y, sun.z);
             bindTextureIfNeeded();
