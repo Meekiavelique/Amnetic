@@ -48,6 +48,12 @@ public final class ShadingModel {
         return target;
     }
 
+    public ShadingModel vertex(String vertexBody) {
+        ShadingModel target = owned ? this : register(this::passthrough);
+        ShadingModelRegistry.INSTANCE.attachVertex(target.id, () -> vertexBody);
+        return target;
+    }
+
     private ShadingModel register(Supplier<String> body) {
         int newId = base == Base.FLAT
                 ? ShadingModelRegistry.INSTANCE.registerFlatShaded(body)

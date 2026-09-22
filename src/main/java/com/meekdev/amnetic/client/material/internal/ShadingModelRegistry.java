@@ -92,8 +92,9 @@ public final class ShadingModelRegistry {
           .append("    vec3 fragPos;\n")
           .append("    float roughness;\n")
           .append("    float metallic;\n")
-          .append("    vec3 radiance;\n") // standard PBR result already computed, for tinting/replacing
-          .append("    vec3 lightmap;\n") // vanilla lightmap colour sampled at this fragment
+          .append("    vec3 radiance;\n")
+          .append("    vec3 lightmap;\n")
+          .append("    float time;\n")
           .append("};\n\n")
           .append("vec3 shadeCustomMaterial(int materialId, GBufferSample s, out bool handled) {\n")
           .append("    handled = true;\n");

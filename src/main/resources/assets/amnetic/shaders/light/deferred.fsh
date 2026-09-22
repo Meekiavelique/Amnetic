@@ -169,7 +169,7 @@ void main() {
         bool handled;
         vec3 custom = shadeCustomMaterial(materialId,
                 GBufferSample(albedo, N, fragPos, rough, metallic, outColor,
-                        texture(LightmapSampler, lightUV).rgb), handled);
+                        texture(LightmapSampler, lightUV).rgb, LightTime), handled);
         if (handled) outColor = custom;
     }
 
