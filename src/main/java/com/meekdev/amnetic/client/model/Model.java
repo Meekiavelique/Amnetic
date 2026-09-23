@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.model.internal.FlatProgram;
 import com.meekdev.amnetic.client.material.ShadingModel;
+import com.meekdev.amnetic.client.material.SurfaceInputs;
 import com.meekdev.amnetic.client.model.internal.GpuModel;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import com.meekdev.amnetic.client.model.internal.ModelLod;
@@ -24,10 +25,14 @@ import org.joml.Vector3f;
 public final class Model {
 
     public record Draw(Matrix4f world, Matrix4f[] pose,
-                       float blockLight, float skyLight, float emissive) {
+                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs) {
 
         public Draw(Matrix4f world, Matrix4f[] pose) {
-            this(world, pose, Float.NaN, Float.NaN, Float.NaN);
+            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null);
+        }
+
+        public Draw(Matrix4f world, Matrix4f[] pose, float blockLight, float skyLight, float emissive) {
+            this(world, pose, blockLight, skyLight, emissive, null);
         }
     }
 
@@ -208,6 +213,13 @@ public final class Model {
     public Model renderPosed(Matrix4fc worldTransform, Matrix4f[] pose) {
         if (!disposed) {
             pending.add(new Draw(new Matrix4f(worldTransform), pose));
+        }
+        return this;
+    }
+
+    public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs) {
+        if (!disposed) {
+            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs));
         }
         return this;
     }

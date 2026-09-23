@@ -1,6 +1,8 @@
 package com.meekdev.amnetic.client.material.internal;
 
+import com.meekdev.amnetic.client.material.SurfaceInputs;
 import com.meekdev.amnetic.client.render.ShaderProgram;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +17,9 @@ public final class ShadingModelRegistry {
     public static final Identifier VERTEX_LADDER_INCLUDE =
             Identifier.fromNamespaceAndPath("amnetic", "shaders/material/custom_vertex_ladder.glsl");
 
+    public static final Identifier SURFACE_LADDER_INCLUDE =
+            Identifier.fromNamespaceAndPath("amnetic", "shaders/material/custom_surface_ladder.glsl");
+
     public static final ShadingModelRegistry INSTANCE = new ShadingModelRegistry();
 
     public static final int FLAT_ID = 255;
@@ -23,6 +28,10 @@ public final class ShadingModelRegistry {
 
     private final Map<Integer, Supplier<String>> snippets = new LinkedHashMap<>();
     private final Map<Integer, Supplier<String>> vertexSnippets = new LinkedHashMap<>();
+    private final Map<Integer, Supplier<String>> surfaceSnippets = new LinkedHashMap<>();
+    private boolean surfaceDirty;
+    private final ArrayDeque<Integer> freeIds = new ArrayDeque<>();
+    private final ArrayDeque<Integer> freeFlatIds = new ArrayDeque<>();
     private int nextId = 1;
     private int nextFlatId = FLAT_SHADED_BASE;
     private boolean dirty;
@@ -31,6 +40,7 @@ public final class ShadingModelRegistry {
     private ShadingModelRegistry() {
         ShaderProgram.registerVirtualSource(LADDER_INCLUDE, this::generateLadder);
         ShaderProgram.registerVirtualSource(VERTEX_LADDER_INCLUDE, this::generateVertexLadder);
+        ShaderProgram.registerVirtualSource(SURFACE_LADDER_INCLUDE, this::generateSurfaceLadder);
         snippets.put(FLAT_ID, () -> "return s.albedo;");
     }
 
@@ -38,6 +48,12 @@ public final class ShadingModelRegistry {
     }
 
     public synchronized int register(Supplier<String> snippetGlsl) {
+        Integer reused = freeIds.poll();
+        if (reused != null) {
+            snippets.put(reused, snippetGlsl);
+            dirty = true;
+            return reused;
+        }
         if (nextId >= FLAT_SHADED_BASE) {
             throw new IllegalStateException(
                     "out of shading model ids (max " + (FLAT_SHADED_BASE - 1) + ")");
@@ -49,6 +65,12 @@ public final class ShadingModelRegistry {
     }
 
     public synchronized int registerFlatShaded(Supplier<String> snippetGlsl) {
+        Integer reused = freeFlatIds.poll();
+        if (reused != null) {
+            snippets.put(reused, snippetGlsl);
+            dirty = true;
+            return reused;
+        }
         if (nextFlatId >= FLAT_ID) {
             throw new IllegalStateException("out of flat-shaded shading model ids (max "
                     + (FLAT_ID - 1) + ")");
@@ -62,6 +84,27 @@ public final class ShadingModelRegistry {
     public synchronized void attachVertex(int materialId, Supplier<String> snippetGlsl) {
         vertexSnippets.put(materialId, snippetGlsl);
         vertexDirty = true;
+    }
+
+    public synchronized void release(int materialId) {
+        if (materialId <= 0 || materialId == FLAT_ID || !snippets.containsKey(materialId)) return;
+        snippets.remove(materialId);
+        if (vertexSnippets.remove(materialId) != null) vertexDirty = true;
+        if (surfaceSnippets.remove(materialId) != null) surfaceDirty = true;
+        dirty = true;
+        if (materialId >= FLAT_SHADED_BASE) freeFlatIds.add(materialId);
+        else freeIds.add(materialId);
+    }
+
+    public synchronized void attachSurface(int materialId, String body) {
+        surfaceSnippets.put(materialId, () -> body);
+        surfaceDirty = true;
+    }
+
+    public synchronized boolean consumeSurfaceDirty() {
+        if (!surfaceDirty) return false;
+        surfaceDirty = false;
+        return true;
     }
 
     public synchronized boolean consumeDirty() {
@@ -119,6 +162,32 @@ public final class ShadingModelRegistry {
             }
             sb.append(") {\n        ").append(e.getKey()).append("\n    }\n");
         }
+    }
+
+    private synchronized String generateSurfaceLadder() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("struct SurfaceSample {\n")
+          .append("    vec2 uv;\n")
+          .append("    vec3 albedo;\n")
+          .append("    float alpha;\n")
+          .append("    vec3 emission;\n")
+          .append("    float roughness;\n")
+          .append("    float metallic;\n")
+          .append("    vec3 normal;\n")
+          .append("    vec3 worldPos;\n")
+          .append("    float time;\n")
+          .append("};\n\n")
+          .append("uniform vec4 SurfaceValues[").append(SurfaceInputs.VEC4_SLOTS).append("];\n");
+        for (int slot = 0; slot < SurfaceInputs.TEXTURE_SLOTS; slot++) {
+            sb.append("uniform sampler2D SurfaceTexture").append(slot).append(";\n");
+        }
+        sb.append("\nvoid surfaceCustomMaterial(int materialId, inout SurfaceSample s) {\n");
+        for (Map.Entry<Integer, Supplier<String>> e : surfaceSnippets.entrySet()) {
+            sb.append("    if (materialId == ").append(e.getKey()).append(") {\n")
+              .append(e.getValue().get()).append("\n        return;\n    }\n");
+        }
+        sb.append("}\n");
+        return sb.toString();
     }
 
     private synchronized String generateVertexLadder() {

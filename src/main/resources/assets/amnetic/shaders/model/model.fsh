@@ -44,6 +44,10 @@ uniform float EnvIntensity;
 uniform float Exposure;
 uniform int Tonemap;
 
+uniform float Time;
+
+#include "amnetic:shaders/material/custom_surface_ladder.glsl"
+
 const float PI = 3.14159265359;
 
 // cook-torrance terms
@@ -119,6 +123,18 @@ void main() {
     roughness = clamp(roughness, 0.045, 1.0);
 
     vec3 N = computeNormal();
+
+    vec3 surfaceEmission = vec3(0.0);
+    if (MaterialId != 0) {
+        SurfaceSample surface = SurfaceSample(vUV, albedo.rgb, albedo.a, vec3(0.0), roughness, metallic, N, vWorldPos, Time);
+        surfaceCustomMaterial(MaterialId, surface);
+        albedo = vec4(surface.albedo, surface.alpha);
+        roughness = clamp(surface.roughness, 0.045, 1.0);
+        metallic = clamp(surface.metallic, 0.0, 1.0);
+        N = normalize(surface.normal);
+        surfaceEmission = surface.emission;
+        if (albedo.a < 0.003) discard;
+    }
     vec3 V = normalize(-vWorldPos);
     float NoV = max(dot(N, V), 1e-4);
     vec3 R = reflect(-V, N);
@@ -165,9 +181,9 @@ void main() {
 
     vec3 emissiveColor = Emissive;
     if (HasEmissive == 1) emissiveColor *= texture(EmissiveSampler, vUV).rgb;
-    vec3 emissive = emissiveColor * EmissiveStrength;
+    vec3 emissive = emissiveColor * EmissiveStrength + surfaceEmission;
 
-    float emStrength = clamp(max(max(emissiveColor.r, emissiveColor.g), emissiveColor.b) * EmissiveStrength, 0.0, 1.0);
+    float emStrength = clamp(max(max(emissive.r, emissive.g), emissive.b), 0.0, 1.0);
     float materialIdNorm = float(MaterialId) / 255.0;
     float blockIdx = floor(clamp(vLight.x, 0.0, 1.0) * 15.0 + 0.5);
     float skyIdx = floor(clamp(vLight.y, 0.0, 1.0) * 15.0 + 0.5);

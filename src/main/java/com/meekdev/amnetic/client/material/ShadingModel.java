@@ -18,11 +18,17 @@ public final class ShadingModel {
     private final Base base;
 
     private final boolean owned;
+    private final SurfaceLayout layout;
 
     private ShadingModel(int id, Base base, boolean owned) {
+        this(id, base, owned, SurfaceLayout.EMPTY);
+    }
+
+    private ShadingModel(int id, Base base, boolean owned, SurfaceLayout layout) {
         this.id = id;
         this.base = base;
         this.owned = owned;
+        this.layout = layout;
     }
 
     public static ShadingModel pbr() {
@@ -48,6 +54,17 @@ public final class ShadingModel {
         return target;
     }
 
+    public ShadingModel surface(String source) {
+        SurfaceLayout parsed = SurfaceLayout.parse(source);
+        ShadingModel target = owned ? this : register(this::passthrough);
+        ShadingModelRegistry.INSTANCE.attachSurface(target.id, parsed.body());
+        return new ShadingModel(target.id, base, true, parsed);
+    }
+
+    public SurfaceLayout layout() {
+        return layout;
+    }
+
     public ShadingModel vertex(String vertexBody) {
         ShadingModel target = owned ? this : register(this::passthrough);
         ShadingModelRegistry.INSTANCE.attachVertex(target.id, () -> vertexBody);
@@ -63,6 +80,10 @@ public final class ShadingModel {
 
     private String passthrough() {
         return base == Base.FLAT ? "return s.albedo;" : "return s.radiance;";
+    }
+
+    public void release() {
+        if (owned) ShadingModelRegistry.INSTANCE.release(id);
     }
 
     public int id() {

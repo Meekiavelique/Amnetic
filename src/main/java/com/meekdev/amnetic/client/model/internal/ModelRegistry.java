@@ -187,7 +187,7 @@ public final class ModelRegistry {
                 : FrameView.INSTANCE.getProjection(new Matrix4f(), cam.projectionMatrix);
         Matrix4f projView = projection.mul(view);
 
-        if (ShadingModelRegistry.INSTANCE.consumeVertexDirty()) {
+        if (ShadingModelRegistry.INSTANCE.consumeVertexDirty() | ShadingModelRegistry.INSTANCE.consumeSurfaceDirty()) {
             invalidatePrograms();
         }
 
@@ -376,7 +376,7 @@ public final class ModelRegistry {
             if (!Float.isNaN(draw.skyLight())) {
                 sky = draw.skyLight();
             }
-            pooled(mainPool, n++).set(camRel, draw.pose(), block, sky);
+            pooled(mainPool, n++).set(camRel, draw.pose(), block, sky, draw.inputs());
         }
         return mainPool.subList(0, n);
     }
@@ -469,7 +469,7 @@ public final class ModelRegistry {
             lightRel.m30((float) dx);
             lightRel.m31((float) dy);
             lightRel.m32((float) dz);
-            pooled(shadowPool, n++).set(lightRel, draw.pose(), 1f, 1f);
+            pooled(shadowPool, n++).set(lightRel, draw.pose(), 1f, 1f, null);
         }
         return shadowPool.subList(0, n);
     }

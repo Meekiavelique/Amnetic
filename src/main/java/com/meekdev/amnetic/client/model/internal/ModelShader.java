@@ -10,7 +10,9 @@ import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
+import com.meekdev.amnetic.client.material.SurfaceInputs;
 import org.lwjgl.system.MemoryStack;
 
 final class ModelShader implements AutoCloseable {
@@ -49,6 +51,9 @@ final class ModelShader implements AutoCloseable {
     private final int exposureLoc;
     private final int tonemapLoc;
     private final int timeLoc;
+    private final int surfaceValuesLoc;
+
+    static final int SURFACE_TEXTURE_UNIT = 8;
 
     private ModelShader(int program) {
         this.program = program;
@@ -80,6 +85,7 @@ final class ModelShader implements AutoCloseable {
         this.exposureLoc = uniform("Exposure");
         this.tonemapLoc = uniform("Tonemap");
         this.timeLoc = uniform("Time");
+        this.surfaceValuesLoc = uniform("SurfaceValues");
         bindSamplerUnits();
     }
 
@@ -225,6 +231,17 @@ final class ModelShader implements AutoCloseable {
         }
     }
 
+    private static final float[] NO_VALUES = new float[SurfaceInputs.VEC4_SLOTS * 4];
+
+    void uploadSurface(SurfaceInputs inputs) {
+        if (surfaceValuesLoc != -1) GL20.glUniform4fv(surfaceValuesLoc, inputs == null ? NO_VALUES : inputs.values());
+        for (int slot = 0; slot < SurfaceInputs.TEXTURE_SLOTS; slot++) {
+            GlStateManager._activeTexture(GL13.GL_TEXTURE0 + SURFACE_TEXTURE_UNIT + slot);
+            GlStateManager._bindTexture(inputs == null ? 0 : inputs.textures()[slot]);
+        }
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+    }
+
     void setMaterialId(int id) {
         if (materialIdLoc != -1) {
             GL20.glUniform1i(materialIdLoc, id);
@@ -239,6 +256,9 @@ final class ModelShader implements AutoCloseable {
         setSampler("EmissiveSampler", 3);
         setSampler("EnvCube", 5);
         setSampler("JointMatrixTex", JOINT_UNIT);
+        for (int slot = 0; slot < SurfaceInputs.TEXTURE_SLOTS; slot++) {
+            setSampler("SurfaceTexture" + slot, SURFACE_TEXTURE_UNIT + slot);
+        }
         GlStateManager._glUseProgram(0);
     }
 

@@ -18,6 +18,7 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryUtil;
+import com.meekdev.amnetic.client.material.SurfaceInputs;
 
 public final class GpuModel implements AutoCloseable {
 
@@ -30,18 +31,20 @@ public final class GpuModel implements AutoCloseable {
         Matrix4f[] pose;
         float blockLight;
         float skyLight;
+        SurfaceInputs inputs;
 
         public DrawInstance() {}
 
         public DrawInstance(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight) {
-            set(world, pose, blockLight, skyLight);
+            set(world, pose, blockLight, skyLight, null);
         }
 
-        void set(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight) {
+        void set(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight, SurfaceInputs inputs) {
             this.world.set(world);
             this.pose = pose;
             this.blockLight = blockLight;
             this.skyLight = skyLight;
+            this.inputs = inputs;
         }
 
         public Matrix4f world() { return world; }
@@ -172,11 +175,19 @@ public final class GpuModel implements AutoCloseable {
                 shader.setMaterialId(override);
             }
             applyMaterialState(mat);
-            if (part.skinned) {
-                drawSkinned(shader, part, instances);
-            } else {
-                part.selectLod(lod);
-                drawBatched(shader, part, instances);
+            if (!part.skinned) part.selectLod(lod);
+            // draws carrying their own surface inputs cannot share one instanced call, so the list
+            // is cut wherever the inputs change
+            int start = 0;
+            while (start < instances.size()) {
+                SurfaceInputs inputs = instances.get(start).inputs;
+                int end = start + 1;
+                while (end < instances.size() && instances.get(end).inputs == inputs) end++;
+                shader.uploadSurface(inputs);
+                List<DrawInstance> run = start == 0 && end == instances.size() ? instances : instances.subList(start, end);
+                if (part.skinned) drawSkinned(shader, part, run);
+                else drawBatched(shader, part, run);
+                start = end;
             }
             restoreMaterialState(mat);
         }
