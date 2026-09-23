@@ -155,7 +155,7 @@ void main() {
     float sky = clamp(vLight.y, 0.0, 1.0);
     float block = clamp(vLight.x, 0.0, 1.0);
     // keep some environment indoors so shaded interiors are lit
-    float envScale = mix(0.45, 1.0, sky) * EnvIntensity;
+    float envScale = mix(0.45, 1.0, sky);
 
     // direct sun
     vec3 L = normalize(SunDirection);
@@ -181,9 +181,8 @@ void main() {
         irradiance = skyEnv(N) * envScale + vec3(0.05) * block;
         prefiltered = mix(skyEnv(R), skyEnv(N), roughness) * envScale;
     }
-    vec3 ambientLightScale = vec3(AmbientStrength);
-    irradiance *= ambientLightScale;
-    prefiltered *= ambientLightScale;
+    irradiance *= AmbientStrength;
+    prefiltered *= EnvIntensity;
     vec3 Fr = fresnelSchlickRough(NoV, F0, roughness);
     vec2 brdf = envBRDFApprox(roughness, NoV);
     vec3 kdIbl = (vec3(1.0) - Fr) * (1.0 - metallic);

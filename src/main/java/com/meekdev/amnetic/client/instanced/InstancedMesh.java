@@ -189,6 +189,11 @@ public final class InstancedMesh<T> {
             return this;
         }
 
+        public Builder<T> extraCubeSampler(String uniformName, IntSupplier glTexture, int unit) {
+            this.extraSamplers.add(new ExtraSampler(uniformName, glTexture, unit, true));
+            return this;
+        }
+
         public Builder<T> texture(Identifier id) {
             this.textureId = id;
             return this;

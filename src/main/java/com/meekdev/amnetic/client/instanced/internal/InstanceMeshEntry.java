@@ -351,7 +351,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
                     int name = sampler.glTexture().getAsInt();
                     if (name != 0) {
                         GlStateManager._activeTexture(GL13.GL_TEXTURE0 + sampler.unit());
-                        GlStateManager._bindTexture(name);
+                        if (sampler.cube()) GL11.glBindTexture(GL13.GL_TEXTURE_CUBE_MAP, name);
+                        else GlStateManager._bindTexture(name);
                         shader.uploadSamplerUnit(sampler.uniformName(), sampler.unit());
                     }
                     continue;
