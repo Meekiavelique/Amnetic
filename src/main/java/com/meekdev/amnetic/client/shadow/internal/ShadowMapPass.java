@@ -92,6 +92,12 @@ public final class ShadowMapPass {
     private long lastBakeNanos;
     private float partialTick;
 
+    private final ShadowGovernor governor = new ShadowGovernor();
+    private int settingsVersion = -1;
+    private int sunResolution;
+    private int sunCascades;
+    private float sunDistance;
+
     private ShadowMapPass() {
         // dev hot reload, closing a depth program makes its next begin() recompile
         ShaderHotReload.onReload(() -> {
@@ -112,6 +118,19 @@ public final class ShadowMapPass {
     public float[] sunCascadeRadius() { return sunCascadeRadius; }
 
     public float lastBakeMs() { return lastBakeNanos / 1_000_000f; }
+    /** how many steps the budget has taken the sun shadow down from what was set, 0 = none */
+    public int reduction() { return governor.step(); }
+    /** how far the sun shadow reaches this frame, after the budget */
+    public float sunDistance() { return sunDistance > 0f ? sunDistance : ShadowSettings.defaults().sunDistance(); }
+
+    // the sun values in use, worked out again only when a setting or the budget step changed
+    private void settle(ShadowSettings s) {
+        if (s.version() == settingsVersion && sunCascades > 0) return;
+        settingsVersion = s.version();
+        sunResolution = governor.resolution(s.sunResolution());
+        sunCascades = Math.max(1, Math.min(ShadowSettings.MAX_CASCADES, governor.cascades(s.sunCascades())));
+        sunDistance = governor.distance(s.sunDistance());
+    }
 
     public long vramBytes() {
         long spot = (long) SpotShadowAtlas.atlasSize() * SpotShadowAtlas.atlasSize() * 4L;
@@ -256,6 +275,7 @@ public final class ShadowMapPass {
             GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
             GlStateManager._glUseProgram(0);
             lastBakeNanos = System.nanoTime() - bakeStart;
+            if (governor.observe(lastBakeMs(), s.budgetMs())) settingsVersion = -1;
         }
     }
 
@@ -349,8 +369,9 @@ public final class ShadowMapPass {
         if (dl < 1e-5f) return;
         dx /= dl; dy /= dl; dz /= dl;
 
-        int cascades = Math.max(1, Math.min(ShadowSettings.MAX_CASCADES, s.sunCascades()));
-        SunShadowCascades.ensure(s.sunResolution(), cascades);
+        settle(s);
+        int cascades = sunCascades;
+        SunShadowCascades.ensure(sunResolution, cascades);
         int res = SunShadowCascades.resolution();
 
         // light-space basis in double precision so world-space texel snapping stays exact far from origin
@@ -373,7 +394,7 @@ public final class ShadowMapPass {
         float k2 = tanH * tanH + tanV * tanV;
 
         // practical split scheme: blend of logarithmic (tight near the camera) and uniform
-        float near = NEAR, far = s.sunDistance(), lambda = s.sunSplitLambda();
+        float near = NEAR, far = sunDistance, lambda = s.sunSplitLambda();
         float[] splits = new float[cascades + 1];
         splits[0] = near;
         splits[cascades] = far;

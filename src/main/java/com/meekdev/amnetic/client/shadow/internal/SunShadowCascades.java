@@ -28,9 +28,8 @@ public final class SunShadowCascades {
         resolution = requestedResolution;
         cascades = requestedCascades;
 
-        int prevFbo = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
-        int prevArray = GL11.glGetInteger(GL30.GL_TEXTURE_BINDING_2D_ARRAY);
-
+        // no glGet of the bindings to restore: the budget can reallocate this mid-game, and the shadow
+        // pass puts its framebuffer back itself
         textureId = GlStateManager._genTexture();
         GL11.glBindTexture(GL30.GL_TEXTURE_2D_ARRAY, textureId);
         GL12.glTexImage3D(GL30.GL_TEXTURE_2D_ARRAY, 0, GL30.GL_DEPTH_COMPONENT32F,
@@ -53,8 +52,7 @@ public final class SunShadowCascades {
             throw new IllegalStateException("SunShadowCascades FBO incomplete: 0x" + Integer.toHexString(status));
         }
 
-        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, prevFbo);
-        GL11.glBindTexture(GL30.GL_TEXTURE_2D_ARRAY, prevArray);
+        GL11.glBindTexture(GL30.GL_TEXTURE_2D_ARRAY, 0);
     }
 
     public static void bindLayerForRender(int cascade) {

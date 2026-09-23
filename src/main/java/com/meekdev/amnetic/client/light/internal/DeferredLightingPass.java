@@ -242,7 +242,7 @@ public final class DeferredLightingPass extends ScreenPass {
             }
             p.setInt("SunCascadeCount", pass.sunCascadeCount());
             p.setFloat("SunShadowRes", SunShadowCascades.resolution());
-            p.setFloat("SunShadowDistance", ShadowSettings.defaults().sunDistance());
+            p.setFloat("SunShadowDistance", ShadowMapPass.INSTANCE.sunDistance());
         }
         p.setInt("HasGBuffer", hasGBuffer ? 1 : 0);
         p.setMatrix4("InvViewProj", cam.invViewProj);
