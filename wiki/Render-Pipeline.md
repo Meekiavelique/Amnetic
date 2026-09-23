@@ -105,9 +105,12 @@ stages and layers through `Pipeline.add` / `Pipeline.addLayer`.
 
 ## Profiling
 
-Every pass is timed through `PassProfiler`, keyed by stage and label. CPU timing (`System.nanoTime` around the
-pass) is cheap and always on. GPU timing uses `GL_TIME_ELAPSED` queries, which force driver serialization
-around every pass  - so GPU timers only run while the editor is open, and cost nothing otherwise.
+Every pass is timed through `PassProfiler`, keyed by stage and label: CPU time (`System.nanoTime` around the
+pass) and GPU time from a ring of `GL_TIME_ELAPSED` queries, read back a few frames later once the driver has
+them, so reading never stalls. Nothing is timed, and no query is issued, unless someone watches: the Profiler
+inspector while it is open, or `PassProfiler.INSTANCE.watch()`, which keeps timing on for two seconds.
+`PassProfiler.INSTANCE.sorted()` lists what ran in the last second, most expensive first, and `record(label, nanos)`
+adds work from outside the pipeline to the same list.
 
 ## State contract
 

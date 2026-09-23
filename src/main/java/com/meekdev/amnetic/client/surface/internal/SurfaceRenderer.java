@@ -50,7 +50,7 @@ public final class SurfaceRenderer {
     private void register() {
         if (registered) return;
         registered = true;
-        Pipeline.add(RenderStage.BEFORE_GUI, 50, "Surface", ctx -> render());
+        Pipeline.add(RenderStage.BEFORE_GUI, 50, "HUD Surfaces", ctx -> render());
     }
 
     public void hudMouseMoved(float mx, float my) {

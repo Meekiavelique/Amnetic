@@ -3,9 +3,6 @@ package com.meekdev.amnetic.client.pipeline;
 import com.meekdev.amnetic.client.pipeline.internal.GpuTimer;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.GlState;
-//? if >=1.21 {
-import com.meekdev.amnetic.client.ui.AmneticEditor;
-//?}
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,34 +88,30 @@ public final class Pipeline {
     public static void runStage(RenderStage stage, FrameContext ctx) {
         List<PassHandle> list = STAGES.get(stage);
         if (list.isEmpty()) return;
-        // GL_TIME_ELAPSED queries force driver serialization around every pass, only pay that when the
-        // profiler inspector is actually open. CPU timing (nanoTime) is cheap and stays on
-        //? if >=1.21 {
-        boolean gpuProfile = gpuTimings || AmneticEditor.isEnabled();
-        //?} else {
-        /*boolean gpuProfile = gpuTimings;
-        *///?}
+        boolean profiling = PassProfiler.INSTANCE.active();
+        if (profiling && stage == RenderStage.SETUP) PassProfiler.INSTANCE.frame();
         for (PassHandle h : list) {
             if (h.removed || !h.enabled) continue;
             RenderPass pass = h.pass;
             if (!safeEnabled(pass, stage)) continue;
-            String label = h.label() != null ? h.label() : pass.getClass().getSimpleName();
-            long start = System.nanoTime();
-            if (gpuProfile) {
+            long start = 0;
+            boolean timed = false;
+            if (profiling) {
                 if (h.gpuTimer == null) h.gpuTimer = new GpuTimer();
-                h.gpuTimer.begin();
+                float gpuMs = h.gpuTimer.poll();
+                if (gpuMs >= 0f) h.profile().gpu(gpuMs);
+                timed = h.gpuTimer.begin();
+                start = System.nanoTime();
             }
             try {
                 pass.render(ctx);
             } catch (Exception e) {
                 LOGGER.error("pass in stage {} threw; skipping it this frame", stage, e);
             } finally {
-                if (gpuProfile && h.gpuTimer != null) {
-                    h.gpuTimer.end();
-                    float gpuMs = h.gpuTimer.lastMs();
-                    if (gpuMs >= 0f) PassProfiler.INSTANCE.recordGpu(stage, label, gpuMs);
+                if (profiling) {
+                    if (timed) h.gpuTimer.end();
+                    h.profile().cpu(System.nanoTime() - start);
                 }
-                PassProfiler.INSTANCE.record(stage, label, System.nanoTime() - start);
             }
         }
         GlState.endFullscreen();
