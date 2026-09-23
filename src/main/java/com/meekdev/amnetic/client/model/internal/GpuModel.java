@@ -1,6 +1,11 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
+import com.meekdev.amnetic.client.model.MaterialLook;
+import com.meekdev.amnetic.client.model.Model;
+import com.meekdev.amnetic.client.model.ModelLook;
 import com.meekdev.amnetic.client.model.TextureFilter;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -32,19 +37,29 @@ public final class GpuModel implements AutoCloseable {
         float blockLight;
         float skyLight;
         SurfaceInputs inputs;
+        ModelLook look;
 
         public DrawInstance() {}
 
         public DrawInstance(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight) {
-            set(world, pose, blockLight, skyLight, null);
+            set(world, pose, blockLight, skyLight, null, null);
         }
 
-        void set(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight, SurfaceInputs inputs) {
+        public DrawInstance(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight, ModelLook look) {
+            set(world, pose, blockLight, skyLight, null, look);
+        }
+
+        void set(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight, SurfaceInputs inputs, ModelLook look) {
             this.world.set(world);
             this.pose = pose;
             this.blockLight = blockLight;
             this.skyLight = skyLight;
             this.inputs = inputs;
+            this.look = look;
+        }
+
+        void set(DrawInstance other) {
+            set(other.world, other.pose, other.blockLight, other.skyLight, other.inputs, other.look);
         }
 
         public Matrix4f world() { return world; }
@@ -147,50 +162,133 @@ public final class GpuModel implements AutoCloseable {
         draw(shader, instances, 0);
     }
 
+    public interface Blended {
+        void add(int part, DrawInstance instance);
+    }
+
     public void draw(ModelShader shader, List<DrawInstance> instances, int lod) {
         if (closed || instances.isEmpty()) {
             return;
         }
         ensureUploaded();
 
-        drawPass(shader, instances, false, lod);
-        drawPass(shader, instances, true, lod);
+        drawPass(shader, instances, false, lod, null);
+        drawPass(shader, instances, true, lod, null);
 
         GlStateManager._glBindVertexArray(0);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
-    private void drawPass(ModelShader shader, List<DrawInstance> instances, boolean blendPass, int lod) {
-        for (GpuPart part : parts) {
+    public void drawSolid(ModelShader shader, List<DrawInstance> instances, int lod, Blended later) {
+        if (closed || instances.isEmpty()) {
+            return;
+        }
+        ensureUploaded();
+        drawPass(shader, instances, false, lod, later);
+        GlStateManager._glBindVertexArray(0);
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+    }
+
+    public void drawBlended(ModelShader shader, int partIndex, DrawInstance instance) {
+        GpuPart part = closed || partIndex < 0 || partIndex >= parts.length ? null : parts[partIndex];
+        if (part == null) {
+            return;
+        }
+        if (!part.skinned) part.selectLod(0);
+        List<DrawInstance> one = List.of(instance);
+        drawRun(shader, part, effective(part.materialIndex, instance.look), one);
+        GlStateManager._glBindVertexArray(0);
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+    }
+
+    public float distance(int partIndex, DrawInstance instance) {
+        GpuPart part = parts[partIndex];
+        Vector3f middle = part.middle();
+        Matrix4f[] pose = instance.pose;
+        Matrix4f node = part.skinned || pose == null || part.nodeIndex < 0 || part.nodeIndex >= pose.length
+                ? part.transform : pose[part.nodeIndex];
+        Vector3f at = node.transformPosition(middle, new Vector3f());
+        Model.Piece piece = instance.look == null ? null : instance.look.piece();
+        if (piece != null) piece.frame().transformPosition(at);
+        return instance.world.transformPosition(at).length();
+    }
+
+    private void drawPass(ModelShader shader, List<DrawInstance> instances, boolean blendPass, int lod, Blended later) {
+        for (int p = 0; p < parts.length; p++) {
+            GpuPart part = parts[p];
             if (part == null) {
                 continue;
             }
-            ModelIR.Material mat = materialFor(part.materialIndex);
-            if (mat.blend != blendPass) {
-                continue;
-            }
-            bindMaterial(shader, part.materialIndex, mat);
-            int override = shadingOverride(part.nodeIndex);
-            if (override >= 0) {
-                shader.setMaterialId(override);
-            }
-            applyMaterialState(mat);
             if (!part.skinned) part.selectLod(lod);
-            // draws carrying their own surface inputs cannot share one instanced call, so the list
-            // is cut wherever the inputs change
+            // draws with their own surface inputs or look cannot share one instanced call, so the
+            // list is cut wherever those change
             int start = 0;
             while (start < instances.size()) {
-                SurfaceInputs inputs = instances.get(start).inputs;
+                DrawInstance first = instances.get(start);
                 int end = start + 1;
-                while (end < instances.size() && instances.get(end).inputs == inputs) end++;
-                shader.uploadSurface(inputs);
+                while (end < instances.size() && instances.get(end).inputs == first.inputs && instances.get(end).look == first.look) end++;
                 List<DrawInstance> run = start == 0 && end == instances.size() ? instances : instances.subList(start, end);
-                if (part.skinned) drawSkinned(shader, part, run);
-                else drawBatched(shader, part, run);
                 start = end;
+                Model.Piece piece = first.look == null ? null : first.look.piece();
+                if (piece != null && !piece.shows(part.nodeIndex)) {
+                    continue;
+                }
+                ModelIR.Material mat = effective(part.materialIndex, first.look);
+                if (mat.blend != blendPass) {
+                    if (mat.blend && later != null) {
+                        for (DrawInstance instance : run) later.add(p, instance);
+                    }
+                    continue;
+                }
+                drawRun(shader, part, mat, run);
             }
-            restoreMaterialState(mat);
         }
+    }
+
+    private void drawRun(ModelShader shader, GpuPart part, ModelIR.Material mat, List<DrawInstance> run) {
+        DrawInstance first = run.get(0);
+        MaterialLook look = first.look == null ? null : first.look.resolve(materialFor(part.materialIndex).name);
+        bindMaterial(shader, part.materialIndex, mat, look);
+        int override = shadingOverride(part.nodeIndex);
+        if (override >= 0) {
+            shader.setMaterialId(override);
+        }
+        if (look == null) shader.uploadUv(1f, 1f, 0f, 0f);
+        else shader.uploadUv(look.repeatU(), look.repeatV(), look.offsetU(), look.offsetV());
+        applyMaterialState(mat);
+        shader.uploadSurface(first.inputs);
+        if (part.skinned) drawSkinned(shader, part, run);
+        else drawBatched(shader, part, run);
+        restoreMaterialState(mat);
+    }
+
+    private final ModelIR.Material looked = new ModelIR.Material();
+
+    private ModelIR.Material effective(int materialIndex, ModelLook draw) {
+        ModelIR.Material base = materialFor(materialIndex);
+        if (draw == null) {
+            return base;
+        }
+        MaterialLook look = draw.resolve(base.name);
+        ModelIR.Material out = looked;
+        out.name = base.name;
+        out.baseR = base.baseR * look.tintR();
+        out.baseG = base.baseG * look.tintG();
+        out.baseB = base.baseB * look.tintB();
+        out.baseA = base.baseA * look.opacity();
+        out.metallic = Float.isNaN(look.metallic()) ? base.metallic : look.metallic();
+        out.roughness = Float.isNaN(look.roughness()) ? base.roughness : look.roughness();
+        out.transmission = base.transmission;
+        boolean ownEmission = !Float.isNaN(look.emissiveR());
+        out.emR = (ownEmission ? look.emissiveR() : base.emR) * look.emissiveStrength();
+        out.emG = (ownEmission ? look.emissiveG() : base.emG) * look.emissiveStrength();
+        out.emB = (ownEmission ? look.emissiveB() : base.emB) * look.emissiveStrength();
+        out.alphaCutoff = base.alphaCutoff;
+        out.shadingModelId = base.shadingModelId;
+        out.blend = base.blend || out.baseA < 0.999f;
+        out.doubleSided = base.doubleSided || look.doubleSided();
+        out.baseColorFilter = look.filter() == null ? base.baseColorFilter : look.filter();
+        return out;
     }
 
     public void drawShadow(ModelShadowProgram shadow, List<DrawInstance> instances) {
@@ -206,6 +304,10 @@ public final class GpuModel implements AutoCloseable {
             if (mat.blend) {
                 continue;
             }
+            List<DrawInstance> casting = casting(part, instances);
+            if (casting.isEmpty()) {
+                continue;
+            }
             boolean cutout = mat.alphaCutoff > 0f;
             boolean hasAlbedo = false;
             if (cutout) {
@@ -218,9 +320,9 @@ public final class GpuModel implements AutoCloseable {
                 GlStateManager._disableCull();
             }
             if (part.skinned) {
-                drawShadowSkinned(shadow, part, instances);
+                drawShadowSkinned(shadow, part, casting);
             } else {
-                drawShadowBatched(part, instances);
+                drawShadowBatched(part, casting);
             }
             if (mat.doubleSided) {
                 GlStateManager._enableCull();
@@ -228,6 +330,29 @@ public final class GpuModel implements AutoCloseable {
         }
         GlStateManager._glBindVertexArray(0);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+    }
+
+    private final ArrayList<DrawInstance> casting = new ArrayList<>();
+
+    private List<DrawInstance> casting(GpuPart part, List<DrawInstance> instances) {
+        boolean plain = true;
+        for (DrawInstance inst : instances) {
+            if (inst.look != null) {
+                plain = false;
+                break;
+            }
+        }
+        if (plain) {
+            return instances;
+        }
+        casting.clear();
+        for (DrawInstance inst : instances) {
+            Model.Piece piece = inst.look == null ? null : inst.look.piece();
+            if (piece != null && !piece.shows(part.nodeIndex)) continue;
+            if (inst.look != null && effective(part.materialIndex, inst.look).blend) continue;
+            casting.add(inst);
+        }
+        return casting;
     }
 
     private void drawShadowBatched(GpuPart part, List<DrawInstance> instances) {
@@ -249,7 +374,7 @@ public final class GpuModel implements AutoCloseable {
             buildPalette(part, inst.pose());
             shadow.uploadJointMatrices(palette, part.jointNodes.length);
 
-            packSingle(inst.world(), inst.blockLight(), inst.skyLight());
+            packSingle(placed(inst, skinTmp), inst.blockLight(), inst.skyLight());
             uploadInstances(part);
 
             if (part.indexed) {
@@ -260,20 +385,21 @@ public final class GpuModel implements AutoCloseable {
         }
     }
 
-    public void drawFlat(FlatProgram flat, Matrix4f projView, Matrix4f world, Matrix4f[] pose) {
+    public void drawFlat(FlatProgram flat, Matrix4f projView, Matrix4f world, Matrix4f[] pose, Model.Piece piece) {
         if (closed) {
             return;
         }
         ensureUploaded();
         Matrix4f model = new Matrix4f();
         Matrix4f mvp = new Matrix4f();
+        Matrix4f placed = piece == null ? world : new Matrix4f(world).mul(piece.frame());
         for (GpuPart part : parts) {
-            if (part == null) {
+            if (part == null || piece != null && !piece.shows(part.nodeIndex)) {
                 continue;
             }
             Matrix4f nodeTransform = pose != null && part.nodeIndex >= 0 && part.nodeIndex < pose.length
                     ? pose[part.nodeIndex] : part.transform;
-            world.mul(nodeTransform, model);
+            placed.mul(nodeTransform, model);
             projView.mul(model, mvp);
             flat.setMvp(mvp);
             GlStateManager._glBindVertexArray(part.vao);
@@ -423,7 +549,7 @@ public final class GpuModel implements AutoCloseable {
             DrawInstance inst = instances.get(i);
             int base = i * INSTANCE_STRIDE;
             Matrix4f nodeTransform = nodeTransform(inst, part);
-            inst.world().mul(nodeTransform, tmp);
+            placed(inst, tmp).mul(nodeTransform);
             tmp.get(base, instanceScratch);
             instanceScratch.position(base + 64);
             instanceScratch.putFloat(inst.blockLight());
@@ -443,7 +569,7 @@ public final class GpuModel implements AutoCloseable {
         for (int i = 0; i < count; i++) {
             DrawInstance inst = instances.get(i);
             int base = i * INSTANCE_STRIDE;
-            inst.world().get(base, instanceScratch);
+            placed(inst, skinTmp).get(base, instanceScratch);
             instanceScratch.position(base + 64);
             instanceScratch.putFloat(inst.blockLight());
             instanceScratch.putFloat(inst.skyLight());
@@ -451,6 +577,11 @@ public final class GpuModel implements AutoCloseable {
             instanceScratch.putFloat(0f);
         }
         instanceScratch.position(0).limit(needed);
+    }
+
+    private static Matrix4f placed(DrawInstance inst, Matrix4f into) {
+        Model.Piece piece = inst.look == null ? null : inst.look.piece();
+        return piece == null ? into.set(inst.world) : inst.world.mul(piece.frame(), into);
     }
 
     private Matrix4f nodeTransform(DrawInstance inst, GpuPart part) {
@@ -493,28 +624,64 @@ public final class GpuModel implements AutoCloseable {
         return false;
     }
 
-    private void bindMaterial(ModelShader shader, int materialIndex, ModelIR.Material mat) {
-        resolveTextures(materialIndex, mat);
+    public boolean mayEmit(List<Model.Draw> draws) {
+        if (hasEmissiveMaterial() || nodeShading != null) return true;
+        for (ModelIR.Material mat : ir.materials()) {
+            if (mat.shadingModelId != 0) return true;
+        }
+        for (Model.Draw draw : draws) {
+            if (draw.look() != null && draw.look().emits()) return true;
+        }
+        return false;
+    }
 
-        boolean hasBase = bind(baseColor, materialIndex, 0);
+    private void bindMaterial(ModelShader shader, int materialIndex, ModelIR.Material mat, MaterialLook look) {
+        resolveTextures(materialIndex, materialFor(materialIndex));
+
+        boolean ownBase = look != null && look.baseColorGlTexture() != 0;
+        boolean hasBase;
+        if (ownBase) {
+            GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, look.baseColorGlTexture());
+            GlStateManager._bindTexture(look.baseColorGlTexture());
+            hasBase = true;
+        } else {
+            hasBase = bind(baseColor, materialIndex, 0);
+        }
         boolean hasNormal = bind(normal, materialIndex, 1);
         boolean hasOrm = bind(orm, materialIndex, 2);
         boolean hasEmissive = bind(emissive, materialIndex, 3);
 
-        GL33.glBindSampler(0, hasBase && mat.baseColorFilter == TextureFilter.NEAREST ? nearestSampler() : 0);
+        TextureFilter asked = look == null ? null : look.filter();
+        int sampler = 0;
+        if (ownBase) {
+            sampler = sampler(asked == TextureFilter.NEAREST ? GL11.GL_NEAREST : GL11.GL_LINEAR,
+                    asked == TextureFilter.NEAREST ? GL11.GL_NEAREST : GL11.GL_LINEAR);
+            GL33.glBindSampler(0, sampler);
+            sampler = 0;
+        }
+        if (mat.baseColorFilter == TextureFilter.NEAREST) {
+            sampler = sampler(GL11.GL_NEAREST_MIPMAP_LINEAR, GL11.GL_NEAREST);
+        } else if (asked == TextureFilter.LINEAR) {
+            sampler = sampler(GL11.GL_LINEAR_MIPMAP_LINEAR, GL11.GL_LINEAR);
+        }
+        for (int unit = ownBase ? 1 : 0; unit < 4; unit++) {
+            GL33.glBindSampler(unit, sampler);
+        }
 
         shader.uploadMaterial(mat, hasBase, hasNormal, hasOrm, hasEmissive);
+        shader.uploadAlbedoEncoded(ownBase);
     }
 
-    private int nearestSampler;
+    private final Map<Integer, Integer> samplers = new HashMap<>();
 
-    private int nearestSampler() {
-        if (nearestSampler == 0) {
-            nearestSampler = GL33.glGenSamplers();
-            GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST_MIPMAP_LINEAR);
-            GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
-        }
-        return nearestSampler;
+    private int sampler(int min, int mag) {
+        return samplers.computeIfAbsent(min * 31 + mag, ignored -> {
+            int made = GL33.glGenSamplers();
+            GL33.glSamplerParameteri(made, GL11.GL_TEXTURE_MIN_FILTER, min);
+            GL33.glSamplerParameteri(made, GL11.GL_TEXTURE_MAG_FILTER, mag);
+            return made;
+        });
     }
 
     private boolean bind(ModelTexture[] set, int materialIndex, int unit) {
@@ -528,7 +695,9 @@ public final class GpuModel implements AutoCloseable {
     }
 
     private void clearSamplerState() {
-        GL33.glBindSampler(0, 0);
+        for (int unit = 0; unit < 4; unit++) {
+            GL33.glBindSampler(unit, 0);
+        }
     }
 
     private void applyMaterialState(ModelIR.Material mat) {
@@ -616,6 +785,8 @@ public final class GpuModel implements AutoCloseable {
         ByteBuffer palScratch = paletteScratch;
         int tbo = jointTbo;
         int tboTex = jointTboTex;
+        List<Integer> ownSamplers = List.copyOf(samplers.values());
+        samplers.clear();
         instanceScratch = null;
         paletteScratch = null;
         jointTbo = 0;
@@ -645,6 +816,9 @@ public final class GpuModel implements AutoCloseable {
             if (tboTex != 0) {
                 GL11.glDeleteTextures(tboTex);
             }
+            for (int sampler : ownSamplers) {
+                GL33.glDeleteSamplers(sampler);
+            }
         });
     }
 
@@ -663,6 +837,7 @@ public final class GpuModel implements AutoCloseable {
         int instanceCapacity = 64;
         boolean indexed;
         boolean skinned;
+        Vector3f middle;
         int materialIndex;
         int nodeIndex;
         int[] jointNodes;
@@ -677,6 +852,21 @@ public final class GpuModel implements AutoCloseable {
 
         private GpuPart(Matrix4f transform) {
             this.transform = transform;
+        }
+
+        Vector3f middle() {
+            if (middle == null) {
+                Vector3f min = new Vector3f(Float.MAX_VALUE);
+                Vector3f max = new Vector3f(-Float.MAX_VALUE);
+                Vector3f v = new Vector3f();
+                float[] verts = src.vertices;
+                for (int i = 0; i + 2 < verts.length; i += ModelIR.VERTEX_STRIDE_FLOATS) {
+                    min.min(v.set(verts[i], verts[i + 1], verts[i + 2]));
+                    max.max(v);
+                }
+                middle = min.x > max.x ? new Vector3f() : min.add(max).mul(0.5f);
+            }
+            return middle;
         }
 
         void selectLod(int lod) {

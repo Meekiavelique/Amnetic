@@ -19,20 +19,27 @@ import com.meekdev.amnetic.client.model.internal.ModelRegistry;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
+import org.joml.Quaternionf;
 import org.joml.Quaternionfc;
 import org.joml.Vector3f;
 
 public final class Model {
 
     public record Draw(Matrix4f world, Matrix4f[] pose,
-                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs) {
+                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look) {
 
         public Draw(Matrix4f world, Matrix4f[] pose) {
-            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null);
+            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null);
         }
 
         public Draw(Matrix4f world, Matrix4f[] pose, float blockLight, float skyLight, float emissive) {
-            this(world, pose, blockLight, skyLight, emissive, null);
+            this(world, pose, blockLight, skyLight, emissive, null, null);
+        }
+    }
+
+    public record Piece(int node, boolean[] nodes, Matrix4f frame, Vector3f min, Vector3f max) {
+        public boolean shows(int nodeIndex) {
+            return nodeIndex >= 0 && nodeIndex < nodes.length && nodes[nodeIndex];
         }
     }
 
@@ -218,10 +225,98 @@ public final class Model {
     }
 
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs) {
+        return render(worldTransform, pose, inputs, null);
+    }
+
+    public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look) {
         if (!disposed) {
-            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs));
+            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look));
         }
         return this;
+    }
+
+    private final Map<String, Piece> pieces = new HashMap<>();
+
+    public Piece piece(String name) {
+        ModelIR source = ir;
+        if (source == null || name == null || name.isEmpty()) {
+            return null;
+        }
+        Piece known = pieces.get(name);
+        if (known != null) {
+            return known;
+        }
+        int node = nodeIndex(name);
+        if (node < 0) {
+            for (ModelIR.Part part : source.parts()) {
+                if (name.equals(part.name) && part.nodeIndex >= 0) {
+                    node = part.nodeIndex;
+                    break;
+                }
+            }
+        }
+        if (node < 0) {
+            return null;
+        }
+        Piece made = cut(source, node);
+        pieces.put(name, made);
+        return made;
+    }
+
+    public List<String> pieceNames() {
+        ModelIR source = ir;
+        if (source == null) {
+            return List.of();
+        }
+        List<String> names = new ArrayList<>();
+        for (ModelIR.Node node : source.nodes()) {
+            names.add(node.name);
+        }
+        return names;
+    }
+
+    private static Piece cut(ModelIR source, int node) {
+        boolean[] nodes = new boolean[source.nodes().size()];
+        mark(source, node, nodes);
+        Matrix4f placed = new Matrix4f();
+        for (int at = node; at >= 0; at = source.nodes().get(at).parent) {
+            placed.mulLocal(source.nodes().get(at).local);
+        }
+        Vector3f at = placed.getTranslation(new Vector3f());
+        Matrix4f frame = new Matrix4f().translationRotate(at.x, at.y, at.z,
+                placed.getNormalizedRotation(new Quaternionf())).invert();
+        Vector3f min = new Vector3f(Float.MAX_VALUE);
+        Vector3f max = new Vector3f(-Float.MAX_VALUE);
+        Matrix4f into = new Matrix4f();
+        Vector3f v = new Vector3f();
+        int stride = ModelIR.VERTEX_STRIDE_FLOATS;
+        for (ModelIR.Part part : source.parts()) {
+            if (part.nodeIndex < 0 || !nodes[part.nodeIndex]) {
+                continue;
+            }
+            frame.mul(part.transform, into);
+            float[] verts = part.vertices;
+            for (int i = 0; i + 2 < verts.length; i += stride) {
+                into.transformPosition(v.set(verts[i], verts[i + 1], verts[i + 2]));
+                min.min(v);
+                max.max(v);
+            }
+        }
+        if (min.x > max.x) {
+            min.set(0f);
+            max.set(0f);
+        }
+        return new Piece(node, nodes, frame, min, max);
+    }
+
+    private static void mark(ModelIR source, int node, boolean[] nodes) {
+        if (node < 0 || node >= nodes.length || nodes[node]) {
+            return;
+        }
+        nodes[node] = true;
+        for (int child : source.nodes().get(node).children) {
+            mark(source, child, nodes);
+        }
     }
 
     private final Map<String, ShadingModel> boneShading = new LinkedHashMap<>();
@@ -363,12 +458,16 @@ public final class Model {
     }
 
     public void fillMask(Matrix4fc projView, Matrix4fc world, Matrix4f[] pose, float r, float g, float b, float a) {
+        fillMask(projView, world, pose, null, r, g, b, a);
+    }
+
+    public void fillMask(Matrix4fc projView, Matrix4fc world, Matrix4f[] pose, Piece piece, float r, float g, float b, float a) {
         if (disposed) {
             return;
         }
         FLAT.bind();
         FLAT.setColor(r, g, b, a);
-        gpu.drawFlat(FLAT, new Matrix4f(projView), new Matrix4f(world), pose);
+        gpu.drawFlat(FLAT, new Matrix4f(projView), new Matrix4f(world), pose, piece);
         FLAT.unbind();
     }
 

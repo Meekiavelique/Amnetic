@@ -52,6 +52,9 @@ final class ModelShader implements AutoCloseable {
     private final int tonemapLoc;
     private final int timeLoc;
     private final int surfaceValuesLoc;
+    private final int uvTransformLoc;
+    private final int doubleSidedLoc;
+    private final int albedoEncodedLoc;
 
     static final int SURFACE_TEXTURE_UNIT = 8;
 
@@ -86,6 +89,9 @@ final class ModelShader implements AutoCloseable {
         this.tonemapLoc = uniform("Tonemap");
         this.timeLoc = uniform("Time");
         this.surfaceValuesLoc = uniform("SurfaceValues");
+        this.uvTransformLoc = uniform("UvTransform");
+        this.doubleSidedLoc = uniform("DoubleSided");
+        this.albedoEncodedLoc = uniform("AlbedoEncoded");
         bindSamplerUnits();
     }
 
@@ -228,6 +234,21 @@ final class ModelShader implements AutoCloseable {
         }
         if (materialIdLoc != -1) {
             GL20.glUniform1i(materialIdLoc, mat.shadingModelId);
+        }
+        if (doubleSidedLoc != -1) {
+            GL20.glUniform1i(doubleSidedLoc, mat.doubleSided ? 1 : 0);
+        }
+    }
+
+    void uploadAlbedoEncoded(boolean encoded) {
+        if (albedoEncodedLoc != -1) {
+            GL20.glUniform1i(albedoEncodedLoc, encoded ? 1 : 0);
+        }
+    }
+
+    void uploadUv(float repeatU, float repeatV, float offsetU, float offsetV) {
+        if (uvTransformLoc != -1) {
+            GL20.glUniform4f(uvTransformLoc, repeatU, repeatV, offsetU, offsetV);
         }
     }
 

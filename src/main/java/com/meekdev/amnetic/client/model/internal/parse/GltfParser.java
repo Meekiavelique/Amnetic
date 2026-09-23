@@ -117,7 +117,7 @@ public final class GltfParser {
                     if (prim.getMode() != MODE_TRIANGLES) {
                         continue;
                     }
-                    ModelIR.Part part = buildPart(ir, gltf, prim, nodeIndex, world, materialIndices);
+                    ModelIR.Part part = buildPart(ir, gltf, prim, nodeIndex, world, materialIndices, mesh.getName());
                     if (part != null) {
                         ir.addPart(part);
                     }
@@ -127,7 +127,7 @@ public final class GltfParser {
     }
 
     private static ModelIR.Part buildPart(ModelIR ir, GltfModel gltf, MeshPrimitiveModel prim, int nodeIndex,
-                                          Matrix4f world, Map<MaterialModel, Integer> materialIndices) {
+                                          Matrix4f world, Map<MaterialModel, Integer> materialIndices, String name) {
         Map<String, AccessorModel> attrs = prim.getAttributes();
         AccessorModel posAcc = attrs.get("POSITION");
         if (posAcc == null) {
@@ -169,7 +169,7 @@ public final class GltfParser {
         int[] indices = prim.getIndices() != null ? readUnsignedInts(prim.getIndices()) : sequentialIndices(vcount);
 
         int materialIndex = resolveMaterial(ir, prim.getMaterialModel(), materialIndices);
-        return new ModelIR.Part(vertices, tangentData, indices, materialIndex, nodeIndex, world, "part");
+        return new ModelIR.Part(vertices, tangentData, indices, materialIndex, nodeIndex, world, name);
     }
 
     private static int resolveMaterial(ModelIR ir, MaterialModel mat, Map<MaterialModel, Integer> indices) {
@@ -194,9 +194,10 @@ public final class GltfParser {
             out.roughness = v2.getRoughnessFactor();
             float[] em = v2.getEmissiveFactor();
             if (em != null && em.length >= 3) {
-                out.emR = em[0];
-                out.emG = em[1];
-                out.emB = em[2];
+                float strength = extensionFactor(v2, "KHR_materials_emissive_strength", "emissiveStrength", 1f);
+                out.emR = em[0] * strength;
+                out.emG = em[1] * strength;
+                out.emB = em[2] * strength;
             }
             out.doubleSided = v2.isDoubleSided();
             String alphaMode = String.valueOf(v2.getAlphaMode());
@@ -215,6 +216,15 @@ public final class GltfParser {
         int index = ir.addMaterial(out);
         indices.put(mat, index);
         return index;
+    }
+
+    private static float extensionFactor(MaterialModelV2 v2, String extension, String key, float fallback) {
+        Map<String, Object> extensions = v2.getExtensions();
+        Object values = extensions == null ? null : extensions.get(extension);
+        if (values instanceof Map<?, ?> map && map.get(key) instanceof Number n) {
+            return n.floatValue();
+        }
+        return fallback;
     }
 
     private static float transmissionFactor(MaterialModelV2 v2) {

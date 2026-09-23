@@ -32,6 +32,9 @@ uniform float Roughness;
 uniform float AlphaCutoff;
 uniform float EmissiveStrength;
 uniform float Transmission;
+uniform vec4 UvTransform;
+uniform int DoubleSided;
+uniform int AlbedoEncoded; // the base colour map is plain rgb8, not srgb
 
 uniform samplerCube EnvCube; // prefiltered sky/env probe
 uniform int HasEnvCube;
@@ -90,10 +93,12 @@ vec3 skyEnv(vec3 d) {
     return d.y >= 0.0 ? sky : mix(horizon, ground, clamp(-d.y * 2.5, 0.0, 1.0));
 }
 
+vec2 materialUv;
+
 vec3 computeNormal() {
     vec3 n = normalize(vNormal);
     if (HasNormal == 1) {
-        vec3 sampled = texture(NormalSampler, vUV).xyz * 2.0 - 1.0;
+        vec3 sampled = texture(NormalSampler, materialUv).xyz * 2.0 - 1.0;
         mat3 tbn = mat3(normalize(vTangent), normalize(vBitangent), n);
         return normalize(tbn * sampled);
     }
@@ -106,8 +111,13 @@ vec3 acesFilm(vec3 x) {
 }
 
 void main() {
+    materialUv = vUV * UvTransform.xy + UvTransform.zw;
     vec4 albedo = BaseColor;
-    if (HasAlbedo == 1) albedo *= texture(AlbedoSampler, vUV);
+    if (HasAlbedo == 1) {
+        vec4 sampled = texture(AlbedoSampler, materialUv);
+        if (AlbedoEncoded == 1) sampled.rgb = pow(sampled.rgb, vec3(2.2));
+        albedo *= sampled;
+    }
     if (AlphaCutoff > 0.0 && albedo.a < AlphaCutoff) discard;
     if (albedo.a < 0.003) discard;
 
@@ -115,7 +125,7 @@ void main() {
     float roughness = Roughness;
     float ao = 1.0;
     if (HasOrm == 1) {
-        vec3 orm = texture(OrmSampler, vUV).rgb; // ORM: r = occlusion, g = roughness, b = metallic
+        vec3 orm = texture(OrmSampler, materialUv).rgb;
         ao = mix(0.35, 1.0, orm.r);
         roughness *= orm.g;
         metallic *= orm.b;
@@ -124,10 +134,11 @@ void main() {
     roughness = clamp(roughness, 0.045, 1.0);
 
     vec3 N = computeNormal();
+    if (DoubleSided == 1 && !gl_FrontFacing) N = -N;
 
     vec3 surfaceEmission = vec3(0.0);
     if (MaterialId != 0) {
-        SurfaceSample surface = SurfaceSample(vUV, albedo.rgb, albedo.a, vec3(0.0), roughness, metallic, N, vWorldPos, Time);
+        SurfaceSample surface = SurfaceSample(materialUv, albedo.rgb, albedo.a, vec3(0.0), roughness, metallic, N, vWorldPos, Time);
         surfaceCustomMaterial(MaterialId, surface);
         albedo = vec4(surface.albedo, surface.alpha);
         roughness = clamp(surface.roughness, 0.045, 1.0);
@@ -181,7 +192,7 @@ void main() {
     vec3 ambient = (iblDiffuse + iblSpecular) * ao;
 
     vec3 emissiveColor = Emissive;
-    if (HasEmissive == 1) emissiveColor *= texture(EmissiveSampler, vUV).rgb;
+    if (HasEmissive == 1) emissiveColor *= texture(EmissiveSampler, materialUv).rgb;
     vec3 emissive = emissiveColor * EmissiveStrength + surfaceEmission;
 
     float emStrength = clamp(max(max(emissive.r, emissive.g), emissive.b), 0.0, 1.0);

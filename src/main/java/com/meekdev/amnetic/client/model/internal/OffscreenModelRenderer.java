@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.meekdev.amnetic.client.instanced.RenderState;
 import com.meekdev.amnetic.client.model.ModelLighting;
+import com.meekdev.amnetic.client.model.ModelLook;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
@@ -19,6 +20,11 @@ public final class OffscreenModelRenderer implements AutoCloseable {
 
     public boolean draw(GpuModel gpu, Matrix4f projView, Matrix4f world, Matrix4f[] pose,
                         float block, float sky, float emissiveStrength) {
+        return draw(gpu, projView, world, pose, block, sky, emissiveStrength, null);
+    }
+
+    public boolean draw(GpuModel gpu, Matrix4f projView, Matrix4f world, Matrix4f[] pose,
+                        float block, float sky, float emissiveStrength, ModelLook look) {
         if (failed) {
             return false;
         }
@@ -45,7 +51,7 @@ public final class OffscreenModelRenderer implements AutoCloseable {
             shader.uploadLighting(ModelLighting.INSTANCE);
             shader.uploadProjView(projView);
             shader.uploadEmissiveStrength(emissiveStrength);
-            GpuModel.DrawInstance instance = new GpuModel.DrawInstance(world, pose, block, sky);
+            GpuModel.DrawInstance instance = new GpuModel.DrawInstance(world, pose, block, sky, look);
             gpu.draw(shader, List.of(instance));
             return true;
         } finally {

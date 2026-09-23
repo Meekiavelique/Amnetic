@@ -33,6 +33,7 @@ import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -212,6 +213,7 @@ public final class ModelRegistry {
         frustum.set(projView);
         frameUploadBudget = UPLOADS_PER_FRAME;
         ModelShader current = null;
+        blendedCount = 0;
         try {
             for (Model model : models) {
                 if (model.isReady() && model.internalHasPending()) {
@@ -222,9 +224,15 @@ public final class ModelRegistry {
                     }
                     renderModel(model, prog, camPos, level, capture);
                 }
+            }
+            renderBlended(projView, time, capture, current);
+        } finally {
+            for (Model model : models) {
                 model.internalClearPending();
             }
-        } finally {
+            for (int n = 0; n < blendedCount; n++) {
+                blended.get(n).model = null;
+            }
             GlStateManager._glUseProgram(0);
             GlStateManager._glBindVertexArray(0);
         }
@@ -309,12 +317,13 @@ public final class ModelRegistry {
                 List<GpuModel.DrawInstance> instances =
                         toInstances(model, camPos, level, value, defaultEmissive);
                 if (!instances.isEmpty()) {
-                    model.internalGpu().draw(prog, instances, lodFor(instances));
+                    model.internalGpu().drawSolid(prog, instances, lodFor(instances),
+                            (part, instance) -> later(model, prog, part, instance, value));
                 }
             }
             if (useGBuffer) {
                 gbuffer.setPopulated(true);
-                if (config.isEmissive() || model.internalGpu().hasEmissiveMaterial()) gbuffer.markEmissive();
+                if (config.isEmissive() || model.internalGpu().mayEmit(model.internalPending())) gbuffer.markEmissive();
             }
         } catch (Exception e) {
             LOG.error("Amnetic: error rendering model {}", model.name(), e);
@@ -329,6 +338,91 @@ public final class ModelRegistry {
     }
 
     private final ArrayList<Float> emissiveGroups = new ArrayList<>();
+
+    private static final class Blended {
+        Model model;
+        ModelShader prog;
+        int part;
+        float emissive;
+        float distance;
+        final GpuModel.DrawInstance instance = new GpuModel.DrawInstance();
+    }
+
+    private final ArrayList<Blended> blended = new ArrayList<>();
+    private final ArrayList<Blended> sorted = new ArrayList<>();
+    private int blendedCount;
+
+    private void later(Model model, ModelShader prog, int part, GpuModel.DrawInstance instance, float emissive) {
+        while (blended.size() <= blendedCount) blended.add(new Blended());
+        Blended item = blended.get(blendedCount++);
+        item.model = model;
+        item.prog = prog;
+        item.part = part;
+        item.emissive = emissive;
+        item.instance.set(instance);
+        item.distance = model.internalGpu().distance(part, instance);
+    }
+
+    private void renderBlended(Matrix4f projView, float time, boolean capture, ModelShader current) {
+        if (blendedCount == 0) {
+            return;
+        }
+        sorted.clear();
+        sorted.addAll(blended.subList(0, blendedCount));
+        sorted.sort((a, b) -> Float.compare(b.distance, a.distance));
+        boolean useGBuffer = false;
+        int prevFbo = -1;
+        RenderState state = null;
+        try {
+            for (Blended item : sorted) {
+                ModelConfig config = item.model.internalConfig();
+                boolean wantGBuffer = !capture && GBuffer.isEnabled() && config.writeGBuffer();
+                if (prevFbo == -1 || wantGBuffer != useGBuffer) {
+                    if (prevFbo != -1) restoreTarget(useGBuffer, prevFbo);
+                    useGBuffer = wantGBuffer;
+                    prevFbo = useGBuffer ? GBufferTargets.INSTANCE.bind() : MainTargetFramebuffer.bind();
+                    colorMasks(!useGBuffer);
+                }
+                RenderState wanted = config.renderState() == null ? RenderState.DEFAULT : config.renderState();
+                if (wanted != state) {
+                    if (state != null) state.restore();
+                    state = wanted;
+                    state.apply();
+                    GlStateManager._depthFunc(GL11.GL_LEQUAL);
+                }
+                if (item.prog != current) {
+                    prepareProgram(item.prog, projView, time);
+                    current = item.prog;
+                }
+                item.prog.uploadEmissiveStrength(item.emissive);
+                try {
+                    item.model.internalGpu().drawBlended(item.prog, item.part, item.instance);
+                } catch (Exception e) {
+                    LOG.error("Amnetic: error rendering model {}", item.model.name(), e);
+                }
+            }
+        } finally {
+            if (state != null) state.restore();
+            if (prevFbo != -1) {
+                colorMasks(true);
+                restoreTarget(useGBuffer, prevFbo);
+            }
+        }
+    }
+
+    private static void colorMasks(boolean write) {
+        for (int buffer : new int[] {1, 2, 4}) {
+            GL30.glColorMaski(buffer, write, write, write, write);
+        }
+    }
+
+    private static void restoreTarget(boolean gbuffer, int prevFbo) {
+        if (gbuffer) {
+            GBufferTargets.INSTANCE.restore(prevFbo);
+        } else {
+            MainTargetFramebuffer.restore(prevFbo);
+        }
+    }
 
     private List<GpuModel.DrawInstance> toInstances(Model model, Vec3 camPos, ClientLevel level) {
         return toInstances(model, camPos, level, Float.NaN, Float.NaN);
@@ -353,7 +447,10 @@ public final class ModelRegistry {
             camRel.m31(world.m31() - (float) camPos.y);
             camRel.m32(world.m32() - (float) camPos.z);
             if (cull) {
-                if (draw.pose() != null) {
+                Model.Piece piece = draw.look() == null ? null : draw.look().piece();
+                if (piece != null) {
+                    camRel.transformAab(piece.min(), piece.max(), cullMin, cullMax);
+                } else if (draw.pose() != null) {
                     posedBounds(draw.pose(), boundsMin, boundsMax, poseMin, poseMax);
                     camRel.transformAab(poseMin, poseMax, cullMin, cullMax);
                 } else {
@@ -376,7 +473,7 @@ public final class ModelRegistry {
             if (!Float.isNaN(draw.skyLight())) {
                 sky = draw.skyLight();
             }
-            pooled(mainPool, n++).set(camRel, draw.pose(), block, sky, draw.inputs());
+            pooled(mainPool, n++).set(camRel, draw.pose(), block, sky, draw.inputs(), draw.look());
         }
         return mainPool.subList(0, n);
     }
@@ -469,7 +566,7 @@ public final class ModelRegistry {
             lightRel.m30((float) dx);
             lightRel.m31((float) dy);
             lightRel.m32((float) dz);
-            pooled(shadowPool, n++).set(lightRel, draw.pose(), 1f, 1f, null);
+            pooled(shadowPool, n++).set(lightRel, draw.pose(), 1f, 1f, null, draw.look());
         }
         return shadowPool.subList(0, n);
     }
