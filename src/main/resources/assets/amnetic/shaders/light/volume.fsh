@@ -31,6 +31,8 @@ void main() {
 
     vec3 V = normalize(-fragPos);
     vec3 albedo = texture(AlbedoSampler, uv).rgb;
+    vec4 published = texture(GAlbedoSampler, uv);
+    if (published.a > 0.5) albedo = published.rgb;
 
     vec3 specular = vec3(0.0);
     float sunShadow = 0.0;

@@ -2,6 +2,7 @@ uniform sampler2D AlbedoSampler;
 uniform sampler2D DepthSampler;
 uniform sampler2D GNormalSampler;
 uniform sampler2D GMaterialSampler; // r = roughness, g = metallic, b = materialId/255, a = (blockLevel*16 + skyLevel)/255
+uniform sampler2D GAlbedoSampler; // rgb = the material colour a forward pass published, a = whether it did
 uniform sampler2D LightmapSampler;
 uniform int HasGBuffer;
 

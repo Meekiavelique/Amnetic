@@ -11,6 +11,7 @@ layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 GNormal;
 layout(location = 2) out vec4 GMaterial;
 layout(location = 3) out vec4 GEmissive;
+layout(location = 4) out vec4 GAlbedo;
 
 uniform sampler2D AlbedoSampler;
 uniform sampler2D NormalSampler;
@@ -200,6 +201,7 @@ void main() {
         // roughness 1, metallic 0: nothing downstream should put a highlight on this
         GMaterial = vec4(1.0, 0.0, materialIdNorm, lightmapEncoded);
         GEmissive = vec4(0.0);
+        GAlbedo = vec4(albedo.rgb, 1.0);
         return;
     }
 
@@ -219,6 +221,7 @@ void main() {
         GNormal = vec4(N, 1.0);
         GMaterial = vec4(roughness, metallic, materialIdNorm, lightmapEncoded);
         GEmissive = vec4(emissive, emStrength);
+        GAlbedo = vec4(albedo.rgb, 1.0);
         return;
     }
 
@@ -233,4 +236,5 @@ void main() {
     GNormal = vec4(N, 1.0);
     GMaterial = vec4(roughness, metallic, materialIdNorm, lightmapEncoded);
     GEmissive = vec4(emissive, emStrength);
+    GAlbedo = vec4(albedo.rgb, 1.0);
 }

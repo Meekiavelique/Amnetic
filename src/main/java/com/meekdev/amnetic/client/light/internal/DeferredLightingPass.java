@@ -122,6 +122,7 @@ public final class DeferredLightingPass extends ScreenPass {
             if (hasGBuffer) {
                 GlState.bindTexture(2, GBufferTargets.INSTANCE.normalGlId());
                 GlState.bindTexture(3, GBufferTargets.INSTANCE.materialGlId());
+                GlState.bindTexture(10, GBufferTargets.INSTANCE.albedoGlId());
             }
             boolean shadows = ShadowMapPass.INSTANCE.isActive();
             boolean sunShadows = ShadowMapPass.INSTANCE.sunActive();
@@ -214,6 +215,7 @@ public final class DeferredLightingPass extends ScreenPass {
         p.setSampler("PointShadowArray", 5);
         p.setSampler("SpotShadowColor", 6);
         p.setSampler("LightmapSampler", 9);
+        p.setSampler("GAlbedoSampler", 10);
         p.setInt("ShadowActive", shadows ? 1 : 0);
         if (shadows) {
             ShadowSettings ss = ShadowSettings.defaults();

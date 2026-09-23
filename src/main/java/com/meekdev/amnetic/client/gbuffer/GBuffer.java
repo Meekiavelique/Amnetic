@@ -24,6 +24,8 @@ public final class GBuffer {
 
     public static int emissiveTextureGlId() { return GBufferTargets.INSTANCE.emissiveGlId(); }
 
+    public static int albedoTextureGlId() { return GBufferTargets.INSTANCE.albedoGlId(); }
+
     public static int depthTextureGlId() { return GBufferTargets.INSTANCE.depthGlId(); }
 
     public static void dispose() {
