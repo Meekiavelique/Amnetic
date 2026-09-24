@@ -11,7 +11,6 @@ import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL45;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -131,7 +130,7 @@ public final class ModelView {
                     Identifier.fromNamespaceAndPath("amnetic", "shaders/util/fullscreen.vsh"),
                     Identifier.fromNamespaceAndPath("amnetic", "shaders/model/viewport_alpha.fsh"));
         }
-        GL45.glTextureBarrier();
+        GlState.textureBarrier();
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);

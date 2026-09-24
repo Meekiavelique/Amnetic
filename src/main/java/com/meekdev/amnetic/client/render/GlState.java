@@ -1,10 +1,15 @@
 package com.meekdev.amnetic.client.render;
 
 import com.mojang.blaze3d.opengl.GlStateManager;
+import org.lwjgl.opengl.ARBTextureBarrier;
+import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL45;
+import org.lwjgl.opengl.GLCapabilities;
+import org.lwjgl.opengl.NVTextureBarrier;
 
 public final class GlState {
     private static final int MAX_UNIT = 3;
@@ -36,6 +41,17 @@ public final class GlState {
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
         GlStateManager._bindTexture(glId);
         GL33.glBindSampler(unit, 0);
+    }
+
+    public static void textureBarrier() {
+        GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45) {
+            GL45.glTextureBarrier();
+        } else if (caps.GL_ARB_texture_barrier) {
+            ARBTextureBarrier.glTextureBarrier();
+        } else if (caps.GL_NV_texture_barrier) {
+            NVTextureBarrier.glTextureBarrierNV();
+        }
     }
 
     public static void endFullscreen() {

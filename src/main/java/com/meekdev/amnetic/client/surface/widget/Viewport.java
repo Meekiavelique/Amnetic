@@ -6,6 +6,7 @@ import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.surface.reactive.Signal;
 import java.nio.ByteBuffer;
 import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL45;
 import org.slf4j.Logger;
@@ -73,11 +74,7 @@ public class Viewport extends Widget {
                 }
             } else if (!sampled) {
                 sampled = true;
-                ByteBuffer buf = BufferUtils.createByteBuffer(4);
-                GL45.glGetTextureSubImage(lastTexture, 0, 256, 256, 0, 1, 1, 1,
-                        GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf);
-                LOG.info("viewport probe: texture {} center rgba = {} {} {} {}", lastTexture,
-                        buf.get(0) & 0xFF, buf.get(1) & 0xFF, buf.get(2) & 0xFF, buf.get(3) & 0xFF);
+                probe();
             } else if (zeroSince >= 0) {
                 zeroSince = -1;
                 if (reported) {
@@ -89,6 +86,15 @@ public class Viewport extends Widget {
         if (lastTexture != 0) {
             d.image(lastTexture, x, y + h, w, -h, fade(0xFFFFFFFF, alpha));
         }
+    }
+
+    private void probe() {
+        if (!GL.getCapabilities().OpenGL45) return;
+        ByteBuffer buf = BufferUtils.createByteBuffer(4);
+        GL45.glGetTextureSubImage(lastTexture, 0, 256, 256, 0, 1, 1, 1,
+                GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf);
+        LOG.info("viewport probe: texture {} center rgba = {} {} {} {}", lastTexture,
+                buf.get(0) & 0xFF, buf.get(1) & 0xFF, buf.get(2) & 0xFF, buf.get(3) & 0xFF);
     }
 
     @Override
