@@ -1,4 +1,4 @@
-#version 430 core
+#version 410 core
 
 in vec2 vUV;
 out vec4 FragColor;
@@ -14,7 +14,7 @@ uniform vec2 Direction;
 uniform vec2 ScreenSize;
 uniform float ProjScale;
 
-layout(std430, binding = 1) readonly buffer MaterialParamData { vec4 materialParams[]; };
+uniform samplerBuffer MaterialTexels;
 
 const float PI = 3.14159265359;
 const int TAPS = 11;
@@ -37,8 +37,8 @@ void main() {
     }
 
     int materialId = int(texture(GMaterialSampler, vUV).z * 255.0 + 0.5);
-    vec4 tint = materialParams[materialId * 3 + 0];
-    vec4 shape = materialParams[materialId * 3 + 1];
+    vec4 tint = texelFetch(MaterialTexels, materialId * 3 + 0);
+    vec4 shape = texelFetch(MaterialTexels, materialId * 3 + 1);
 
     float strength = tint.a;
     float radius = shape.x;

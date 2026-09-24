@@ -1,9 +1,9 @@
 package com.meekdev.amnetic.client.light.internal;
 
-import com.meekdev.amnetic.client.compute.ShaderStorageBuffer;
 import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.light.LightSettings;
 import com.meekdev.amnetic.client.light.LightType;
+import com.meekdev.amnetic.client.render.TexelBuffer;
 import net.minecraft.world.phys.Vec3;
 import org.joml.FrustumIntersection;
 import org.lwjgl.BufferUtils;
@@ -14,14 +14,15 @@ import java.util.List;
 public final class LightBuffer implements AutoCloseable {
 
     public static final int FLOATS_PER_LIGHT = 32; // 8 vec4 lanes
+    public static final int UNIT = 11;
 
     private final int maxLights;
-    private final ShaderStorageBuffer ssbo;
+    private final TexelBuffer texels;
     private final FloatBuffer scratch;
 
     public LightBuffer(int maxLights) {
         this.maxLights = maxLights;
-        this.ssbo = new ShaderStorageBuffer((long) maxLights * FLOATS_PER_LIGHT * Float.BYTES);
+        this.texels = new TexelBuffer((long) maxLights * FLOATS_PER_LIGHT * Float.BYTES);
         this.scratch = BufferUtils.createFloatBuffer(maxLights * FLOATS_PER_LIGHT);
     }
 
@@ -29,7 +30,7 @@ public final class LightBuffer implements AutoCloseable {
         return pack(lights, camPos, frustum, null);
     }
 
-    // outPacked, when given, receives the lights actually uploaded in SSBO index order
+    // outPacked, when given, receives the lights actually uploaded in texel index order
     public int pack(List<Light> lights, Vec3 camPos, FrustumIntersection frustum, List<Light> outPacked) {
         LightSettings s = LightSettings.defaults();
         boolean cull = s.frustumCull();
@@ -68,16 +69,16 @@ public final class LightBuffer implements AutoCloseable {
             count++;
         }
         scratch.flip();
-        if (count > 0) ssbo.upload(scratch);
+        if (count > 0) texels.upload(scratch);
         return count;
     }
 
-    public void bind(int binding) {
-        ssbo.bind(binding);
+    public void bind() {
+        texels.bind(UNIT);
     }
 
     @Override
     public void close() {
-        ssbo.close();
+        texels.close();
     }
 }

@@ -27,8 +27,8 @@ uniform float TemporalOffset;
 uniform sampler2D CookieSampler;
 uniform int HasCookie;
 
-layout(std430, binding = 0) readonly buffer LightData { vec4 lights[]; };
-layout(std430, binding = 1) readonly buffer MaterialParamData { vec4 materialParams[]; };
+uniform samplerBuffer LightTexels;
+uniform samplerBuffer MaterialTexels;
 
 #include "amnetic:shaders/common/screen.glsl"
 #include "amnetic:shaders/common/shadowmap.glsl"
@@ -97,24 +97,24 @@ vec3 closestSegment(vec3 p, vec3 a, vec3 b) {
 #include "amnetic:shaders/light/styles.glsl"
 
 vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f0, inout vec3 specOut, inout float sunShadowOut) {
-    vec3 pos = lights[i * 8 + 0].xyz;
-    float range = lights[i * 8 + 0].w;
-    vec3 color = lights[i * 8 + 1].rgb;
-    float intens = lights[i * 8 + 1].w;
-    vec3 dir = lights[i * 8 + 2].xyz;
-    int type = int(lights[i * 8 + 2].w + 0.5);
-    float cosIn = lights[i * 8 + 3].x;
-    float cosOut = lights[i * 8 + 3].y;
-    int curve = int(lights[i * 8 + 3].z + 0.5);
-    float param = lights[i * 8 + 3].w;
-    float areaW = lights[i * 8 + 4].x;
-    float areaH = lights[i * 8 + 4].y;
-    float tubeL = lights[i * 8 + 4].z;
-    vec3 tangent = lights[i * 8 + 5].xyz;
-    int shadowRef = int(lights[i * 8 + 5].w);
-    float cookieFlag = lights[i * 8 + 6].x;
-    int iesId = int(lights[i * 8 + 6].y + 0.5);
-    int style = int(lights[i * 8 + 6].w + 0.5);
+    vec3 pos = texelFetch(LightTexels, i * 8 + 0).xyz;
+    float range = texelFetch(LightTexels, i * 8 + 0).w;
+    vec3 color = texelFetch(LightTexels, i * 8 + 1).rgb;
+    float intens = texelFetch(LightTexels, i * 8 + 1).w;
+    vec3 dir = texelFetch(LightTexels, i * 8 + 2).xyz;
+    int type = int(texelFetch(LightTexels, i * 8 + 2).w + 0.5);
+    float cosIn = texelFetch(LightTexels, i * 8 + 3).x;
+    float cosOut = texelFetch(LightTexels, i * 8 + 3).y;
+    int curve = int(texelFetch(LightTexels, i * 8 + 3).z + 0.5);
+    float param = texelFetch(LightTexels, i * 8 + 3).w;
+    float areaW = texelFetch(LightTexels, i * 8 + 4).x;
+    float areaH = texelFetch(LightTexels, i * 8 + 4).y;
+    float tubeL = texelFetch(LightTexels, i * 8 + 4).z;
+    vec3 tangent = texelFetch(LightTexels, i * 8 + 5).xyz;
+    int shadowRef = int(texelFetch(LightTexels, i * 8 + 5).w);
+    float cookieFlag = texelFetch(LightTexels, i * 8 + 6).x;
+    int iesId = int(texelFetch(LightTexels, i * 8 + 6).y + 0.5);
+    int style = int(texelFetch(LightTexels, i * 8 + 6).w + 0.5);
 
     if (type != 2 && style == 0) {
         float reach = range + max(max(areaW, areaH), tubeL * 0.5);
@@ -182,7 +182,7 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     vec3 vis = shadowVisibility(shadowRef, fragPos, N, pos, range);
     vis *= contactShadow(fragPos, L);
     if (shadowRef >= 0) {
-        float sStrength = lights[i * 8 + 4].w;
+        float sStrength = texelFetch(LightTexels, i * 8 + 4).w;
         float camDist = length(fragPos);
         if (type == 2) {
             float sFade = clamp((SunShadowDistance - camDist) / max(SunShadowDistance * 0.15, 1e-3), 0.0, 1.0);

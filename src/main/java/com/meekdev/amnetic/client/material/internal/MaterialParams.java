@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.material.internal;
 
-import com.meekdev.amnetic.client.compute.ShaderStorageBuffer;
+import com.meekdev.amnetic.client.render.TexelBuffer;
 import java.nio.FloatBuffer;
 import org.lwjgl.BufferUtils;
 
@@ -9,13 +9,14 @@ public final class MaterialParams {
     public static final MaterialParams INSTANCE = new MaterialParams();
 
     public static final int LANES = 3;
+    public static final int UNIT = 12;
 
     private static final int MAX_MATERIALS = 256;
     private static final int FLOATS = MAX_MATERIALS * LANES * 4;
 
     private final float[] values = new float[FLOATS];
     private final FloatBuffer scratch = BufferUtils.createFloatBuffer(FLOATS);
-    private ShaderStorageBuffer ssbo;
+    private TexelBuffer texels;
     private boolean dirty = true;
     private int subsurfaceCount;
 
@@ -44,17 +45,17 @@ public final class MaterialParams {
         return subsurfaceCount > 0;
     }
 
-    public synchronized void bind(int binding) {
-        if (ssbo == null) {
-            ssbo = new ShaderStorageBuffer((long) FLOATS * Float.BYTES);
+    public synchronized void bind() {
+        if (texels == null) {
+            texels = new TexelBuffer((long) FLOATS * Float.BYTES);
         }
         if (dirty) {
             scratch.clear();
             scratch.put(values);
             scratch.flip();
-            ssbo.upload(scratch);
+            texels.upload(scratch);
             dirty = false;
         }
-        ssbo.bind(binding);
+        texels.bind(UNIT);
     }
 }

@@ -11,6 +11,7 @@ import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
+import com.meekdev.amnetic.client.render.TexelBuffer;
 import com.meekdev.amnetic.client.subsurface.SubsurfaceSettings;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
@@ -68,7 +69,7 @@ public final class SubsurfacePass extends ScreenPass {
         float w = capture.width();
         float h = capture.height();
 
-        MaterialParams.INSTANCE.bind(1);
+        MaterialParams.INSTANCE.bind();
 
         horizontal.begin();
         GlState.bindTexture(0, capture.colorTextureGlId(0));
@@ -78,6 +79,7 @@ public final class SubsurfacePass extends ScreenPass {
         blur.setSampler("ColorSampler", 0);
         blur.setSampler("DepthSampler", 1);
         blur.setSampler("GMaterialSampler", 2);
+        blur.setSampler("MaterialTexels", MaterialParams.UNIT);
         blur.setMatrix4("InvViewProj", cam.invViewProj);
         blur.setMatrix4("View", cam.view);
         blur.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
@@ -95,6 +97,7 @@ public final class SubsurfacePass extends ScreenPass {
         blur.setSampler("ColorSampler", 0);
         blur.setSampler("DepthSampler", 1);
         blur.setSampler("GMaterialSampler", 2);
+        blur.setSampler("MaterialTexels", MaterialParams.UNIT);
         blur.setMatrix4("InvViewProj", cam.invViewProj);
         blur.setMatrix4("View", cam.view);
         blur.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
@@ -115,8 +118,10 @@ public final class SubsurfacePass extends ScreenPass {
             composite.setSampler("OriginalSampler", 0);
             composite.setSampler("DiffusedSampler", 1);
             composite.setSampler("GMaterialSampler", 2);
+            composite.setSampler("MaterialTexels", MaterialParams.UNIT);
             composite.draw();
         } finally {
+            TexelBuffer.unbind(MaterialParams.UNIT);
             MainTargetFramebuffer.restore(prevFbo);
         }
         return true;

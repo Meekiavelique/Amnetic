@@ -141,8 +141,8 @@ public final class DeferredLightingPass extends ScreenPass {
                 GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             }
             GlState.bindTexture(9, levelLightmapGlId());
-            lightBuffer.bind(0);
-            MaterialParams.INSTANCE.bind(1);
+            lightBuffer.bind();
+            MaterialParams.INSTANCE.bind();
 
             program.begin();
             applyShared(program, cam, shadows, sunShadows, hasGBuffer, count, volumes);
@@ -171,6 +171,8 @@ public final class DeferredLightingPass extends ScreenPass {
             GlState.bindTexture(6, 0);
             GlState.bindTexture(7, 0);
             GlState.bindTexture(9, 0);
+            TexelBuffer.unbind(LightBuffer.UNIT);
+            TexelBuffer.unbind(MaterialParams.UNIT);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
             GL11.glBindTexture(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, 0);
             GL33.glBindSampler(5, 0);
@@ -216,6 +218,8 @@ public final class DeferredLightingPass extends ScreenPass {
         p.setSampler("SpotShadowColor", 6);
         p.setSampler("LightmapSampler", 9);
         p.setSampler("GAlbedoSampler", 10);
+        p.setSampler("LightTexels", LightBuffer.UNIT);
+        p.setSampler("MaterialTexels", MaterialParams.UNIT);
         p.setInt("ShadowActive", shadows ? 1 : 0);
         if (shadows) {
             ShadowSettings ss = ShadowSettings.defaults();
