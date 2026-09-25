@@ -351,8 +351,9 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
                     int name = sampler.glTexture().getAsInt();
                     if (name != 0) {
                         GlStateManager._activeTexture(GL13.GL_TEXTURE0 + sampler.unit());
-                        if (sampler.cube()) GL11.glBindTexture(GL13.GL_TEXTURE_CUBE_MAP, name);
-                        else GlStateManager._bindTexture(name);
+                        if (sampler.target() == GL11.GL_TEXTURE_2D) GlStateManager._bindTexture(name);
+                        else GL11.glBindTexture(sampler.target(), name);
+                        GL33.glBindSampler(sampler.unit(), 0);
                         shader.uploadSamplerUnit(sampler.uniformName(), sampler.unit());
                     }
                     continue;
@@ -366,6 +367,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
                 if (samplerGlId > 0) {
                     GlStateManager._activeTexture(GL13.GL_TEXTURE0 + sampler.unit());
                     GlStateManager._bindTexture(samplerGlId);
+                    GL33.glBindSampler(sampler.unit(), 0);
                     shader.uploadSamplerUnit(sampler.uniformName(), sampler.unit());
                 }
             } catch (IllegalStateException ignored) {

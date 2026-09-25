@@ -9,6 +9,7 @@ import java.util.function.BiConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.resources.Identifier;
+import org.lwjgl.opengl.GL12;
 
 public final class InstancedMesh<T> {
     public record CustomUniform(String name, Supplier<float[]> value) {}
@@ -195,6 +196,11 @@ public final class InstancedMesh<T> {
 
         public Builder<T> extraCubeSampler(String uniformName, IntSupplier glTexture, int unit) {
             this.extraSamplers.add(new ExtraSampler(uniformName, glTexture, unit, true));
+            return this;
+        }
+
+        public Builder<T> extraVolumeSampler(String uniformName, IntSupplier glTexture, int unit) {
+            this.extraSamplers.add(new ExtraSampler(uniformName, glTexture, unit, GL12.GL_TEXTURE_3D));
             return this;
         }
 
