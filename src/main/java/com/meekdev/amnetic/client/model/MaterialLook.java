@@ -14,6 +14,11 @@ public final class MaterialLook {
     boolean doubleSided;
     TextureFilter filter;
     int baseColorGlId;
+    int normalGlId;
+    int roughnessGlId;
+    int metallicGlId;
+    int occlusionGlId;
+    int emissiveGlId;
     float repeatU = 1f;
     float repeatV = 1f;
     float offsetU;
@@ -25,7 +30,7 @@ public final class MaterialLook {
         emG = emB = offsetU = offsetV = 0f;
         doubleSided = false;
         filter = null;
-        baseColorGlId = 0;
+        baseColorGlId = normalGlId = roughnessGlId = metallicGlId = occlusionGlId = emissiveGlId = 0;
         return this;
     }
 
@@ -78,6 +83,31 @@ public final class MaterialLook {
         return this;
     }
 
+    public MaterialLook normalGlTexture(int glId) {
+        normalGlId = glId;
+        return this;
+    }
+
+    public MaterialLook roughnessGlTexture(int glId) {
+        roughnessGlId = glId;
+        return this;
+    }
+
+    public MaterialLook metallicGlTexture(int glId) {
+        metallicGlId = glId;
+        return this;
+    }
+
+    public MaterialLook occlusionGlTexture(int glId) {
+        occlusionGlId = glId;
+        return this;
+    }
+
+    public MaterialLook emissiveGlTexture(int glId) {
+        emissiveGlId = glId;
+        return this;
+    }
+
     public MaterialLook uv(float repeatU, float repeatV, float offsetU, float offsetV) {
         this.repeatU = repeatU;
         this.repeatV = repeatV;
@@ -97,6 +127,11 @@ public final class MaterialLook {
         if (!Float.isNaN(emR)) into.emissive(emR, emG, emB);
         if (filter != null) into.filter = filter;
         if (baseColorGlId != 0) into.baseColorGlId = baseColorGlId;
+        if (normalGlId != 0) into.normalGlId = normalGlId;
+        if (roughnessGlId != 0) into.roughnessGlId = roughnessGlId;
+        if (metallicGlId != 0) into.metallicGlId = metallicGlId;
+        if (occlusionGlId != 0) into.occlusionGlId = occlusionGlId;
+        if (emissiveGlId != 0) into.emissiveGlId = emissiveGlId;
         if (repeatU != 1f || repeatV != 1f || offsetU != 0f || offsetV != 0f) into.uv(repeatU, repeatV, offsetU, offsetV);
     }
 
@@ -117,4 +152,9 @@ public final class MaterialLook {
     public boolean doubleSided() { return doubleSided; }
     public TextureFilter filter() { return filter; }
     public int baseColorGlTexture() { return baseColorGlId; }
+    public int normalGlTexture() { return normalGlId; }
+    public int roughnessGlTexture() { return roughnessGlId; }
+    public int metallicGlTexture() { return metallicGlId; }
+    public int occlusionGlTexture() { return occlusionGlId; }
+    public int emissiveGlTexture() { return emissiveGlId; }
 }

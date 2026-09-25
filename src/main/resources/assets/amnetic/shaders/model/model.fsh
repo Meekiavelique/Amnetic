@@ -17,11 +17,18 @@ uniform sampler2D AlbedoSampler;
 uniform sampler2D NormalSampler;
 uniform sampler2D OrmSampler;
 uniform sampler2D EmissiveSampler;
+uniform sampler2D RoughnessSampler;
+uniform sampler2D MetallicSampler;
+uniform sampler2D OcclusionSampler;
 
 uniform int HasAlbedo;
 uniform int HasNormal;
 uniform int HasOrm;
 uniform int HasEmissive;
+uniform int HasRoughnessMap;
+uniform int HasMetallicMap;
+uniform int HasOcclusionMap;
+uniform int EmissiveEncoded;
 uniform int MaterialId;
 const int FLAT_SHADED_BASE = 128;
 
@@ -99,8 +106,20 @@ vec3 computeNormal() {
     vec3 n = normalize(vNormal);
     if (HasNormal == 1) {
         vec3 sampled = texture(NormalSampler, materialUv).xyz * 2.0 - 1.0;
-        mat3 tbn = mat3(normalize(vTangent), normalize(vBitangent), n);
-        return normalize(tbn * sampled);
+        if (dot(vTangent, vTangent) > 0.25) {
+            mat3 tbn = mat3(normalize(vTangent), normalize(vBitangent), n);
+            return normalize(tbn * sampled);
+        }
+        vec3 dp1 = dFdx(vWorldPos);
+        vec3 dp2 = dFdy(vWorldPos);
+        vec2 duv1 = dFdx(materialUv);
+        vec2 duv2 = dFdy(materialUv);
+        vec3 dp2perp = cross(dp2, n);
+        vec3 dp1perp = cross(n, dp1);
+        vec3 t = dp2perp * duv1.x + dp1perp * duv2.x;
+        vec3 b = dp2perp * duv1.y + dp1perp * duv2.y;
+        float scale = inversesqrt(max(max(dot(t, t), dot(b, b)), 1e-20));
+        return normalize(mat3(t * scale, -b * scale, n) * sampled);
     }
     return n;
 }
@@ -130,6 +149,9 @@ void main() {
         roughness *= orm.g;
         metallic *= orm.b;
     }
+    if (HasOcclusionMap == 1) ao = texture(OcclusionSampler, materialUv).r;
+    if (HasRoughnessMap == 1) roughness = texture(RoughnessSampler, materialUv).r;
+    if (HasMetallicMap == 1) metallic = texture(MetallicSampler, materialUv).r;
     metallic = clamp(metallic, 0.0, 1.0);
     roughness = clamp(roughness, 0.045, 1.0);
 
@@ -191,7 +213,10 @@ void main() {
     vec3 ambient = (iblDiffuse + iblSpecular) * ao;
 
     vec3 emissiveColor = Emissive;
-    if (HasEmissive == 1) emissiveColor *= texture(EmissiveSampler, materialUv).rgb;
+    if (HasEmissive == 1) {
+        vec3 glow = texture(EmissiveSampler, materialUv).rgb;
+        emissiveColor *= EmissiveEncoded == 1 ? pow(glow, vec3(2.2)) : glow;
+    }
     vec3 emissive = emissiveColor * EmissiveStrength + surfaceEmission;
 
     float emStrength = clamp(max(max(emissive.r, emissive.g), emissive.b), 0.0, 1.0);

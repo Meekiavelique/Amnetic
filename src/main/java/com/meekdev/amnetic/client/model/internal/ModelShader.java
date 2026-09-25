@@ -57,6 +57,14 @@ final class ModelShader implements AutoCloseable {
     private final int albedoEncodedLoc;
 
     static final int SURFACE_TEXTURE_UNIT = 8;
+    static final int ROUGHNESS_UNIT = 4;
+    static final int METALLIC_UNIT = 7;
+    static final int OCCLUSION_UNIT = 12;
+    static final int[] MATERIAL_UNITS = {0, 1, 2, 3, ROUGHNESS_UNIT, METALLIC_UNIT, OCCLUSION_UNIT};
+    private final int emissiveEncodedLoc;
+    private final int hasRoughnessMapLoc;
+    private final int hasMetallicMapLoc;
+    private final int hasOcclusionMapLoc;
 
     private ModelShader(int program) {
         this.program = program;
@@ -92,6 +100,10 @@ final class ModelShader implements AutoCloseable {
         this.uvTransformLoc = uniform("UvTransform");
         this.doubleSidedLoc = uniform("DoubleSided");
         this.albedoEncodedLoc = uniform("AlbedoEncoded");
+        this.emissiveEncodedLoc = uniform("EmissiveEncoded");
+        this.hasRoughnessMapLoc = uniform("HasRoughnessMap");
+        this.hasMetallicMapLoc = uniform("HasMetallicMap");
+        this.hasOcclusionMapLoc = uniform("HasOcclusionMap");
         bindSamplerUnits();
     }
 
@@ -246,6 +258,13 @@ final class ModelShader implements AutoCloseable {
         }
     }
 
+    void uploadOwnMaps(boolean emissiveEncoded, boolean roughness, boolean metallic, boolean occlusion) {
+        if (emissiveEncodedLoc != -1) GL20.glUniform1i(emissiveEncodedLoc, emissiveEncoded ? 1 : 0);
+        if (hasRoughnessMapLoc != -1) GL20.glUniform1i(hasRoughnessMapLoc, roughness ? 1 : 0);
+        if (hasMetallicMapLoc != -1) GL20.glUniform1i(hasMetallicMapLoc, metallic ? 1 : 0);
+        if (hasOcclusionMapLoc != -1) GL20.glUniform1i(hasOcclusionMapLoc, occlusion ? 1 : 0);
+    }
+
     void uploadUv(float repeatU, float repeatV, float offsetU, float offsetV) {
         if (uvTransformLoc != -1) {
             GL20.glUniform4f(uvTransformLoc, repeatU, repeatV, offsetU, offsetV);
@@ -275,6 +294,9 @@ final class ModelShader implements AutoCloseable {
         setSampler("NormalSampler", 1);
         setSampler("OrmSampler", 2);
         setSampler("EmissiveSampler", 3);
+        setSampler("RoughnessSampler", ROUGHNESS_UNIT);
+        setSampler("MetallicSampler", METALLIC_UNIT);
+        setSampler("OcclusionSampler", OCCLUSION_UNIT);
         setSampler("EnvCube", 5);
         setSampler("JointMatrixTex", JOINT_UNIT);
         for (int slot = 0; slot < SurfaceInputs.TEXTURE_SLOTS; slot++) {

@@ -108,7 +108,7 @@ void main() {
     }
 
     vNormal = worldNormal;
-    vTangent = worldTangent;
+    vTangent = dot(localTangent, localTangent) > 1e-8 ? worldTangent : vec3(0.0);
     vBitangent = cross(vNormal, vTangent) * Tangent.w;
     vUV = UV;
     vLight = InstLight;

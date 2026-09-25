@@ -639,18 +639,15 @@ public final class GpuModel implements AutoCloseable {
         resolveTextures(materialIndex, materialFor(materialIndex));
 
         boolean ownBase = look != null && look.baseColorGlTexture() != 0;
-        boolean hasBase;
-        if (ownBase) {
-            GlStateManager._activeTexture(GL13.GL_TEXTURE0);
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, look.baseColorGlTexture());
-            GlStateManager._bindTexture(look.baseColorGlTexture());
-            hasBase = true;
-        } else {
-            hasBase = bind(baseColor, materialIndex, 0);
-        }
-        boolean hasNormal = bind(normal, materialIndex, 1);
+        boolean hasBase = ownBase ? bindOwn(look.baseColorGlTexture(), 0) : bind(baseColor, materialIndex, 0);
+        int ownNormal = look == null ? 0 : look.normalGlTexture();
+        int ownEmissive = look == null ? 0 : look.emissiveGlTexture();
+        boolean hasNormal = ownNormal != 0 ? bindOwn(ownNormal, 1) : bind(normal, materialIndex, 1);
         boolean hasOrm = bind(orm, materialIndex, 2);
-        boolean hasEmissive = bind(emissive, materialIndex, 3);
+        boolean hasEmissive = ownEmissive != 0 ? bindOwn(ownEmissive, 3) : bind(emissive, materialIndex, 3);
+        boolean hasRoughness = look != null && bindOwn(look.roughnessGlTexture(), ModelShader.ROUGHNESS_UNIT);
+        boolean hasMetallic = look != null && bindOwn(look.metallicGlTexture(), ModelShader.METALLIC_UNIT);
+        boolean hasOcclusion = look != null && bindOwn(look.occlusionGlTexture(), ModelShader.OCCLUSION_UNIT);
 
         TextureFilter asked = look == null ? null : look.filter();
         int sampler = 0;
@@ -665,13 +662,31 @@ public final class GpuModel implements AutoCloseable {
         } else if (asked == TextureFilter.LINEAR) {
             sampler = sampler(GL11.GL_LINEAR_MIPMAP_LINEAR, GL11.GL_LINEAR);
         }
-        for (int unit = ownBase ? 1 : 0; unit < 4; unit++) {
-            GL33.glBindSampler(unit, sampler);
+        for (int unit : ModelShader.MATERIAL_UNITS) {
+            if (unit != 0 || !ownBase) GL33.glBindSampler(unit, sampler);
         }
 
         shader.uploadMaterial(mat, hasBase, hasNormal, hasOrm, hasEmissive);
         shader.uploadAlbedoEncoded(ownBase);
+        shader.uploadOwnMaps(ownEmissive != 0, hasRoughness, hasMetallic, hasOcclusion);
     }
+
+    private static boolean bindOwn(int glId, int unit) {
+        if (glId == 0) return false;
+        if (unit >= TRACKED_UNITS) {
+            GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
+            GL13.glActiveTexture(GL13.GL_TEXTURE0);
+            GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+            return true;
+        }
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
+        GlStateManager._bindTexture(glId);
+        return true;
+    }
+
+    private static final int TRACKED_UNITS = 12;
 
     private final Map<Integer, Integer> samplers = new HashMap<>();
 
@@ -695,7 +710,7 @@ public final class GpuModel implements AutoCloseable {
     }
 
     private void clearSamplerState() {
-        for (int unit = 0; unit < 4; unit++) {
+        for (int unit : ModelShader.MATERIAL_UNITS) {
             GL33.glBindSampler(unit, 0);
         }
     }

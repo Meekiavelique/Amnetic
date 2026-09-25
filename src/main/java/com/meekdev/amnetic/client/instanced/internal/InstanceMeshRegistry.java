@@ -194,7 +194,9 @@ public final class InstanceMeshRegistry {
                 if (entry.mesh().phase() != phase || !entry.mesh().writeGBuffer()) continue;
                 try {
                     entry.render(ctx);
-                    if (entry.mesh().isEmissive()) GBufferTargets.INSTANCE.markEmissive();
+                    if (entry.mesh().isEmissive() || entry.mesh().glowsInGBuffer() && entry.lastInstanceCount() > 0) {
+                        GBufferTargets.INSTANCE.markEmissive();
+                    }
                 } catch (Exception e) {
                     LOGGER.error("Amnetic: error rendering G-buffer mesh {}", entry.id(), e);
                 }
