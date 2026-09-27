@@ -22,4 +22,4 @@ stonecutter {
 rootProject.name = "amnetic"
 
 include("examples")
-include("bench")
+if (file("bench").isDirectory) include("bench")
