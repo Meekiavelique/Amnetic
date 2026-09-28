@@ -17,6 +17,7 @@ public final class MaterialLook {
     float emB;
     float emissiveStrength = 1f;
     boolean doubleSided;
+    boolean dithered;
     TextureFilter filter;
     int baseColorGlId;
     int normalGlId;
@@ -33,7 +34,7 @@ public final class MaterialLook {
         tintR = tintG = tintB = opacity = emissiveStrength = repeatU = repeatV = 1f;
         roughness = metallic = emR = Float.NaN;
         emG = emB = offsetU = offsetV = 0f;
-        doubleSided = false;
+        doubleSided = dithered = false;
         filter = null;
         baseColorGlId = normalGlId = roughnessGlId = metallicGlId = occlusionGlId = emissiveGlId = 0;
         return this;
@@ -75,6 +76,11 @@ public final class MaterialLook {
 
     public MaterialLook doubleSided(boolean value) {
         doubleSided |= value;
+        return this;
+    }
+
+    public MaterialLook dithered(boolean value) {
+        dithered |= value;
         return this;
     }
 
@@ -127,7 +133,7 @@ public final class MaterialLook {
     }
 
     void onto(MaterialLook into) {
-        into.tint(tintR, tintG, tintB).opacity(opacity).emissiveStrength(emissiveStrength).doubleSided(doubleSided);
+        into.tint(tintR, tintG, tintB).opacity(opacity).emissiveStrength(emissiveStrength).doubleSided(doubleSided).dithered(dithered);
         if (!Float.isNaN(roughness)) into.roughness = roughness;
         if (!Float.isNaN(metallic)) into.metallic = metallic;
         if (!Float.isNaN(emR)) into.emissive(emR, emG, emB);
@@ -156,6 +162,7 @@ public final class MaterialLook {
     public float emissiveB() { return emB; }
     public float emissiveStrength() { return emissiveStrength; }
     public boolean doubleSided() { return doubleSided; }
+    public boolean dithered() { return dithered; }
     public TextureFilter filter() { return filter; }
     public int baseColorGlTexture() { return baseColorGlId; }
     public int normalGlTexture() { return normalGlId; }

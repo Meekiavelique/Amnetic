@@ -140,6 +140,11 @@ void main() {
         albedo *= sampled;
     }
     if (AlphaCutoff > 0.0 && albedo.a < AlphaCutoff) discard;
+    if (AlphaCutoff < 0.0) {
+        vec2 pixel = gl_FragCoord.xy + mod(floor(Time * 60.0), 64.0) * 5.588238;
+        if (albedo.a <= fract(52.9829189 * fract(dot(pixel, vec2(0.06711056, 0.00583715))))) discard;
+        albedo.a = 1.0;
+    }
     if (albedo.a < 0.003) discard;
 
     float metallic = Metallic;

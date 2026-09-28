@@ -9,8 +9,9 @@ uniform float AlphaCutoff;
 out vec4 FragColor;
 
 void main() {
-    if (AlphaCutoff > 0.0 && HasAlbedo == 1) {
-        if (texture(AlbedoSampler, vUV).a < AlphaCutoff) discard;
+    float cutoff = AlphaCutoff < 0.0 ? 0.5 : AlphaCutoff;
+    if (cutoff > 0.0 && HasAlbedo == 1) {
+        if (texture(AlbedoSampler, vUV).a < cutoff) discard;
     }
     FragColor = vec4(0.0, 0.0, 0.0, 1.0);
 }

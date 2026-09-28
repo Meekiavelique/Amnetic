@@ -28,6 +28,7 @@ import com.meekdev.amnetic.client.material.SurfaceInputs;
 public final class GpuModel implements AutoCloseable {
 
     private static final int INSTANCE_STRIDE = 80;
+    private static final float DITHERED = -1f;
     private static final int VERTEX_STRIDE_BYTES = ModelIR.VERTEX_STRIDE_FLOATS * Float.BYTES;
     public static final int MAX_JOINTS = 128;
 
@@ -287,9 +288,9 @@ public final class GpuModel implements AutoCloseable {
         out.emR = (ownEmission ? look.emissiveR() : base.emR) * look.emissiveStrength();
         out.emG = (ownEmission ? look.emissiveG() : base.emG) * look.emissiveStrength();
         out.emB = (ownEmission ? look.emissiveB() : base.emB) * look.emissiveStrength();
-        out.alphaCutoff = base.alphaCutoff;
+        out.alphaCutoff = look.dithered() ? DITHERED : base.alphaCutoff;
         out.shadingModelId = base.shadingModelId;
-        out.blend = base.blend || out.baseA < 0.999f;
+        out.blend = !look.dithered() && (base.blend || out.baseA < 0.999f);
         out.doubleSided = base.doubleSided || look.doubleSided();
         out.baseColorFilter = look.filter() == null ? base.baseColorFilter : look.filter();
         return out;
