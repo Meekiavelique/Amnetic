@@ -13,6 +13,10 @@ layout(location = 7) in vec4 InstLight;
 layout(location = 8) in vec4 Tangent;
 layout(location = 9) in vec4 Joints;
 layout(location = 10) in vec4 Weights;
+layout(location = 11) in vec4 InstLast0;
+layout(location = 12) in vec4 InstLast1;
+layout(location = 13) in vec4 InstLast2;
+layout(location = 14) in vec4 InstLast3;
 
 uniform mat4 ProjViewMatrix;
 uniform int Skinned;
@@ -22,6 +26,7 @@ uniform int SourceIndexed;
 
 uniform samplerBuffer JointMatrixTex;
 uniform int JointCount;
+uniform int PrevJointBase;
 uniform int MaterialId;
 uniform float Time;
 
@@ -31,6 +36,7 @@ out vec3 vBitangent;
 out vec2 vUV;
 out vec4 vLight;
 out vec3 vWorldPos;
+out vec3 vMotion;
 
 #include "amnetic:shaders/material/custom_vertex_ladder.glsl"
 
@@ -48,9 +54,9 @@ mat4 fetchJoint(int base, int joint) {
                texelFetch(JointMatrixTex, o + 3));
 }
 
-mat4 skinMatrix() {
+mat4 skinMatrix(int offset) {
     int instance = (SourceIndexed == 1) ? int(InstLight.z + 0.5) : gl_InstanceID;
-    int base = instance * JointCount;
+    int base = offset + instance * JointCount;
     return Weights.x * fetchJoint(base, int(Joints.x))
          + Weights.y * fetchJoint(base, int(Joints.y))
          + Weights.z * fetchJoint(base, int(Joints.z))
@@ -63,11 +69,17 @@ void main() {
         model[3].xyz -= CameraPos;
     }
 
+    mat4 last = mat4(InstLast0, InstLast1, InstLast2, InstLast3);
+    if (WorldSpace == 1) {
+        last[3].xyz -= CameraPos;
+    }
     vec4 localPos = vec4(Position, 1.0);
+    vec4 lastLocal = localPos;
     vec3 localNormal = Normal;
     vec3 localTangent = Tangent.xyz;
     if (Skinned == 1) {
-        mat4 skin = skinMatrix();
+        mat4 skin = skinMatrix(0);
+        lastLocal = skinMatrix(PrevJointBase) * lastLocal;
         localPos = skin * localPos;
         mat3 skin3 = mat3(skin);
         localNormal = skin3 * localNormal;
@@ -113,5 +125,6 @@ void main() {
     vUV = UV;
     vLight = InstLight;
     vWorldPos = worldPos.xyz;
+    vMotion = (model * localPos).xyz - (last * lastLocal).xyz;
     gl_Position = ProjViewMatrix * worldPos;
 }
