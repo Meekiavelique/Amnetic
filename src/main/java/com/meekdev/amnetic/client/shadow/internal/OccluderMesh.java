@@ -2,7 +2,6 @@ package com.meekdev.amnetic.client.shadow.internal;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.shapes.Shapes;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -29,9 +28,17 @@ public final class OccluderMesh implements AutoCloseable {
         this.anchorZ = anchorZ;
     }
 
+    public interface Neighbours {
+        boolean full(int x, int y, int z);
+    }
+
     public static OccluderMesh build(List<OccluderEntry> list, int anchorX, int anchorY, int anchorZ) {
+        return build(list, anchorX, anchorY, anchorZ, null);
+    }
+
+    public static OccluderMesh build(List<OccluderEntry> list, int anchorX, int anchorY, int anchorZ, Neighbours outside) {
         OccluderMesh m = new OccluderMesh(anchorX, anchorY, anchorZ);
-        m.buildOpaque(list);
+        m.buildOpaque(list, outside);
         int[] cut = m.buildTextured(list, false);
         m.cutoutVao = cut[0]; m.cutoutVbo = cut[1]; m.cutoutCount = cut[2];
         int[] tr = m.buildTextured(list, true);
@@ -55,16 +62,16 @@ public final class OccluderMesh implements AutoCloseable {
         GL30.glBindVertexArray(0);
     }
 
-    private void buildOpaque(List<OccluderEntry> list) {
-        LongOpenHashSet full = new LongOpenHashSet();
+    private void buildOpaque(List<OccluderEntry> list, Neighbours outside) {
+        LongOpenHashSet full = new LongOpenHashSet(list.size());
         for (OccluderEntry e : list) {
-            if (e.shape != null && Block.isShapeFullBlock(e.shape)) full.add(e.pos.asLong());
+            if (e.full) full.add(e.pos.asLong());
         }
         int[] faces = {0};
         Shapes.DoubleLineConsumer counter = (a, b, c, d, e, f) -> faces[0] += 6;
         for (OccluderEntry e : list) {
             if (e.shape == null) continue;
-            if (full.contains(e.pos.asLong())) faces[0] += Integer.bitCount(openFaces(full, e.pos));
+            if (full.contains(e.pos.asLong())) faces[0] += Integer.bitCount(openFaces(full, outside, e.pos));
             else e.shape.forAllBoxes(counter);
         }
         if (faces[0] == 0) return;
@@ -74,7 +81,7 @@ public final class OccluderMesh implements AutoCloseable {
             if (e.shape == null) continue;
             final float ox = e.pos.getX() - anchorX, oy = e.pos.getY() - anchorY, oz = e.pos.getZ() - anchorZ;
             if (full.contains(e.pos.asLong())) {
-                emitBox(buf, ox, oy, oz, ox + 1f, oy + 1f, oz + 1f, openFaces(full, e.pos));
+                emitBox(buf, ox, oy, oz, ox + 1f, oy + 1f, oz + 1f, openFaces(full, outside, e.pos));
                 continue;
             }
             e.shape.forAllBoxes((minX, minY, minZ, maxX, maxY, maxZ) ->
@@ -142,16 +149,20 @@ public final class OccluderMesh implements AutoCloseable {
         opaqueCount = cutoutCount = translucentCount = 0;
     }
 
-    private static int openFaces(LongOpenHashSet full, BlockPos p) {
+    private static int openFaces(LongOpenHashSet full, Neighbours outside, BlockPos p) {
         int x = p.getX(), y = p.getY(), z = p.getZ();
         int open = 0;
-        if (!full.contains(BlockPos.asLong(x - 1, y, z))) open |= 1;
-        if (!full.contains(BlockPos.asLong(x + 1, y, z))) open |= 2;
-        if (!full.contains(BlockPos.asLong(x, y - 1, z))) open |= 4;
-        if (!full.contains(BlockPos.asLong(x, y + 1, z))) open |= 8;
-        if (!full.contains(BlockPos.asLong(x, y, z - 1))) open |= 16;
-        if (!full.contains(BlockPos.asLong(x, y, z + 1))) open |= 32;
+        if (!closed(full, outside, x - 1, y, z)) open |= 1;
+        if (!closed(full, outside, x + 1, y, z)) open |= 2;
+        if (!closed(full, outside, x, y - 1, z)) open |= 4;
+        if (!closed(full, outside, x, y + 1, z)) open |= 8;
+        if (!closed(full, outside, x, y, z - 1)) open |= 16;
+        if (!closed(full, outside, x, y, z + 1)) open |= 32;
         return open;
+    }
+
+    private static boolean closed(LongOpenHashSet full, Neighbours outside, int x, int y, int z) {
+        return full.contains(BlockPos.asLong(x, y, z)) || outside != null && outside.full(x, y, z);
     }
 
     private static void emitBox(FloatBuffer b,

@@ -7,12 +7,14 @@ public final class OccluderEntry {
 
     public final BlockPos pos;
     public final VoxelShape shape;
+    public final boolean full;
     public final float[] cutoutVerts;
     public final float[] translucentVerts;
 
-    public OccluderEntry(BlockPos pos, VoxelShape shape) {
+    public OccluderEntry(BlockPos pos, VoxelShape shape, boolean full) {
         this.pos = pos;
         this.shape = shape;
+        this.full = full;
         this.cutoutVerts = null;
         this.translucentVerts = null;
     }
@@ -20,6 +22,7 @@ public final class OccluderEntry {
     public OccluderEntry(BlockPos pos, float[] cutoutVerts, float[] translucentVerts) {
         this.pos = pos;
         this.shape = null;
+        this.full = false;
         this.cutoutVerts = cutoutVerts;
         this.translucentVerts = translucentVerts;
     }
