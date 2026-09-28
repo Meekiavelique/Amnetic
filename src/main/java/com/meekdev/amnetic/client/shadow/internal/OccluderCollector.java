@@ -67,27 +67,8 @@ public final class OccluderCollector {
                                 BlockState state = section.getBlockState(x & 15, y & 15, z & 15);
                                 if (state.isAir()) continue;
                                 mut.set(x, y, z);
-
                                 if (x == hostX && y == hostY && z == hostZ && state.getLightEmission() > 0) continue;
-
-                                if (state.getRenderShape() == RenderShape.INVISIBLE) continue;
-
-                                CutoutGeometry.Result quads = CutoutGeometry.extract(state);
-                                if (quads != null) {
-                                    out.add(new OccluderEntry(mut.immutable(), quads.cutout, quads.translucent));
-                                    continue;
-                                }
-
-                                VoxelShape shape;
-                                try {
-                                    shape = state.getCollisionShape(level, mut);
-                                    if (shape == null || shape.isEmpty()) shape = state.getShape(level, mut);
-                                } catch (Throwable t) {
-                                    continue;
-                                }
-                                if (shape == null || shape.isEmpty()) continue;
-
-                                out.add(new OccluderEntry(mut.immutable(), shape));
+                                collect(level, state, mut, out);
                             }
                         }
                     }
@@ -95,5 +76,34 @@ public final class OccluderCollector {
             }
         }
         return out;
+    }
+
+    public static void collect(Level level, BlockState state, BlockPos.MutableBlockPos at, List<OccluderEntry> out) {
+        if (state.getRenderShape() == RenderShape.INVISIBLE) return;
+        CutoutGeometry.Result quads = CutoutGeometry.extract(state);
+        if (quads != null) {
+            out.add(new OccluderEntry(at.immutable(), quads.cutout, quads.translucent));
+            return;
+        }
+        VoxelShape shape;
+        boolean full;
+        try {
+            shape = state.getCollisionShape(level, at);
+            full = !shape.isEmpty() && state.isCollisionShapeFullBlock(level, at);
+            if (shape.isEmpty()) shape = state.getShape(level, at);
+        } catch (Throwable t) {
+            return;
+        }
+        if (shape == null || shape.isEmpty()) return;
+        out.add(new OccluderEntry(at.immutable(), shape, full));
+    }
+
+    public static boolean solid(Level level, BlockState state, BlockPos at) {
+        if (state.isAir() || state.getRenderShape() == RenderShape.INVISIBLE || CutoutGeometry.extract(state) != null) return false;
+        try {
+            return state.isCollisionShapeFullBlock(level, at);
+        } catch (Throwable t) {
+            return false;
+        }
     }
 }

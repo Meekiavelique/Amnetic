@@ -42,7 +42,6 @@ public final class ShadowMapPass {
 
     private static final float NEAR = 0.05f;
     // OccluderCache key for the sun's block occluders, real light ids start at 1 so no collision
-    private static final long SUN_OCCLUDER_ID = -1L;
     private static final Identifier DEPTH_VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/shadow/depth.vsh");
     private static final Identifier DEPTH_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/shadow/depth.fsh");
     private static final Identifier CUTOUT_VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/shadow/depth_cutout.vsh");
@@ -50,6 +49,8 @@ public final class ShadowMapPass {
     private static final Identifier TRANSLUCENT_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/shadow/depth_translucent.fsh");
 
     private final OccluderMeshCache meshes = new OccluderMeshCache();
+    private final SunOccluders sunBlocks = new SunOccluders();
+    private final Matrix4f meshViewProj = new Matrix4f();
     private final EntityOccluders entities = new EntityOccluders();
     private final Set<Long> liveIds = new HashSet<>();
     private final HashMap<Long, long[]> bakeState = new HashMap<>();
@@ -424,22 +425,11 @@ public final class ShadowMapPass {
 
         float ext = s.sunCasterExtension();
 
-        // block occluders: one collection around the camera, snapped to an 8-block grid so the cached mesh
-        // survives camera motion. every cascade draws the same mesh, the ortho clips the rest for free
-        OccluderCache.Collected col = null;
-        OccluderMesh mesh = null;
         float blockR = Math.min(s.sunBlockOccluderRadius(), far);
-        if (blockR > 0f) {
-            float sx = (float) (Math.floor(cam.eye.x / 8.0) * 8.0 + 4.0);
-            float sy = (float) (Math.floor(cam.eye.y / 8.0) * 8.0 + 4.0);
-            float sz = (float) (Math.floor(cam.eye.z / 8.0) * 8.0 + 4.0);
-            col = OccluderCache.getOrCompute(SUN_OCCLUDER_ID, level, sx, sy, sz, blockR + 7f);
-            mesh = meshes.get(SUN_OCCLUDER_ID, col);
-            liveIds.add(SUN_OCCLUDER_ID);
-        }
-        int ax = col != null ? col.anchorX : (int) Math.floor(cam.eye.x);
-        int ay = col != null ? col.anchorY : (int) Math.floor(cam.eye.y);
-        int az = col != null ? col.anchorZ : (int) Math.floor(cam.eye.z);
+        int ax = (int) (Math.floor(cam.eye.x / 8.0) * 8.0 + 4.0);
+        int ay = (int) (Math.floor(cam.eye.y / 8.0) * 8.0 + 4.0);
+        int az = (int) (Math.floor(cam.eye.z / 8.0) * 8.0 + 4.0);
+        List<OccluderMesh> blocks = blockR > 0f ? sunBlocks.update(level, ax, ay, az, blockR + 7f) : List.of();
         boolean ents = s.entityShadows() && entities.build(level, cam.eye.x, cam.eye.y, cam.eye.z,
                 Math.min(far, 64f), ax, ay, az, s.entityModels(), partialTick);
         if (ents) entityBoxes += entities.boxCount();
@@ -491,7 +481,7 @@ public final class ShadowMapPass {
             float eay = (float) (cy - ay) - dy * eyeDist;
             float eaz = (float) (cz - az) - dz * eyeDist;
             viewProj.set(proj).mul(lookAtUp(view, eax, eay, eaz, dx, dy, dz, upx, upy, upz));
-            drawAll(mesh, ents, viewProj);
+            drawAll(blocks, ax, ay, az, ents, viewProj);
 
             // custom models are cascade-center-relative (same precision trick as the spot path)
             dynamicViewProj.set(proj).mul(lookAtUp(dynamicView,
@@ -541,35 +531,53 @@ public final class ShadowMapPass {
     }
 
     private void drawAll(OccluderMesh mesh, boolean ents, Matrix4f bakeVP) {
-        boolean anyOpaque = (mesh != null && mesh.hasOpaque()) || ents;
-        if (anyOpaque) {
-            opaqueProgram.begin();
-            opaqueProgram.setViewProj(bakeVP);
-            if (mesh != null) mesh.drawOpaque();
-            if (ents) entities.draw();
+        drawAll(mesh == null ? List.of() : List.of(mesh), mesh == null ? 0 : mesh.anchorX,
+                mesh == null ? 0 : mesh.anchorY, mesh == null ? 0 : mesh.anchorZ, ents, bakeVP);
+    }
+
+    private void drawAll(List<OccluderMesh> meshes, int ax, int ay, int az, boolean ents, Matrix4f bakeVP) {
+        boolean cutout = false, translucent = false;
+        opaqueProgram.begin();
+        opaqueProgram.setViewProj(bakeVP);
+        if (ents) entities.draw();
+        for (OccluderMesh mesh : meshes) {
+            cutout |= mesh.hasCutout();
+            translucent |= mesh.hasTranslucent();
+            if (!mesh.hasOpaque()) continue;
+            opaqueProgram.setViewProj(placed(bakeVP, mesh, ax, ay, az));
+            mesh.drawOpaque();
         }
-        if (mesh != null && (mesh.hasCutout() || mesh.hasTranslucent())) {
-            int atlas = blockAtlasGlId();
-            if (atlas == 0) {
-                if (!atlasWarned) { atlasWarned = true; LOGGER.warn("block atlas GL id unavailable; textured shadows disabled this session"); }
-            } else {
-                GlStateManager._activeTexture(GL13.GL_TEXTURE0);
-                GL11.glBindTexture(GL11.GL_TEXTURE_2D, atlas);
-                GL33.glBindSampler(0, 0);
-                if (mesh.hasCutout()) {
-                    cutoutProgram.begin();
-                    cutoutProgram.setViewProj(bakeVP);
-                    cutoutProgram.setSampler("uAtlas", 0);
-                    mesh.drawCutout();
-                }
-                if (mesh.hasTranslucent()) {
-                    translucentProgram.begin();
-                    translucentProgram.setViewProj(bakeVP);
-                    translucentProgram.setSampler("uAtlas", 0);
-                    mesh.drawTranslucent();
-                }
+        if (!cutout && !translucent) return;
+        int atlas = blockAtlasGlId();
+        if (atlas == 0) {
+            if (!atlasWarned) { atlasWarned = true; LOGGER.warn("block atlas GL id unavailable; textured shadows disabled this session"); }
+            return;
+        }
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, atlas);
+        GL33.glBindSampler(0, 0);
+        if (cutout) {
+            cutoutProgram.begin();
+            cutoutProgram.setSampler("uAtlas", 0);
+            for (OccluderMesh mesh : meshes) {
+                if (!mesh.hasCutout()) continue;
+                cutoutProgram.setViewProj(placed(bakeVP, mesh, ax, ay, az));
+                mesh.drawCutout();
             }
         }
+        if (translucent) {
+            translucentProgram.begin();
+            translucentProgram.setSampler("uAtlas", 0);
+            for (OccluderMesh mesh : meshes) {
+                if (!mesh.hasTranslucent()) continue;
+                translucentProgram.setViewProj(placed(bakeVP, mesh, ax, ay, az));
+                mesh.drawTranslucent();
+            }
+        }
+    }
+
+    private Matrix4f placed(Matrix4f bakeVP, OccluderMesh mesh, int ax, int ay, int az) {
+        return meshViewProj.set(bakeVP).translate(mesh.anchorX - ax, mesh.anchorY - ay, mesh.anchorZ - az);
     }
 
     private static int blockAtlasGlId() {
@@ -605,6 +613,7 @@ public final class ShadowMapPass {
 
     public void dispose() {
         meshes.dispose();
+        sunBlocks.clear();
         entities.dispose();
         bakeState.clear();
         OccluderCache.clear();
