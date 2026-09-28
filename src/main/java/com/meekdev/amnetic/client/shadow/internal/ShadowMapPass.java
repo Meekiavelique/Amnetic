@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -84,6 +85,15 @@ public final class ShadowMapPass {
     private final Vector3f camFwd = new Vector3f();
     private boolean sunActive;
     private int sunCascadeCount;
+    private final Matrix4f[] cascadeViewProj = {new Matrix4f(), new Matrix4f(), new Matrix4f(), new Matrix4f()};
+    private final double[] cascadeCenter = new double[ShadowSettings.MAX_CASCADES * 3];
+    private final float[] cascadeDir = new float[ShadowSettings.MAX_CASCADES * 3];
+    private final boolean[] cascadeBaked = new boolean[ShadowSettings.MAX_CASCADES];
+    private int cascadeLayout;
+    private int sunFrame;
+    private static final int[][] STAGGER = {{0}, {0, 1}, {1, 2}, {1, 2, 1, 3}};
+    private static final float CASCADE_DRIFT = 0.05f;
+    private static final float SUN_TURN_COS = 0.9998f;
 
     private boolean active;
     private int spotCount, pointCount, entityBoxes;
@@ -373,6 +383,13 @@ public final class ShadowMapPass {
         int cascades = sunCascades;
         SunShadowCascades.ensure(sunResolution, cascades);
         int res = SunShadowCascades.resolution();
+        int layout = SunShadowCascades.glTextureId() * 128 + cascades * 16 + Integer.numberOfTrailingZeros(res);
+        if (cascadeLayout != layout) {
+            cascadeLayout = layout;
+            Arrays.fill(cascadeBaked, false);
+        }
+        int[] stagger = STAGGER[cascades - 1];
+        int extra = stagger[sunFrame++ % stagger.length];
 
         // light-space basis in double precision so world-space texel snapping stays exact far from origin
         // up choice mirrors lookAt() so the snap axes match the view matrix
@@ -449,6 +466,17 @@ public final class ShadowMapPass {
             cy += ryd * snapR + uyd * snapU;
             cz += rzd * snapR + uzd * snapU;
 
+            int o = i * 3;
+            double mx = cx - cascadeCenter[o], my = cy - cascadeCenter[o + 1], mz = cz - cascadeCenter[o + 2];
+            boolean due = i == 0 || i == extra || !cascadeBaked[i] || sunCascadeRadius[i] != radius
+                    || dx * cascadeDir[o] + dy * cascadeDir[o + 1] + dz * cascadeDir[o + 2] < SUN_TURN_COS
+                    || mx * mx + my * my + mz * mz > CASCADE_DRIFT * CASCADE_DRIFT * radius * radius;
+            if (!due) {
+                cascadeViewProj[i].translate((float) (cam.eye.x - cascadeCenter[o]), (float) (cam.eye.y - cascadeCenter[o + 1]),
+                        (float) (cam.eye.z - cascadeCenter[o + 2]), sunCamViewProj).get(sunViewProj, i * 16);
+                continue;
+            }
+
             float eyeDist = radius + ext;
             proj.setOrtho(-radius, radius, -radius, radius, 0f, 2f * radius + ext);
 
@@ -479,6 +507,10 @@ public final class ShadowMapPass {
             InstanceMeshRegistry.INSTANCE.renderShadow(sunCamViewProj);
             sunCamViewProj.get(sunViewProj, i * 16);
             sunCascadeRadius[i] = radius;
+            cascadeViewProj[i].set(proj).mul(lookAtUp(dynamicView, -dx * eyeDist, -dy * eyeDist, -dz * eyeDist, dx, dy, dz, upx, upy, upz));
+            cascadeCenter[o] = cx; cascadeCenter[o + 1] = cy; cascadeCenter[o + 2] = cz;
+            cascadeDir[o] = dx; cascadeDir[o + 1] = dy; cascadeDir[o + 2] = dz;
+            cascadeBaked[i] = true;
         }
 
         sunCascadeCount = cascades;
