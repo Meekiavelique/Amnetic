@@ -4,38 +4,55 @@ in vec2 vUV;
 out vec4 FragColor;
 
 uniform sampler2D AoRaw;
+uniform sampler2D LinearSampler;
 uniform sampler2D History;
-uniform sampler2D DepthSampler;
+uniform mat4 InvView;
 uniform mat4 PrevViewProj;
-uniform mat4 InvViewProj;
 uniform vec3 EyeDelta;
-uniform int ZeroToOne;
 uniform float Feedback;
 
-#include "amnetic:shaders/common/screen.glsl"
+#include "amnetic:shaders/ssao/view.glsl"
 
 void main() {
-    float cur = texture(AoRaw, vUV).r;
-    float depth = texture(DepthSampler, vUV).r;
-    if (depth >= 1.0) { FragColor = vec4(vec3(cur), 1.0); return; }
+    ivec2 px = ivec2(gl_FragCoord.xy);
+    ivec2 size = textureSize(AoRaw, 0);
+    float cur = texelFetch(AoRaw, px, 0).r;
+    float z = texelFetch(LinearSampler, px, 0).r;
+    FragColor = vec4(cur, z, 0.0, 1.0);
+    if (Feedback <= 0.0 || z > 60000.0) return;
 
-    vec3 P = reconstruct(vUV, depth);
+    vec2 uv = (vec2(px) + 0.5) / vec2(size);
+    vec3 P = mat3(InvView) * viewAt(uv, z);
     vec4 pc = PrevViewProj * vec4(P + EyeDelta, 1.0);
-    float outAo = cur;
-    if (pc.w > 0.0) {
-        vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
-        if (puv.x >= 0.0 && puv.x <= 1.0 && puv.y >= 0.0 && puv.y <= 1.0) {
-            float hist = texture(History, puv).r;
-            vec2 ts = 1.0 / vec2(textureSize(AoRaw, 0));
-            float lo = cur, hi = cur;
-            float n;
-            n = texture(AoRaw, vUV + vec2(ts.x, 0)).r; lo = min(lo, n); hi = max(hi, n);
-            n = texture(AoRaw, vUV - vec2(ts.x, 0)).r; lo = min(lo, n); hi = max(hi, n);
-            n = texture(AoRaw, vUV + vec2(0, ts.y)).r; lo = min(lo, n); hi = max(hi, n);
-            n = texture(AoRaw, vUV - vec2(0, ts.y)).r; lo = min(lo, n); hi = max(hi, n);
-            hist = clamp(hist, lo, hi);
-            outAo = mix(cur, hist, Feedback);
+    if (pc.w <= 0.0) return;
+    vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
+    if (any(lessThan(puv, vec2(0.0))) || any(greaterThan(puv, vec2(1.0)))) return;
+
+    vec2 hp = puv * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(hp));
+    vec2 f = hp - vec2(base);
+    float sum = 0.0;
+    float wsum = 0.0;
+    for (int i = 0; i < 4; i++) {
+        ivec2 o = ivec2(i & 1, i >> 1);
+        vec2 h = texelFetch(History, clamp(base + o, ivec2(0), size - 1), 0).rg;
+        float bil = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
+        float w = bil * step(abs(h.g - pc.w), 0.03 * pc.w + 0.02);
+        sum += h.r * w;
+        wsum += w;
+    }
+    if (wsum < 0.05) return;
+    float hist = sum / wsum;
+
+    float lo = cur;
+    float hi = cur;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            float n = texelFetch(AoRaw, clamp(px + ivec2(x, y), ivec2(0), size - 1), 0).r;
+            lo = min(lo, n);
+            hi = max(hi, n);
         }
     }
-    FragColor = vec4(vec3(outAo), 1.0);
+    hist = clamp(hist, lo - 0.05, hi + 0.05);
+    FragColor = vec4(mix(cur, hist, Feedback * min(wsum, 1.0)), z, 0.0, 1.0);
 }

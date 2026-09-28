@@ -1,12 +1,41 @@
-#version 330 core
+#version 410 core
 
 in vec2 vUV;
 out vec4 FragColor;
 
 uniform sampler2D AoSampler;
+uniform sampler2D LinearSampler;
+uniform sampler2D DepthSampler;
 
-// straight 1:1 sample of the already-denoised AO, blurring a second time here only widened it
-// into a halo across silhouettes. output is the multiply source (scene *= AO)
+#include "amnetic:shaders/ssao/view.glsl"
+
+float upsampled() {
+    float d = texelFetch(DepthSampler, ivec2(gl_FragCoord.xy), 0).r;
+    if (d >= 1.0) return 1.0;
+    float z = linearDepth(d);
+    ivec2 size = textureSize(AoSampler, 0);
+    vec2 hp = vUV * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(hp));
+    vec2 f = hp - vec2(base);
+    float sum = 0.0;
+    float wsum = 0.0;
+    float best = 1.0;
+    float bestGap = 1e30;
+    for (int i = 0; i < 4; i++) {
+        ivec2 o = ivec2(i & 1, i >> 1);
+        ivec2 q = clamp(base + o, ivec2(0), size - 1);
+        float zq = texelFetch(LinearSampler, q, 0).r;
+        float ao = texelFetch(AoSampler, q, 0).r;
+        float gap = abs(zq - z);
+        float bil = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
+        float w = bil / (1.0 + gap * 50.0 / z);
+        sum += ao * w;
+        wsum += w;
+        if (gap < bestGap) { bestGap = gap; best = ao; }
+    }
+    return bestGap > 0.05 * z ? best : sum / max(wsum, 1e-5);
+}
+
 void main() {
-    FragColor = vec4(vec3(texture(AoSampler, vUV).r), 1.0);
+    FragColor = vec4(vec3(upsampled()), 1.0);
 }
