@@ -93,6 +93,15 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         lastCamY = cam.y;
         lastCamZ = cam.z;
 
+        if (mesh.source() != null) {
+            lastInstanceCount = mesh.source().prepare(ctx);
+            boxed = false;
+            if (lastInstanceCount > 0) {
+                drawNow(projViewScratch, ctx.projectionMatrix(), ctx.viewMatrix(), ctx.gameTime(), cam, lastInstanceCount);
+            }
+            return;
+        }
+
         if (gpuCullEnabled()) {
             renderGpuCulled(ctx);
         } else {
@@ -465,7 +474,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         }
 
         instanceBuffer = new InstanceBuffer(mesh.layout().stride(), 64);
-        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, instanceBuffer.id());
+        int instances = mesh.source() != null ? mesh.source().buffer() : instanceBuffer.id();
+        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, instances);
         mesh.layout().setupVaoAttributes();
 
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);

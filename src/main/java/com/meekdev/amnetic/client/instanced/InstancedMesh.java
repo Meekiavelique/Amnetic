@@ -42,6 +42,7 @@ public final class InstancedMesh<T> {
     final boolean manual;
     final boolean flatShaded;
     final BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
+    final InstanceSource source;
 
     private InstancedMesh(Builder<T> b) {
         this.geometry = Objects.requireNonNull(b.geometry, "geometry must be set");
@@ -71,6 +72,7 @@ public final class InstancedMesh<T> {
         this.worldSpace = b.worldSpace;
         this.manual = b.manual;
         this.onRender = Objects.requireNonNull(b.onRender, "onRender must be set");
+        this.source = b.source;
     }
 
     /**
@@ -89,6 +91,13 @@ public final class InstancedMesh<T> {
 
     public static <T> Builder<T> builder(InstanceLayout layout, InstanceWriter<T> writer) {
         return new Builder<>(layout, writer);
+    }
+
+    public static Builder<Void> builder(InstanceLayout layout, InstanceSource source) {
+        Builder<Void> b = new Builder<>(layout, (instance, packer) -> {});
+        b.source = source;
+        b.onRender = (ctx, batch) -> {};
+        return b;
     }
 
     public MeshData geometry() { return geometry; }
@@ -112,6 +121,7 @@ public final class InstancedMesh<T> {
     public boolean flatShaded() { return flatShaded; }
 
     public BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender() { return onRender; }
+    public InstanceSource source() { return source; }
 
     public boolean isBuiltin() { return builtinShader != null; }
     public BuiltinShader<?> builtinShader() { return builtinShader; }
@@ -150,6 +160,7 @@ public final class InstancedMesh<T> {
         private boolean manual = false;
         private boolean flatShaded = false;
         private BiConsumer<InstanceRenderContext, InstanceBatch<T>> onRender;
+        private InstanceSource source;
 
         private Builder(InstanceLayout layout, InstanceWriter<T> writer) {
             this.layout = layout;
