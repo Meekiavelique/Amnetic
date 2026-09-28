@@ -327,7 +327,7 @@ public final class ShadowMapPass {
         ModelRegistry.INSTANCE.renderShadow(dynamicViewProj, l.x(), l.y(), l.z(), l.range());
         dynamicViewProj.set(proj).mul(lookAt(dynamicView, (float) l.x(), (float) l.y(), (float) l.z(),
                 l.dirX(), l.dirY(), l.dirZ()));
-        InstanceMeshRegistry.INSTANCE.renderShadow(dynamicViewProj);
+        InstanceMeshRegistry.INSTANCE.renderShadow(dynamicViewProj, l.x(), l.y(), l.z(), l.range());
     }
 
     private void bakePoint(Light l, CameraSnapshot cam, Level level, int slot, ShadowSettings s) {
@@ -363,7 +363,7 @@ public final class ShadowMapPass {
             ModelRegistry.INSTANCE.renderShadow(dynamicViewProj, l.x(), l.y(), l.z(), l.range());
             dynamicViewProj.set(proj).mul(lookAtUp(dynamicView, (float) l.x(), (float) l.y(), (float) l.z(),
                     f[0], f[1], f[2], f[3], f[4], f[5]));
-            InstanceMeshRegistry.INSTANCE.renderShadow(dynamicViewProj);
+            InstanceMeshRegistry.INSTANCE.renderShadow(dynamicViewProj, l.x(), l.y(), l.z(), l.range());
         }
     }
 
