@@ -60,6 +60,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private boolean warnedMissingBounds;
 
     private double lastCamX, lastCamY, lastCamZ;
+    private final double[] box = new double[6];
+    private boolean boxed;
 
     private final Set<Identifier> registeredExtras = new HashSet<>();
     private static final Vector3f SUN = new Vector3f(0f, 1f, 0f);
@@ -115,6 +117,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             lastInstanceCount = instanceCount;
             if (instanceCount == 0) return;
             instanceBuffer.upload(batch.flip(), instanceCount);
+            uploaded();
             staticUploaded = mesh.staticInstances();
         }
         if (lastInstanceCount == 0) return;
@@ -132,6 +135,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             mesh.onRender().accept(ctx, batch);
             lastInstanceCount = batch.count();
             if (lastInstanceCount == 0) return;
+            uploaded();
 
             if (!batch.hasCompleteBounds()) {
                 warnMissingBoundsOnce();
@@ -158,7 +162,21 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         cullStaticUploaded = false;
     }
 
+    private void uploaded() {
+        boxed = batch.spansAll();
+        if (boxed) batch.spanBox(box);
+    }
+
     public boolean castsShadow() { return mesh.castsShadow(); }
+
+    public boolean reaches(double x, double y, double z, float range) {
+        if (!boxed) return true;
+        double dx = Math.max(Math.max(box[0] - x, 0.0), x - box[3]);
+        double dy = Math.max(Math.max(box[1] - y, 0.0), y - box[4]);
+        double dz = Math.max(Math.max(box[2] - z, 0.0), z - box[5]);
+        return dx * dx + dy * dy + dz * dz <= (double) range * range;
+    }
+
     public int lastInstanceCount() { return lastInstanceCount; }
 
     public void renderShadow(Matrix4fc lightViewProj) {
