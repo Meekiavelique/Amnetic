@@ -15,7 +15,7 @@ uniform int ShadowPcss; // 1 = contact-hardening
 uniform float ShadowLightSize;
 uniform int ShadowActive;
 
-uniform sampler2DArray SunShadowMap; // depth per cascade, tightest first
+uniform sampler2DArrayShadow SunShadowMap; // depth per cascade, tightest first
 uniform mat4 SunViewProj[4]; // camera-relative ortho view-projection per cascade
 uniform float SunCascadeRadius[4]; // cascade world radius; texel = 2r / SunShadowRes
 uniform int SunCascadeCount;
@@ -32,6 +32,13 @@ const vec2 AMNETIC_POISSON[16] = vec2[16](
     vec2(-0.26496911, -0.41893023), vec2(0.79197514, 0.19090188),
     vec2(-0.24188840, 0.99706507), vec2(-0.81409955, 0.91437590),
     vec2(0.19984126, 0.78641367), vec2(0.14383161, -0.14100790)
+);
+
+const vec2 AMNETIC_VOGEL[8] = vec2[8](
+    vec2(0.250000, 0.000000), vec2(-0.319290, 0.292496),
+    vec2(0.048872, -0.556877), vec2(0.402444, 0.524918),
+    vec2(-0.738535, -0.130636), vec2(0.699605, -0.445031),
+    vec2(-0.234004, 0.870484), vec2(-0.446271, -0.859268)
 );
 
 float amnetic_ign() {
@@ -114,7 +121,7 @@ vec3 amnetic_samplePoint(int slot, vec3 fragPos, vec3 lightPosRel, float range) 
     return vec3(lit / 16.0); // point shadows are grayscale, no color map for the cube array yet
 }
 
-// cascaded sun shadows: first-fit cascade selection (tightest wins), 16-tap rotated-poisson PCF
+// cascaded sun shadows: first-fit cascade selection (tightest wins), hardware-filtered PCF
 float amnetic_sampleSun(vec3 fragPos, vec3 N) {
     if (SunShadowActive == 0) return 1.0;
     for (int c = 0; c < SunCascadeCount; c++) {
@@ -125,23 +132,19 @@ float amnetic_sampleSun(vec3 fragPos, vec3 N) {
         if (abs(ndc.x) > 0.97 || abs(ndc.y) > 0.97 || ndc.z < -1.0 || ndc.z > 1.0) continue;
 
         vec2 uv = ndc.xy * 0.5 + 0.5;
-        float fragDepth = ndc.z * 0.5 + 0.5;
-        float bias = ShadowBias * (1.0 + float(c)); // looser cascades span more depth per unit
-        float texelUV = 1.0 / SunShadowRes;
-        float radius = max(ShadowSoftnessTexels, 0.0) * texelUV;
+        float ref = ndc.z * 0.5 + 0.5 - ShadowBias * (1.0 + float(c)); // looser cascades span more depth per unit
+        float radius = max(ShadowSoftnessTexels, 0.0);
+        if (radius < 1.0) return texture(SunShadowMap, vec4(uv, float(c), ref));
 
         float a = amnetic_ign() * 6.2831853;
         float ca = cos(a), sa = sin(a);
-        mat2 rot = mat2(ca, -sa, sa, ca);
+        mat2 rot = mat2(ca, -sa, sa, ca) * (radius / SunShadowRes);
 
         float lit = 0.0;
-        for (int i = 0; i < 16; i++) {
-            vec2 off = rot * AMNETIC_POISSON[i] * radius;
-            vec2 suv = clamp(uv + off, vec2(texelUV * 0.5), vec2(1.0 - texelUV * 0.5));
-            float stored = texture(SunShadowMap, vec3(suv, float(c))).r;
-            lit += (fragDepth - bias <= stored) ? 1.0 : 0.0;
+        for (int i = 0; i < 8; i++) {
+            lit += texture(SunShadowMap, vec4(uv + rot * AMNETIC_VOGEL[i], float(c), ref));
         }
-        return lit / 16.0;
+        return lit / 8.0;
     }
     return 1.0; // beyond the loosest cascade
 }
@@ -160,9 +163,8 @@ float shadowVisibilityCheap(int shadowRef, vec3 fragPos, vec3 lightPosRel, float
         for (int c = 0; c < SunCascadeCount; c++) {
             vec3 ndc = (SunViewProj[c] * vec4(fragPos, 1.0)).xyz;
             if (abs(ndc.x) > 0.97 || abs(ndc.y) > 0.97 || ndc.z < -1.0 || ndc.z > 1.0) continue;
-            float fd = ndc.z * 0.5 + 0.5;
-            float stored = texture(SunShadowMap, vec3(ndc.xy * 0.5 + 0.5, float(c))).r;
-            return (fd - ShadowBias * (1.0 + float(c)) <= stored) ? 1.0 : 0.0;
+            float fd = ndc.z * 0.5 + 0.5 - ShadowBias * (1.0 + float(c));
+            return texture(SunShadowMap, vec4(ndc.xy * 0.5 + 0.5, float(c), fd));
         }
         return 1.0;
     }
