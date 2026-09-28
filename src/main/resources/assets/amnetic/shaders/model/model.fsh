@@ -6,12 +6,14 @@ in vec3 vBitangent;
 in vec2 vUV;
 in vec4 vLight;
 in vec3 vWorldPos;
+in vec3 vMotion;
 
 layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 GNormal;
 layout(location = 2) out vec4 GMaterial;
 layout(location = 3) out vec4 GEmissive;
 layout(location = 4) out vec4 GAlbedo;
+layout(location = 5) out vec4 GVelocity;
 
 uniform sampler2D AlbedoSampler;
 uniform sampler2D NormalSampler;
@@ -132,6 +134,7 @@ vec3 acesFilm(vec3 x) {
 }
 
 void main() {
+    GVelocity = vec4(vMotion, 1.0);
     materialUv = vUV * UvTransform.xy + UvTransform.zw;
     vec4 albedo = BaseColor;
     if (HasAlbedo == 1) {
@@ -179,6 +182,11 @@ void main() {
         surfaceEmission = surface.emission;
         if (albedo.a < 0.003) discard;
     }
+    vec3 dNx = dFdx(N);
+    vec3 dNy = dFdy(N);
+    float widen = min(0.3 * (dot(dNx, dNx) + dot(dNy, dNy)), 0.2);
+    float alpha = roughness * roughness;
+    roughness = clamp(sqrt(sqrt(alpha * alpha + widen)), 0.045, 1.0);
     vec3 V = normalize(-vWorldPos);
     float NoV = max(dot(N, V), 1e-4);
     vec3 R = reflect(-V, N);
@@ -219,7 +227,7 @@ void main() {
     vec2 brdf = envBRDFApprox(roughness, NoV);
     vec3 kdIbl = (vec3(1.0) - Fr) * (1.0 - metallic);
     vec3 iblDiffuse = irradiance * albedo.rgb * kdIbl;
-    vec3 iblSpecular = prefiltered * (Fr * brdf.x + brdf.y);
+    vec3 iblSpecular = prefiltered * (F0 * brdf.x + brdf.y);
     vec3 ambient = (iblDiffuse + iblSpecular) * ao;
 
     vec3 emissiveColor = Emissive;
@@ -273,7 +281,7 @@ void main() {
     // scale by minecraft's lightmap so models track day/night and shade like vanilla geometry,
     // emissive still glows in the dark
     float lightmap = clamp(max(sky, block), 0.03, 1.0);
-    vec3 color = ((direct + ambient) * lightmap + emissive) * Exposure;
+    vec3 color = (direct * sky + ambient * lightmap + emissive) * Exposure;
     if (Tonemap == 1) color = acesFilm(color); // filmic tonemap, toggleable
     color = pow(max(color, 0.0), vec3(1.0 / 2.2)); // linear to sRGB
     FragColor = vec4(color, albedo.a);
