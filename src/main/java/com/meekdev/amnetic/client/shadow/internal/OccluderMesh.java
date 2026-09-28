@@ -1,5 +1,8 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.shapes.Shapes;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -12,7 +15,8 @@ import java.util.List;
 
 public final class OccluderMesh implements AutoCloseable {
 
-    private static final int FLOATS_PER_BOX = 36 * 3; // 12 triangles * 3 verts * 3 floats
+    private static final int FLOATS_PER_FACE = 6 * 3;
+    private static final int ALL_FACES = 0b111111;
 
     public final int anchorX, anchorY, anchorZ;
     private int opaqueVao, opaqueVbo, opaqueCount;
@@ -52,22 +56,33 @@ public final class OccluderMesh implements AutoCloseable {
     }
 
     private void buildOpaque(List<OccluderEntry> list) {
-        int[] boxes = {0};
-        Shapes.DoubleLineConsumer counter = (a, b, c, d, e, f) -> boxes[0]++;
+        LongOpenHashSet full = new LongOpenHashSet();
         for (OccluderEntry e : list) {
-            if (e.shape != null) e.shape.forAllBoxes(counter);
+            if (e.shape != null && Block.isShapeFullBlock(e.shape)) full.add(e.pos.asLong());
         }
-        if (boxes[0] == 0) return;
+        int[] faces = {0};
+        Shapes.DoubleLineConsumer counter = (a, b, c, d, e, f) -> faces[0] += 6;
+        for (OccluderEntry e : list) {
+            if (e.shape == null) continue;
+            if (full.contains(e.pos.asLong())) faces[0] += Integer.bitCount(openFaces(full, e.pos));
+            else e.shape.forAllBoxes(counter);
+        }
+        if (faces[0] == 0) return;
 
-        FloatBuffer buf = BufferUtils.createFloatBuffer(boxes[0] * FLOATS_PER_BOX);
+        FloatBuffer buf = BufferUtils.createFloatBuffer(faces[0] * FLOATS_PER_FACE);
         for (OccluderEntry e : list) {
             if (e.shape == null) continue;
             final float ox = e.pos.getX() - anchorX, oy = e.pos.getY() - anchorY, oz = e.pos.getZ() - anchorZ;
+            if (full.contains(e.pos.asLong())) {
+                emitBox(buf, ox, oy, oz, ox + 1f, oy + 1f, oz + 1f, openFaces(full, e.pos));
+                continue;
+            }
             e.shape.forAllBoxes((minX, minY, minZ, maxX, maxY, maxZ) ->
                     emitBox(buf,
                             ox + (float) minX, oy + (float) minY, oz + (float) minZ,
-                            ox + (float) maxX, oy + (float) maxY, oz + (float) maxZ));
+                            ox + (float) maxX, oy + (float) maxY, oz + (float) maxZ, ALL_FACES));
         }
+        if (buf.position() == 0) return;
         buf.flip();
 
         opaqueCount = buf.limit() / 3;
@@ -127,14 +142,26 @@ public final class OccluderMesh implements AutoCloseable {
         opaqueCount = cutoutCount = translucentCount = 0;
     }
 
+    private static int openFaces(LongOpenHashSet full, BlockPos p) {
+        int x = p.getX(), y = p.getY(), z = p.getZ();
+        int open = 0;
+        if (!full.contains(BlockPos.asLong(x - 1, y, z))) open |= 1;
+        if (!full.contains(BlockPos.asLong(x + 1, y, z))) open |= 2;
+        if (!full.contains(BlockPos.asLong(x, y - 1, z))) open |= 4;
+        if (!full.contains(BlockPos.asLong(x, y + 1, z))) open |= 8;
+        if (!full.contains(BlockPos.asLong(x, y, z - 1))) open |= 16;
+        if (!full.contains(BlockPos.asLong(x, y, z + 1))) open |= 32;
+        return open;
+    }
+
     private static void emitBox(FloatBuffer b,
-                                float x1, float y1, float z1, float x2, float y2, float z2) {
-        quad(b, x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1); // -X
-        quad(b, x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2); // +X
-        quad(b, x1,y1,z2, x1,y1,z1, x2,y1,z1, x2,y1,z2); // -Y
-        quad(b, x1,y2,z1, x1,y2,z2, x2,y2,z2, x2,y2,z1); // +Y
-        quad(b, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1); // -Z
-        quad(b, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2); // +Z
+                                float x1, float y1, float z1, float x2, float y2, float z2, int open) {
+        if ((open & 1) != 0) quad(b, x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1); // -X
+        if ((open & 2) != 0) quad(b, x2,y1,z2, x2,y1,z1, x2,y2,z1, x2,y2,z2); // +X
+        if ((open & 4) != 0) quad(b, x1,y1,z2, x1,y1,z1, x2,y1,z1, x2,y1,z2); // -Y
+        if ((open & 8) != 0) quad(b, x1,y2,z1, x1,y2,z2, x2,y2,z2, x2,y2,z1); // +Y
+        if ((open & 16) != 0) quad(b, x2,y1,z1, x1,y1,z1, x1,y2,z1, x2,y2,z1); // -Z
+        if ((open & 32) != 0) quad(b, x1,y1,z2, x2,y1,z2, x2,y2,z2, x1,y2,z2); // +Z
     }
 
     private static void quad(FloatBuffer b,
