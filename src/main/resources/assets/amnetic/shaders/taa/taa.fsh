@@ -74,25 +74,34 @@ void main() {
     vec3 cur = texture(ColorSampler, vUV).rgb;
     if (Feedback <= 0.0) { FragColor = vec4(cur, 1.0); return; }
 
-    // camera-only reprojection, works for everything static (terrain, the far field this
-    // pass exists for), moving objects fall back to the neighbourhood clip below
-    float depth = texture(DepthSampler, vUV).r;
-    vec3 P = reconstruct(vUV, depth);
+    vec2 texSize = vec2(textureSize(ColorSampler, 0));
+    ivec2 ip = ivec2(gl_FragCoord.xy);
+    ivec2 maxIp = ivec2(texSize) - 1;
+    vec2 texel = 1.0 / texSize;
+    vec4 lo = textureGather(DepthSampler, vUV - 0.5 * texel);
+    vec4 hi = textureGather(DepthSampler, vUV + 0.5 * texel);
+    vec2 nearest = vec2(0.0);
+    float depth = texelFetch(DepthSampler, ip, 0).r;
+    if (lo.x < depth) { depth = lo.x; nearest = vec2(-1.0, 0.0); }
+    if (lo.z < depth) { depth = lo.z; nearest = vec2(0.0, -1.0); }
+    if (lo.w < depth) { depth = lo.w; nearest = vec2(-1.0, -1.0); }
+    if (hi.x < depth) { depth = hi.x; nearest = vec2(0.0, 1.0); }
+    if (hi.y < depth) { depth = hi.y; nearest = vec2(1.0, 1.0); }
+    if (hi.z < depth) { depth = hi.z; nearest = vec2(1.0, 0.0); }
+    vec2 nuv = vUV + nearest * texel;
+    vec3 P = reconstruct(nuv, depth);
     vec4 pc = PrevViewProj * vec4(P + EyeDelta, 1.0);
     if (pc.w <= 0.0) { FragColor = vec4(cur, 1.0); return; }
-    vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
+    vec2 puv = vUV + (pc.xy / pc.w * 0.5 + 0.5 - nuv);
     if (any(lessThan(puv, vec2(0.0))) || any(greaterThan(puv, vec2(1.0)))) {
         FragColor = vec4(cur, 1.0);
         return;
     }
 
-    vec2 texSize = vec2(textureSize(ColorSampler, 0));
     vec3 hist = sampleHistory(puv, texSize);
 
     // 3x3 neighbourhood variance box in YCoCg. the box width is the only defence against a moving
     // object's stale history, since reprojection here is camera only, so it is tunable
-    ivec2 ip = ivec2(gl_FragCoord.xy);
-    ivec2 maxIp = ivec2(texSize) - 1;
     vec3 m1 = vec3(0.0), m2 = vec3(0.0);
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
@@ -104,12 +113,17 @@ void main() {
     vec3 mu = m1 / 9.0;
     vec3 sigma = sqrt(max(m2 / 9.0 - mu * mu, 0.0));
     vec3 box = sigma * ClipSigma;
-    hist = ycocg2rgb(clipAABB(mu - box, mu + box, rgb2ycocg(hist)));
+    vec3 histY = rgb2ycocg(hist);
+    vec3 clipped = clipAABB(mu - box, mu + box, histY);
+    float clipShift = length(clipped - histY) / max(histY.x, 1e-3);
+    hist = ycocg2rgb(clipped);
 
     // less history when the pixel moved far across the screen, and inverse-luminance
     // weighting so a single bright frame (firefly) can't dominate the blend
     float velPx = length((vUV - puv) * texSize);
     float f = Feedback * (1.0 - clamp(velPx / 80.0, 0.0, 0.5));
+    float still = (1.0 - smoothstep(0.05, 0.5, velPx)) * (1.0 - smoothstep(0.0, 0.02, clipShift));
+    f = mix(f, max(f, 0.96), still);
     float wc = (1.0 - f) / (1.0 + luma(cur));
     float wh = f / (1.0 + luma(hist));
     FragColor = vec4((cur * wc + hist * wh) / max(wc + wh, 1e-5), 1.0);
