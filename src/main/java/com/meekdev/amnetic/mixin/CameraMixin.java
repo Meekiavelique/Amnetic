@@ -78,7 +78,6 @@ public abstract class CameraMixin {
         if (lens != fov) {
             fov = Math.max(1f, Math.min(179f, lens));
             setupPerspective(0.05f, depthFar, fov, minecraft.getWindow().getWidth(), minecraft.getWindow().getHeight());
-            prepareCullFrustum(getViewRotationMatrix(cachedViewRotMatrix), createProjectionMatrixForCulling(), position);
         }
     //?} else if >=1.21.5 {
     /*@Inject(method = "setup", at = @At("TAIL"))
@@ -107,9 +106,14 @@ public abstract class CameraMixin {
         if (c.hasOverride()) {
             setRotation(c.overrideYaw(), c.overridePitch());
             setPosition(c.overridePosition());
-            if (!c.overrideKeepsOffsets()) return;
         }
+        if (!c.hasOverride() || c.overrideKeepsOffsets()) amnetic$offsets(c);
+        //? if >=26.1 {
+        prepareCullFrustum(getViewRotationMatrix(cachedViewRotMatrix), createProjectionMatrixForCulling(), position);
+        //?}
+    }
 
+    private void amnetic$offsets(CameraController c) {
         if (c.hasRotationOffset()) {
             float newYaw = yRot + c.yawOffset();
             float newPitch = Math.max(-90f, Math.min(90f, xRot + c.pitchOffset()));
