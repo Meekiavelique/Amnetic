@@ -3,6 +3,7 @@ package com.meekdev.amnetic.client.instanced.internal;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
+import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
@@ -106,15 +107,7 @@ final class CompiledShader implements AutoCloseable {
     }
 
     private static String loadSource(Identifier id) {
-        Optional<Resource> opt = Minecraft.getInstance().getResourceManager().getResource(id);
-        if (opt.isEmpty()) {
-            throw new RuntimeException("Instance shader not found: " + id);
-        }
-        try (InputStream is = opt.get().open()) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read shader " + id, e);
-        }
+        return ShaderProgram.readSource(id);
     }
 
     int programId() { return program; }
