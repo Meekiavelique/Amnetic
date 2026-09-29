@@ -226,8 +226,8 @@ public class AmneticClient implements ClientModInitializer {
             Reactive.tick(surfaceDt());
             GBuffer.beginFrame();
             FrameContext fc = new FrameContext(CameraSnapshot.current(), ctx, SceneDepth.snapshotDepthGlId());
-            Pipeline.runStage(RenderStage.GEOMETRY, fc);
             MainTargetFramebuffer.setDepthOverride(0);
+            Pipeline.runStage(RenderStage.GEOMETRY, fc);
             Pipeline.runStage(RenderStage.LIGHTING, fc);
             Pipeline.runStage(RenderStage.SCREEN_SPACE, fc);
             pendingPostCtx = ctx;
