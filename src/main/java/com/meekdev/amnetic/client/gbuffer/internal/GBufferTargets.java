@@ -78,11 +78,7 @@ public final class GBufferTargets {
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT3, GL11.GL_TEXTURE_2D, emissiveTex, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT4, GL11.GL_TEXTURE_2D, albedoTex, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, depthId, 0);
-            try (MemoryStack s = MemoryStack.stackPush()) {
-                IntBuffer bufs = s.ints(GL30.GL_COLOR_ATTACHMENT0, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2,
-                        GL30.GL_COLOR_ATTACHMENT3, GL30.GL_COLOR_ATTACHMENT4);
-                GL30.glDrawBuffers(bufs);
-            }
+            drawAll();
             cachedColor = colorId;
             cachedDepth = depthId;
             cachedNormal = normalTex;
@@ -94,6 +90,13 @@ public final class GBufferTargets {
 
         GlStateManager._viewport(0, 0, main.width, main.height);
         return prevFbo;
+    }
+
+    public static void drawAll() {
+        try (MemoryStack s = MemoryStack.stackPush()) {
+            GL30.glDrawBuffers(s.ints(GL30.GL_COLOR_ATTACHMENT0, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2,
+                    GL30.GL_COLOR_ATTACHMENT3, GL30.GL_COLOR_ATTACHMENT4));
+        }
     }
 
     public void clearSideTargets() {

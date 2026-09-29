@@ -173,11 +173,7 @@ public final class DecalRenderer extends ScreenPass {
                 gbufferProgram.draw();
             }
         } finally {
-            try (MemoryStack s = MemoryStack.stackPush()) {
-                IntBuffer bufs = s.ints(GL30.GL_COLOR_ATTACHMENT0, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2,
-                        GL30.GL_COLOR_ATTACHMENT3);
-                GL30.glDrawBuffers(bufs);
-            }
+            GBufferTargets.drawAll();
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, mcFbo);
             GlStateManager._viewport(mcViewport[0], mcViewport[1], mcViewport[2], mcViewport[3]);
         }

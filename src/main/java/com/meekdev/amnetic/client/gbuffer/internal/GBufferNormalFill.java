@@ -56,11 +56,7 @@ public final class GBufferNormalFill extends ScreenPass {
 
             g.setPopulated(true);
         } finally {
-            try (MemoryStack s = MemoryStack.stackPush()) {
-                IntBuffer bufs = s.ints(GL30.GL_COLOR_ATTACHMENT0, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2,
-                        GL30.GL_COLOR_ATTACHMENT3);
-                GL30.glDrawBuffers(bufs);
-            }
+            GBufferTargets.drawAll();
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, depthId, 0);
             g.restore(prevFbo);
         }
