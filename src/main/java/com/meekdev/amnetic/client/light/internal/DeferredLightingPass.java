@@ -123,6 +123,7 @@ public final class DeferredLightingPass extends ScreenPass {
                 GlState.bindTexture(2, GBufferTargets.INSTANCE.normalGlId());
                 GlState.bindTexture(3, GBufferTargets.INSTANCE.materialGlId());
                 GlState.bindTexture(10, GBufferTargets.INSTANCE.albedoGlId());
+                shade(GBufferTargets.INSTANCE.shadeGlId());
             }
             boolean shadows = ShadowMapPass.INSTANCE.isActive();
             boolean sunShadows = ShadowMapPass.INSTANCE.sunActive();
@@ -171,6 +172,7 @@ public final class DeferredLightingPass extends ScreenPass {
             GlState.bindTexture(6, 0);
             GlState.bindTexture(7, 0);
             GlState.bindTexture(9, 0);
+            shade(0);
             TexelBuffer.unbind(LightBuffer.UNIT);
             TexelBuffer.unbind(MaterialParams.UNIT);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
@@ -183,6 +185,14 @@ public final class DeferredLightingPass extends ScreenPass {
             if (toHalf) volumetricTarget.end(); else MainTargetFramebuffer.restore(prevFbo);
         }
         return true;
+    }
+
+    private static void shade(int glId) {
+        GL13.glActiveTexture(GL13.GL_TEXTURE0 + 13);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
+        GL33.glBindSampler(13, 0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
     @Override
@@ -218,6 +228,7 @@ public final class DeferredLightingPass extends ScreenPass {
         p.setSampler("SpotShadowColor", 6);
         p.setSampler("LightmapSampler", 9);
         p.setSampler("GAlbedoSampler", 10);
+        p.setSampler("GShadeSampler", 13);
         p.setSampler("LightTexels", LightBuffer.UNIT);
         p.setSampler("MaterialTexels", MaterialParams.UNIT);
         p.setInt("ShadowActive", shadows ? 1 : 0);
