@@ -1,9 +1,12 @@
 package com.meekdev.amnetic.client.gbuffer;
 
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
+import java.util.function.Predicate;
+import net.minecraft.world.entity.Entity;
 
 public final class GBuffer {
     private static boolean enabled = true;
+    private static Predicate<Entity> drawn = entity -> false;
 
     private GBuffer() {}
 
@@ -25,6 +28,14 @@ public final class GBuffer {
     public static int emissiveTextureGlId() { return GBufferTargets.INSTANCE.emissiveGlId(); }
 
     public static int albedoTextureGlId() { return GBufferTargets.INSTANCE.albedoGlId(); }
+
+    public static int velocityTextureGlId() { return GBufferTargets.INSTANCE.velocityGlId(); }
+
+    public static long frame() { return GBufferTargets.INSTANCE.frame(); }
+
+    public static void drawnEntities(Predicate<Entity> which) { drawn = which == null ? entity -> false : which; }
+
+    public static boolean drawsOwnMotion(Entity entity) { return drawn.test(entity); }
 
     public static int depthTextureGlId() { return GBufferTargets.INSTANCE.depthGlId(); }
 

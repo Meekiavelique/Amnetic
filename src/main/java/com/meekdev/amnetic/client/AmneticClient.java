@@ -12,6 +12,7 @@ import com.meekdev.amnetic.client.entityfx.internal.SceneColorSnapshot;
 import com.meekdev.amnetic.client.entityfx.internal.TextureOverrideRegistry;
 import com.meekdev.amnetic.client.framebuffer.internal.FramebufferRegistry;
 import com.meekdev.amnetic.client.gbuffer.GBuffer;
+import com.meekdev.amnetic.client.gbuffer.internal.EntityMotion;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferNormalFill;
 import com.meekdev.amnetic.client.geometry.EntityMeshTap;
 import com.meekdev.amnetic.client.geometry.internal.MeshTapRegistry;
@@ -111,6 +112,7 @@ public class AmneticClient implements ClientModInitializer {
 
     private static void registerDefaultPasses() {
         Pipeline.add(RenderStage.GEOMETRY, 10, "GBuffer Normal Fill", ctx -> GBufferNormalFill.INSTANCE.render());
+        Pipeline.add(RenderStage.GEOMETRY, 15, "Entity Motion", ctx -> EntityMotion.INSTANCE.render());
         Pipeline.add(RenderStage.GEOMETRY, 20, "Instanced Mesh (GBuffer)", ctx -> InstanceMeshRegistry.INSTANCE.renderGBuffer(InstancePhase.WORLD_LAST, ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 30, "Instanced Mesh (World)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_LAST, ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.levelCamera()));
@@ -165,6 +167,7 @@ public class AmneticClient implements ClientModInitializer {
         AmneticResources.register(EnvProbe.INSTANCE::dispose);
         AmneticResources.register(LayerSystem.INSTANCE::dispose);
         AmneticResources.register(GBufferNormalFill.INSTANCE::dispose);
+        AmneticResources.register(EntityMotion.INSTANCE::dispose);
         AmneticResources.register(GBuffer::dispose);
         AmneticResources.register(Shadows::dispose);
         AmneticResources.register(ColorGrade::dispose);
