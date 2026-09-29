@@ -6,6 +6,7 @@ import org.joml.Vector3fc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
@@ -26,15 +27,23 @@ import org.joml.Vector3f;
 public final class Model {
 
     public record Draw(Matrix4f world, Matrix4f[] pose,
-                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look) {
+                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look, Object key) {
 
         public Draw(Matrix4f world, Matrix4f[] pose) {
-            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null);
+            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null, null);
         }
 
         public Draw(Matrix4f world, Matrix4f[] pose, float blockLight, float skyLight, float emissive) {
-            this(world, pose, blockLight, skyLight, emissive, null, null);
+            this(world, pose, blockLight, skyLight, emissive, null, null, null);
         }
+    }
+
+    public static final class Moved {
+        public final Matrix4f world = new Matrix4f();
+        public final Matrix4f lastWorld = new Matrix4f();
+        public Matrix4f[] pose;
+        public Matrix4f[] lastPose;
+        public long frame = Long.MIN_VALUE;
     }
 
     /**
@@ -248,10 +257,21 @@ public final class Model {
 
     /** draws it with its own look, see {@link ModelLook}. the look is read when the frame is drawn */
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look) {
+        return render(worldTransform, pose, inputs, look, null);
+    }
+
+    /** draws it as the thing key stands for, so the frame can tell how far that thing moved since the last one */
+    public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look, Object key) {
         if (!disposed) {
-            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look));
+            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look, key));
         }
         return this;
+    }
+
+    private final Map<Object, Moved> moved = new WeakHashMap<>();
+
+    public Moved internalMoved(Object key) {
+        return moved.computeIfAbsent(key, k -> new Moved());
     }
 
     private final Map<String, Piece> pieces = new HashMap<>();

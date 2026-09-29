@@ -1,10 +1,13 @@
 package com.meekdev.amnetic.client.gbuffer;
 
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
+import java.util.function.Predicate;
+import net.minecraft.world.entity.Entity;
 
 public final class GBuffer {
 
     private static boolean enabled = true;
+    private static Predicate<Entity> drawn = entity -> false;
 
     private GBuffer() {}
 
@@ -27,6 +30,17 @@ public final class GBuffer {
 
     /** The material colour a forward pass published, so deferred lights shade it instead of the lit frame. */
     public static int albedoTextureGlId() { return GBufferTargets.INSTANCE.albedoGlId(); }
+
+    /** world-space motion since the last frame, xyz in blocks, zero where only the camera moved */
+    public static int velocityTextureGlId() { return GBufferTargets.INSTANCE.velocityGlId(); }
+
+    /** counts up once per rendered frame */
+    public static long frame() { return GBufferTargets.INSTANCE.frame(); }
+
+    /** entities a mod draws itself and writes the motion of; the rest get their box stamped */
+    public static void drawnEntities(Predicate<Entity> which) { drawn = which == null ? entity -> false : which; }
+
+    public static boolean drawsOwnMotion(Entity entity) { return drawn.test(entity); }
 
     public static int depthTextureGlId() { return GBufferTargets.INSTANCE.depthGlId(); }
 

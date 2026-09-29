@@ -27,14 +27,16 @@ import com.meekdev.amnetic.client.material.SurfaceInputs;
 
 public final class GpuModel implements AutoCloseable {
 
-    private static final int INSTANCE_STRIDE = 80;
+    private static final int INSTANCE_STRIDE = 144;
     private static final float DITHERED = -1f;
     private static final int VERTEX_STRIDE_BYTES = ModelIR.VERTEX_STRIDE_FLOATS * Float.BYTES;
     public static final int MAX_JOINTS = 128;
 
     public static final class DrawInstance {
         final Matrix4f world = new Matrix4f();
+        final Matrix4f lastWorld = new Matrix4f();
         Matrix4f[] pose;
+        Matrix4f[] lastPose;
         float blockLight;
         float skyLight;
         SurfaceInputs inputs;
@@ -52,7 +54,9 @@ public final class GpuModel implements AutoCloseable {
 
         void set(Matrix4fc world, Matrix4f[] pose, float blockLight, float skyLight, SurfaceInputs inputs, ModelLook look) {
             this.world.set(world);
+            this.lastWorld.set(world);
             this.pose = pose;
+            this.lastPose = pose;
             this.blockLight = blockLight;
             this.skyLight = skyLight;
             this.inputs = inputs;
@@ -61,6 +65,12 @@ public final class GpuModel implements AutoCloseable {
 
         void set(DrawInstance other) {
             set(other.world, other.pose, other.blockLight, other.skyLight, other.inputs, other.look);
+            moved(other.lastWorld, other.lastPose);
+        }
+
+        void moved(Matrix4fc lastWorld, Matrix4f[] lastPose) {
+            this.lastWorld.set(lastWorld);
+            this.lastPose = lastPose == null ? pose : lastPose;
         }
 
         public Matrix4f world() { return world; }
@@ -446,26 +456,19 @@ public final class GpuModel implements AutoCloseable {
         }
 
         int matrices = count * jointCount;
-        ensurePaletteScratch(matrices);
+        ensurePaletteScratch(matrices * 2);
         paletteScratch.clear();
         for (int k = 0; k < count; k++) {
-            Matrix4f[] pose = instances.get(k).pose();
-            int instBase = k * jointCount;
-            for (int j = 0; j < jointCount; j++) {
-                int node = part.jointNodes[j];
-                if (pose != null && node >= 0 && node < pose.length) {
-                    pose[node].mul(part.inverseBind[j], skinTmp);
-                } else {
-                    skinTmp.identity();
-                }
-                skinTmp.get((instBase + j) * 64, paletteScratch);
-            }
+            DrawInstance inst = instances.get(k);
+            joints(part, inst.pose(), k * jointCount, jointCount);
+            joints(part, inst.lastPose, matrices + k * jointCount, jointCount);
         }
-        paletteScratch.position(0).limit(matrices * 64);
+        paletteScratch.position(0).limit(matrices * 128);
         uploadJointTbo(paletteScratch);
 
         shader.setSkinned(true);
         shader.setJointCount(jointCount);
+        shader.setPrevJointBase(matrices);
         bindJointTbo();
 
         packInstancesWorldOnly(instances, count);
@@ -476,6 +479,18 @@ public final class GpuModel implements AutoCloseable {
             GL31.glDrawElementsInstanced(GL11.GL_TRIANGLES, part.indexCount, GL11.GL_UNSIGNED_INT, 0L, count);
         } else {
             GL31.glDrawArraysInstanced(GL11.GL_TRIANGLES, 0, part.vertexCount, count);
+        }
+    }
+
+    private void joints(GpuPart part, Matrix4f[] pose, int base, int jointCount) {
+        for (int j = 0; j < jointCount; j++) {
+            int node = part.jointNodes[j];
+            if (pose != null && node >= 0 && node < pose.length) {
+                pose[node].mul(part.inverseBind[j], skinTmp);
+            } else {
+                skinTmp.identity();
+            }
+            skinTmp.get((base + j) * 64, paletteScratch);
         }
     }
 
@@ -541,6 +556,7 @@ public final class GpuModel implements AutoCloseable {
         instanceScratch.putFloat(sky);
         instanceScratch.putFloat(0f);
         instanceScratch.putFloat(0f);
+        world.get(80, instanceScratch);
         instanceScratch.position(0).limit(INSTANCE_STRIDE);
     }
 
@@ -557,6 +573,7 @@ public final class GpuModel implements AutoCloseable {
             Matrix4f nodeTransform = nodeTransform(inst, part);
             placed(inst, tmp).mul(nodeTransform);
             tmp.get(base, instanceScratch);
+            placedBefore(inst, tmp).mul(nodeTransform(inst.lastPose, part)).get(base + 80, instanceScratch);
             instanceScratch.position(base + 64);
             instanceScratch.putFloat(inst.blockLight());
             instanceScratch.putFloat(inst.skyLight());
@@ -576,6 +593,7 @@ public final class GpuModel implements AutoCloseable {
             DrawInstance inst = instances.get(i);
             int base = i * INSTANCE_STRIDE;
             placed(inst, skinTmp).get(base, instanceScratch);
+            placedBefore(inst, skinTmp).get(base + 80, instanceScratch);
             instanceScratch.position(base + 64);
             instanceScratch.putFloat(inst.blockLight());
             instanceScratch.putFloat(inst.skyLight());
@@ -590,8 +608,16 @@ public final class GpuModel implements AutoCloseable {
         return piece == null ? into.set(inst.world) : inst.world.mul(piece.frame(), into);
     }
 
+    private static Matrix4f placedBefore(DrawInstance inst, Matrix4f into) {
+        Model.Piece piece = inst.look == null ? null : inst.look.piece();
+        return piece == null ? into.set(inst.lastWorld) : inst.lastWorld.mul(piece.frame(), into);
+    }
+
     private Matrix4f nodeTransform(DrawInstance inst, GpuPart part) {
-        Matrix4f[] pose = inst.pose();
+        return nodeTransform(inst.pose(), part);
+    }
+
+    private Matrix4f nodeTransform(Matrix4f[] pose, GpuPart part) {
         if (pose != null && part.nodeIndex >= 0 && part.nodeIndex < pose.length) {
             return pose[part.nodeIndex];
         }
@@ -1014,6 +1040,11 @@ public final class GpuModel implements AutoCloseable {
             GlStateManager._vertexAttribPointer(7, 4, GL11.GL_FLOAT, false, INSTANCE_STRIDE, 64L);
             GlStateManager._enableVertexAttribArray(7);
             GL33.glVertexAttribDivisor(7, 1);
+            for (int i = 0; i < 4; i++) {
+                GlStateManager._vertexAttribPointer(11 + i, 4, GL11.GL_FLOAT, false, INSTANCE_STRIDE, 80L + i * 16L);
+                GlStateManager._enableVertexAttribArray(11 + i);
+                GL33.glVertexAttribDivisor(11 + i, 1);
+            }
 
             GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
             GlStateManager._glBindVertexArray(0);

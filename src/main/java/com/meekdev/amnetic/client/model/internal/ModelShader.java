@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.model.ModelLighting;
 import java.nio.FloatBuffer;
@@ -36,6 +37,7 @@ final class ModelShader implements AutoCloseable {
     private final int materialIdLoc;
     private final int skinnedLoc;
     private final int jointCountLoc;
+    private final int prevJointBaseLoc;
     private final int cameraPosLoc;
     private final int worldSpaceLoc;
     private final int sourceIndexedLoc;
@@ -83,6 +85,7 @@ final class ModelShader implements AutoCloseable {
         this.materialIdLoc = uniform("MaterialId");
         this.skinnedLoc = uniform("Skinned");
         this.jointCountLoc = uniform("JointCount");
+        this.prevJointBaseLoc = uniform("PrevJointBase");
         this.cameraPosLoc = uniform("CameraPos");
         this.worldSpaceLoc = uniform("WorldSpace");
         this.sourceIndexedLoc = uniform("SourceIndexed");
@@ -205,6 +208,16 @@ final class ModelShader implements AutoCloseable {
         if (sourceIndexedLoc != -1) {
             GL20.glUniform1i(sourceIndexedLoc, sourceIndexed ? 1 : 0);
         }
+    }
+
+    void setPrevJointBase(int base) {
+        if (prevJointBaseLoc != -1) {
+            GL20.glUniform1i(prevJointBaseLoc, base);
+        }
+    }
+
+    int programId() {
+        return program;
     }
 
     void setJointCount(int count) {

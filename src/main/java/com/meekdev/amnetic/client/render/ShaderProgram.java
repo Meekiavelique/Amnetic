@@ -151,6 +151,19 @@ public final class ShaderProgram implements AutoCloseable {
         GL20.glUniformMatrix4fv(loc, false, matArrayScratch);
     }
 
+    public void setVec4Array(String name, float[] data, int count) {
+        int loc = loc(name);
+        if (loc == -1) loc = loc(name + "[0]");
+        if (loc == -1 || count <= 0) return;
+        int floats = Math.min(data.length, count * 4);
+        if (matArrayScratch == null || matArrayScratch.capacity() < floats) {
+            matArrayScratch = BufferUtils.createFloatBuffer(floats);
+        }
+        matArrayScratch.clear();
+        matArrayScratch.put(data, 0, floats).flip();
+        GL20.glUniform4fv(loc, matArrayScratch);
+    }
+
     public void setMatrix4(String name, Matrix4f matrix) {
         int loc = loc(name);
         if (loc == -1) return;
