@@ -182,7 +182,8 @@ void main() {
     }
 
     // scene is already day-lit, darken where the sun is occluded, then local lights and specular on top
-    float sunMul = clamp(1.0 - sunShadow, 0.0, 1.0);
+    vec4 shade = HasGBuffer == 1 ? texture(GShadeSampler, vUV) : vec4(0.0);
+    float sunMul = clamp(1.0 - sunShadow * (shade.b > 0.5 ? shade.g : 1.0), 0.0, 1.0);
     vec3 outColor = albedo * sunMul + material * radiance + specular; // god-rays added in a separate pass
     outColor = max(outColor, vec3(0.0));
     if (any(isnan(outColor)) || any(isinf(outColor))) outColor = vec3(0.0);
