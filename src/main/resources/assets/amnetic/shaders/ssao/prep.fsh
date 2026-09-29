@@ -5,6 +5,7 @@ layout(location = 0) out vec4 LinearOut;
 layout(location = 1) out vec4 NormalOut;
 
 uniform sampler2D DepthSampler;
+uniform sampler2D ShadeSampler;
 
 #include "amnetic:shaders/ssao/view.glsl"
 
@@ -31,6 +32,6 @@ void main() {
     vec3 dy = side(P, at(max(src - ivec2(0, 1), ivec2(0)), full), at(min(src + ivec2(0, 1), size - 1), full));
     vec3 n = normalize(cross(dx, dy));
     if (dot(n, P) > 0.0) n = -n;
-    LinearOut = vec4(-P.z);
+    LinearOut = vec4(texelFetch(ShadeSampler, src, 0).b > 0.5 ? -P.z : P.z);
     NormalOut = vec4(n * 0.5 + 0.5, 1.0);
 }

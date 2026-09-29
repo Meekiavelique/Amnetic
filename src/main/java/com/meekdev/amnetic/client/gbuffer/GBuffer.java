@@ -31,6 +31,8 @@ public final class GBuffer {
 
     public static int velocityTextureGlId() { return GBufferTargets.INSTANCE.velocityGlId(); }
 
+    public static int shadeTextureGlId() { return GBufferTargets.INSTANCE.shadeGlId(); }
+
     public static long frame() { return GBufferTargets.INSTANCE.frame(); }
 
     public static void drawnEntities(Predicate<Entity> which) { drawn = which == null ? entity -> false : which; }
