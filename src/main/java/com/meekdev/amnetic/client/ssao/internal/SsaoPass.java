@@ -5,6 +5,7 @@ import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
+import com.meekdev.amnetic.client.gbuffer.GBuffer;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.GlState;
@@ -37,6 +38,7 @@ public final class SsaoPass extends ScreenPass {
     private ShaderProgram blur;
     private Framebuffer linear;
     private Framebuffer raw;
+    private Framebuffer across;
     private Framebuffer blurred;
     private Framebuffer historyA, historyB;
     private boolean usingA;
@@ -85,10 +87,14 @@ public final class SsaoPass extends ScreenPass {
         if (depthId <= 0 || colorId <= 0) return false;
         ensureBuffers(s.scale());
 
+        boolean gbuffer = GBuffer.isPopulated();
+        int shade = gbuffer ? GBuffer.shadeTextureGlId() : 0;
         linear.begin();
         GlState.bindTexture(0, depthId);
+        GlState.bindTexture(1, shade);
         prep.begin();
         prep.setSampler("DepthSampler", 0);
+        prep.setSampler("ShadeSampler", 1);
         view(prep, cam);
         prep.draw();
         linear.end();
@@ -116,7 +122,10 @@ public final class SsaoPass extends ScreenPass {
         GlState.bindTexture(0, raw.colorTextureGlId(0));
         GlState.bindTexture(1, linear.colorTextureGlId(0));
         GlState.bindTexture(2, (useHistory ? hPrev : raw).colorTextureGlId(0));
+        GlState.bindTexture(3, gbuffer ? GBuffer.velocityTextureGlId() : 0);
         temporal.begin();
+        temporal.setSampler("Velocity", 3);
+        temporal.setInt("HasVelocity", gbuffer ? 1 : 0);
         temporal.setSampler("AoRaw", 0);
         temporal.setSampler("LinearSampler", 1);
         temporal.setSampler("History", 2);
@@ -131,17 +140,8 @@ public final class SsaoPass extends ScreenPass {
         usingA = !usingA;
         historyValid = s.temporal();
 
-        blurred.begin();
-        GlState.bindTexture(0, hCurr.colorTextureGlId(0));
-        GlState.bindTexture(1, linear.colorTextureGlId(0));
-        GlState.bindTexture(2, linear.colorTextureGlId(1));
-        blur.begin();
-        blur.setSampler("AoSampler", 0);
-        blur.setSampler("LinearSampler", 1);
-        blur.setSampler("NormalSampler", 2);
-        view(blur, cam);
-        blur.draw();
-        blurred.end();
+        blur(cam, hCurr, across, 1, 0);
+        blur(cam, across, blurred, 0, 1);
 
         prevViewProj.set(cam.viewProj);
         prevEyeX = cam.eye.x; prevEyeY = cam.eye.y; prevEyeZ = cam.eye.z;
@@ -155,6 +155,7 @@ public final class SsaoPass extends ScreenPass {
             GlState.bindTexture(0, blurred.colorTextureGlId(0));
             GlState.bindTexture(1, linear.colorTextureGlId(0));
             GlState.bindTexture(2, depthId);
+            GlState.bindTexture(3, shade);
             GlStateManager._enableBlend();
             GlStateManager._blendFuncSeparate(GL11.GL_ZERO, GL11.GL_SRC_COLOR, GL11.GL_ZERO, GL11.GL_ONE);
             GL11.glEnable(GL11.GL_BLEND);
@@ -163,12 +164,28 @@ public final class SsaoPass extends ScreenPass {
             composite.setSampler("AoSampler", 0);
             composite.setSampler("LinearSampler", 1);
             composite.setSampler("DepthSampler", 2);
+            composite.setSampler("ShadeSampler", 3);
             view(composite, cam);
             composite.draw();
         } finally {
             MainTargetFramebuffer.restore(prevFbo);
         }
         return true;
+    }
+
+    private void blur(CameraSnapshot cam, Framebuffer from, Framebuffer to, int x, int y) {
+        to.begin();
+        GlState.bindTexture(0, from.colorTextureGlId(0));
+        GlState.bindTexture(1, linear.colorTextureGlId(0));
+        GlState.bindTexture(2, linear.colorTextureGlId(1));
+        blur.begin();
+        blur.setSampler("AoSampler", 0);
+        blur.setSampler("LinearSampler", 1);
+        blur.setSampler("NormalSampler", 2);
+        blur.setVec2i("Direction", x, y);
+        view(blur, cam);
+        blur.draw();
+        to.end();
     }
 
     @Override
@@ -186,6 +203,7 @@ public final class SsaoPass extends ScreenPass {
     private void freeBuffers() {
         if (linear != null) { linear.dispose(); linear = null; }
         if (raw != null) { raw.dispose(); raw = null; }
+        if (across != null) { across.dispose(); across = null; }
         if (blurred != null) { blurred.dispose(); blurred = null; }
         if (historyA != null) { historyA.dispose(); historyA = null; }
         if (historyB != null) { historyB.dispose(); historyB = null; }
@@ -197,6 +215,7 @@ public final class SsaoPass extends ScreenPass {
         linear = Framebuffers.screen("SSAO Depth", scale,
                 FramebufferSpec.builder().color(ColorFormat.R32F).color(ColorFormat.RGBA8).build());
         raw = Framebuffers.screen("SSAO Occlusion", scale, FramebufferSpec.builder().color(ColorFormat.R8).build());
+        across = Framebuffers.screen("SSAO Blur Across", scale, FramebufferSpec.builder().color(ColorFormat.R8).build());
         blurred = Framebuffers.screen("SSAO Blur", scale, FramebufferSpec.builder().color(ColorFormat.R8).build());
         historyA = Framebuffers.screen("SSAO History A", scale, FramebufferSpec.builder().color(ColorFormat.RGBA16F).build());
         historyB = Framebuffers.screen("SSAO History B", scale, FramebufferSpec.builder().color(ColorFormat.RGBA16F).build());

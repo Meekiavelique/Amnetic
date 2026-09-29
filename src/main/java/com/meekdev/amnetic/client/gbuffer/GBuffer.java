@@ -34,6 +34,9 @@ public final class GBuffer {
     /** world-space motion since the last frame, xyz in blocks, zero where only the camera moved */
     public static int velocityTextureGlId() { return GBufferTargets.INSTANCE.velocityGlId(); }
 
+    /** r: the share of a pixel's colour that came from sky light, g: the share that came from the sun, b: 1 where a shader wrote it */
+    public static int shadeTextureGlId() { return GBufferTargets.INSTANCE.shadeGlId(); }
+
     /** counts up once per rendered frame */
     public static long frame() { return GBufferTargets.INSTANCE.frame(); }
 

@@ -6,12 +6,13 @@ out vec4 FragColor;
 uniform sampler2D AoSampler;
 uniform sampler2D LinearSampler;
 uniform sampler2D DepthSampler;
+uniform sampler2D ShadeSampler;
 
 #include "amnetic:shaders/ssao/view.glsl"
 
 float upsampled() {
     float d = texelFetch(DepthSampler, ivec2(gl_FragCoord.xy), 0).r;
-    if (d >= 1.0) return 1.0;
+    if (d >= 1.0) discard;
     float z = linearDepth(d);
     ivec2 size = textureSize(AoSampler, 0);
     vec2 hp = vUV * vec2(size) - 0.5;
@@ -24,7 +25,7 @@ float upsampled() {
     for (int i = 0; i < 4; i++) {
         ivec2 o = ivec2(i & 1, i >> 1);
         ivec2 q = clamp(base + o, ivec2(0), size - 1);
-        float zq = texelFetch(LinearSampler, q, 0).r;
+        float zq = abs(texelFetch(LinearSampler, q, 0).r);
         float ao = texelFetch(AoSampler, q, 0).r;
         float gap = abs(zq - z);
         float bil = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
@@ -37,5 +38,8 @@ float upsampled() {
 }
 
 void main() {
-    FragColor = vec4(vec3(upsampled()), 1.0);
+    vec4 shade = texelFetch(ShadeSampler, ivec2(gl_FragCoord.xy), 0);
+    float share = shade.b > 0.5 ? shade.r : 1.0;
+    if (share < 0.004) discard;
+    FragColor = vec4(vec3(1.0 - share * (1.0 - upsampled())), 1.0);
 }

@@ -133,6 +133,11 @@ public final class ShaderProgram implements AutoCloseable {
         if (loc != -1) GL20.glUniform4f(loc, x, y, z, w);
     }
 
+    public void setVec2i(String name, int x, int y) {
+        int loc = loc(name);
+        if (loc != -1) GL20.glUniform2i(loc, x, y);
+    }
+
     public void setInt(String name, int value) {
         int loc = loc(name);
         if (loc != -1) GL20.glUniform1i(loc, value);

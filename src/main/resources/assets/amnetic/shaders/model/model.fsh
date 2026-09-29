@@ -14,6 +14,7 @@ layout(location = 2) out vec4 GMaterial;
 layout(location = 3) out vec4 GEmissive;
 layout(location = 4) out vec4 GAlbedo;
 layout(location = 5) out vec4 GVelocity;
+layout(location = 6) out vec4 GShade;
 
 uniform sampler2D AlbedoSampler;
 uniform sampler2D NormalSampler;
@@ -61,6 +62,7 @@ uniform int Tonemap;
 uniform float Time;
 
 #include "amnetic:shaders/material/custom_surface_ladder.glsl"
+#include "amnetic:shaders/common/look.glsl"
 
 const float PI = 3.14159265359;
 
@@ -135,6 +137,7 @@ vec3 acesFilm(vec3 x) {
 
 void main() {
     GVelocity = vec4(vMotion, 1.0);
+    GShade = vec4(0.0);
     materialUv = vUV * UvTransform.xy + UvTransform.zw;
     vec4 albedo = BaseColor;
     if (HasAlbedo == 1) {
@@ -281,7 +284,11 @@ void main() {
     // scale by minecraft's lightmap so models track day/night and shade like vanilla geometry,
     // emissive still glows in the dark
     float lightmap = clamp(max(sky, block), 0.03, 1.0);
-    vec3 color = (direct * sky + ambient * lightmap + emissive) * Exposure;
+    vec3 lit = direct * sky * Exposure;
+    vec3 around = ambient * lightmap * Exposure;
+    vec3 glow = emissive * Exposure;
+    vec3 color = lit + around + glow;
+    GShade = vec4(lookShare(lit + glow, color), lookShare(around + glow, color), 1.0, 1.0);
     if (Tonemap == 1) color = acesFilm(color); // filmic tonemap, toggleable
     color = pow(max(color, 0.0), vec3(1.0 / 2.2)); // linear to sRGB
     FragColor = vec4(color, albedo.a);

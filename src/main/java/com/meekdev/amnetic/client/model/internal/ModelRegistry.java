@@ -417,7 +417,7 @@ public final class ModelRegistry {
     }
 
     private static void colorMasks(boolean write) {
-        for (int buffer : new int[] {1, 2, 4, 5}) {
+        for (int buffer : new int[] {1, 2, 4, 5, 6}) {
             GL30.glColorMaski(buffer, write, write, write, write);
         }
     }

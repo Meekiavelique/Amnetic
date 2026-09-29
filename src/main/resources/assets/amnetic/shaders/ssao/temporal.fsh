@@ -10,6 +10,8 @@ uniform mat4 InvView;
 uniform mat4 PrevViewProj;
 uniform vec3 EyeDelta;
 uniform float Feedback;
+uniform sampler2D Velocity;
+uniform int HasVelocity;
 
 #include "amnetic:shaders/ssao/view.glsl"
 
@@ -17,12 +19,13 @@ void main() {
     ivec2 px = ivec2(gl_FragCoord.xy);
     ivec2 size = textureSize(AoRaw, 0);
     float cur = texelFetch(AoRaw, px, 0).r;
-    float z = texelFetch(LinearSampler, px, 0).r;
+    float z = abs(texelFetch(LinearSampler, px, 0).r);
     FragColor = vec4(cur, z, 0.0, 1.0);
     if (Feedback <= 0.0 || z > 60000.0) return;
 
     vec2 uv = (vec2(px) + 0.5) / vec2(size);
     vec3 P = mat3(InvView) * viewAt(uv, z);
+    if (HasVelocity == 1) P -= texelFetch(Velocity, ivec2(uv * vec2(textureSize(Velocity, 0))), 0).xyz;
     vec4 pc = PrevViewProj * vec4(P + EyeDelta, 1.0);
     if (pc.w <= 0.0) return;
     vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
