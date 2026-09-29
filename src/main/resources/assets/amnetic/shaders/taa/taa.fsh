@@ -12,6 +12,10 @@ uniform vec3 EyeDelta; // current eye - previous eye
 uniform int ZeroToOne;
 uniform float Feedback;
 uniform float ClipSigma; // neighbourhood clip width, in standard deviations
+uniform sampler2D Velocity;
+uniform sampler2D Reactive;
+uniform int HasVelocity;
+uniform int HasReactive;
 
 // local copy of the camera-relative position reconstruct, screen.glsl also drags in
 // depth-derivative normal helpers this pass doesn't want
@@ -90,6 +94,7 @@ void main() {
     if (hi.z < depth) { depth = hi.z; nearest = vec2(1.0, 0.0); }
     vec2 nuv = vUV + nearest * texel;
     vec3 P = reconstruct(nuv, depth);
+    if (HasVelocity == 1) P -= texelFetch(Velocity, clamp(ip + ivec2(nearest), ivec2(0), maxIp), 0).xyz;
     vec4 pc = PrevViewProj * vec4(P + EyeDelta, 1.0);
     if (pc.w <= 0.0) { FragColor = vec4(cur, 1.0); return; }
     vec2 puv = vUV + (pc.xy / pc.w * 0.5 + 0.5 - nuv);
@@ -124,6 +129,7 @@ void main() {
     float f = Feedback * (1.0 - clamp(velPx / 80.0, 0.0, 0.5));
     float still = (1.0 - smoothstep(0.05, 0.5, velPx)) * (1.0 - smoothstep(0.0, 0.02, clipShift));
     f = mix(f, max(f, 0.96), still);
+    if (HasReactive == 1) f *= 1.0 - 0.7 * texelFetch(Reactive, ip, 0).r;
     float wc = (1.0 - f) / (1.0 + luma(cur));
     float wh = f / (1.0 + luma(hist));
     FragColor = vec4((cur * wc + hist * wh) / max(wc + wh, 1e-5), 1.0);

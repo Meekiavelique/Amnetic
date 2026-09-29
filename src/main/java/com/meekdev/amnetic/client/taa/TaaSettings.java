@@ -3,7 +3,7 @@ package com.meekdev.amnetic.client.taa;
 public final class TaaSettings {
 
     private boolean enabled = false;
-    private float feedback = 0.9f;
+    private float feedback = 0.94f;
     private float sharpness = 0.4f;
     private float clipTightness = 1.0f;
 

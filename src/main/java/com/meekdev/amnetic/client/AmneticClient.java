@@ -57,6 +57,7 @@ import com.meekdev.amnetic.client.ssgi.Ssgi;
 import com.meekdev.amnetic.client.ssr.Ssr;
 import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.taa.Taa;
+import com.meekdev.amnetic.client.taa.internal.ReactivePass;
 import com.meekdev.amnetic.client.ui.AmneticEditorBridge;
 import net.minecraft.client.Minecraft;
 import net.fabricmc.api.ClientModInitializer;
@@ -111,6 +112,8 @@ public class AmneticClient implements ClientModInitializer {
     }
 
     private static void registerDefaultPasses() {
+        Pipeline.add(RenderStage.SETUP, 90, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(true));
+        Pipeline.add(RenderStage.GEOMETRY, 1, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
         Pipeline.add(RenderStage.GEOMETRY, 10, "GBuffer Normal Fill", ctx -> GBufferNormalFill.INSTANCE.render());
         Pipeline.add(RenderStage.GEOMETRY, 15, "Entity Motion", ctx -> EntityMotion.INSTANCE.render());
         Pipeline.add(RenderStage.GEOMETRY, 20, "Instanced Mesh (GBuffer)", ctx -> InstanceMeshRegistry.INSTANCE.renderGBuffer(InstancePhase.WORLD_LAST, ctx.levelCamera()));
@@ -126,7 +129,9 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.SCREEN_SPACE, 20, "SSGI", ctx -> Ssgi.render());
         Pipeline.add(RenderStage.SCREEN_SPACE, 30, "SSR", ctx -> Ssr.render());
 
+        Pipeline.add(RenderStage.AFTER_WATER, 5, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(false));
         Pipeline.add(RenderStage.AFTER_WATER, 10, "Instanced Mesh (Translucent)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_TRANSLUCENT, ctx.levelCamera()));
+        Pipeline.add(RenderStage.AFTER_WATER, 15, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
 
         Pipeline.add(RenderStage.ATMOSPHERE, 10, "Volumetric", ctx -> VolumetricPass.INSTANCE.render());
 
@@ -168,6 +173,7 @@ public class AmneticClient implements ClientModInitializer {
         AmneticResources.register(LayerSystem.INSTANCE::dispose);
         AmneticResources.register(GBufferNormalFill.INSTANCE::dispose);
         AmneticResources.register(EntityMotion.INSTANCE::dispose);
+        AmneticResources.register(ReactivePass.INSTANCE::dispose);
         AmneticResources.register(GBuffer::dispose);
         AmneticResources.register(Shadows::dispose);
         AmneticResources.register(ColorGrade::dispose);
