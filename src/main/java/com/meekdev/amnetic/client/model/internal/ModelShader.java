@@ -62,6 +62,7 @@ final class ModelShader implements AutoCloseable {
     static final int ROUGHNESS_UNIT = 4;
     static final int METALLIC_UNIT = 7;
     static final int OCCLUSION_UNIT = 12;
+    static final int LIGHTMAP_UNIT = 13;
     static final int[] MATERIAL_UNITS = {0, 1, 2, 3, ROUGHNESS_UNIT, METALLIC_UNIT, OCCLUSION_UNIT};
     private final int emissiveEncodedLoc;
     private final int hasRoughnessMapLoc;
@@ -311,6 +312,7 @@ final class ModelShader implements AutoCloseable {
         setSampler("MetallicSampler", METALLIC_UNIT);
         setSampler("OcclusionSampler", OCCLUSION_UNIT);
         setSampler("EnvCube", 5);
+        setSampler("LightMap", LIGHTMAP_UNIT);
         setSampler("JointMatrixTex", JOINT_UNIT);
         for (int slot = 0; slot < SurfaceInputs.TEXTURE_SLOTS; slot++) {
             setSampler("SurfaceTexture" + slot, SURFACE_TEXTURE_UNIT + slot);

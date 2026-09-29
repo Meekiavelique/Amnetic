@@ -262,6 +262,8 @@ public final class ModelRegistry {
         prog.uploadProjView(projView);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
         GL11.glBindTexture(GL13.GL_TEXTURE_CUBE_MAP, EnvProbe.INSTANCE.glId());
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0 + ModelShader.LIGHTMAP_UNIT);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, VanillaCompat.levelLightmapGlId());
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         prog.uploadEnv(EnvProbe.INSTANCE.isReady(), EnvProbe.INSTANCE.maxLod());
         prog.uploadLighting(ModelLighting.INSTANCE);
