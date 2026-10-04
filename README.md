@@ -5,14 +5,43 @@
 
   <img src="https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" />
 
-  <img src="https://img.shields.io/badge/Running%20on-Fabric-2C2C2C?style=for-the-badge&logo=openjdk&logoColor=white" alt="Running on Fabric" />
+  <img src="https://img.shields.io/badge/Loaders-Fabric%20%7C%20Forge%20%7C%20NeoForge%20%7C%20Quilt-2C2C2C?style=for-the-badge&logo=openjdk&logoColor=white" alt="Fabric, Forge, NeoForge and Quilt" />
   <a href=" "><img src="https://img.shields.io/badge/Wiki-Documentation-4A90E2?style=for-the-badge&logo=gitbook&logoColor=white" alt="Wiki" /></a>
   <a href="https://discord.gg/avSH2JTfef"><img src="https://img.shields.io/badge/Discord-online-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" />
 </p>
 
 <p align="center">
-A Fabric rendering utility library for Minecraft 26.1.2 
+A rendering utility library for Minecraft. Fabric and Forge builds cover 1.20.1, 1.21.1, 1.21.11, and 26.1.2; the NeoForge build targets 26.1.2. Quilt uses the Fabric artifact.
 </p>
+
+## Development runs
+
+Use a JDK matching the selected Minecraft version (Java 17 for 1.20.1, Java 21 for
+1.21.x, and Java 25 for 26.1.2). Every Stonecutter target exposes the loader's
+normal `runClient` task. Convenience aliases are available from the root:
+
+```text
+./gradlew runFabric1201Client   ./gradlew runForge1201Client
+./gradlew runFabric1211Client   ./gradlew runForge1211Client
+./gradlew runFabric12111Client  ./gradlew runForge12111Client
+./gradlew runFabric2612Client   ./gradlew runForge2612Client
+```
+
+On Windows, replace `./gradlew` with `.\gradlew.bat`. IntelliJ also imports a
+client launch configuration for every Forge target from ForgeGradle.
+
+### NeoForge and Quilt
+
+Build NeoForge for Minecraft 26.1.2 with `./gradlew :neoforge:build` and launch it
+with `./gradlew :neoforge:runNeoForgeClient`. Install Forgified Fabric API alongside
+Amnetic; ImGuiMC is optional for the editor.
+
+For Quilt, install the Fabric artifact and Fabric API. Start the Quilt development
+client with `./gradlew :26.1.2-fabric:runClient -Ploader_platform=quilt` (replace the
+Minecraft version for another target). Quilt client runs use their own mods folder.
+
+The builds are checked by Gradle. In-game rendering on NeoForge and Quilt still
+needs testing; shader-pack compatibility is not covered by these changes.
 
 ## Installation
 
@@ -22,11 +51,11 @@ Bundling is unsupported: a single shared install is supportable, and when multip
 each ship their own copy, Fabric loads one and shadows the rest, causing version
 mismatches and conflicts. Amnetic logs a warning if it detects it was loaded nested.
 
-**Players:** download Amnetic from Modrinth and drop it in your `mods` folder next to the
-mods that depend on it.
+**Players:** download the Amnetic build for your Minecraft version and loader, then drop it
+in your `mods` folder next to the mods that depend on it.
 
-**Developers:** depend on it without bundling. Add the repository and a `modImplementation`
-dependency to your `build.gradle`:
+**Fabric developers:** depend on it without bundling. Add the repository and a
+`modImplementation` dependency to your `build.gradle`:
 
 ```groovy
 repositories {
@@ -34,7 +63,7 @@ repositories {
 }
 
 dependencies {
-    // modImplementation (not `include`) Amnetic should ships as its own mod
+    // modImplementation (not `include`): Amnetic ships as its own mod
     modImplementation "com.meekdev:amnetic:{version}"
 }
 ```

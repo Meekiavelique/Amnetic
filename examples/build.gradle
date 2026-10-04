@@ -28,7 +28,7 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    implementation project(':26.1.2')
+    implementation project(':26.1.2-fabric')
 
     localRuntime "foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}"
 }
@@ -39,7 +39,7 @@ loom {
             sourceSet sourceSets.main
         }
         "amnetic" {
-            sourceSet project(":26.1.2").sourceSets.main
+            sourceSet project(":26.1.2-fabric").sourceSets.main
         }
     }
 }

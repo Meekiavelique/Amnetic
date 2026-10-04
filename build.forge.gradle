@@ -1,0 +1,175 @@
+plugins {
+    id 'java'
+    id 'idea'
+    id 'eclipse'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle'
+    id 'net.minecraftforge.jarjar'
+    id 'net.minecraftforge.renamer'
+}
+
+stonecutter {
+    properties.tags(current.project.substring(0, current.project.lastIndexOf('-')))
+}
+
+version = "${findProperty('mod_version') ?: property('mod.version')}+${sc.current.version}-forge"
+group = property('mod.group')
+base.archivesName = "${property('mod.id')}-forge"
+
+def requiredJava = sc.current.parsed >= '26.1' ? 25 : (sc.current.parsed >= '1.20.5' ? 21 : 17)
+def requiresProductionRemap = sc.current.parsed < '1.20.5'
+def forgeVersion = project.property('deps.forge')
+def lwjglVersion = project.property('deps.lwjgl')
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(Math.max(requiredJava, 21))
+    sourceCompatibility = JavaVersion.toVersion(requiredJava)
+    targetCompatibility = JavaVersion.toVersion(requiredJava)
+    withSourcesJar()
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
+configurations {
+    assimpNatives
+}
+
+configurations.assimpNatives {
+    transitive = false
+}
+
+jarJar.register {
+    archiveClassifier = requiresProductionRemap ? 'unmapped' : null
+}
+
+minecraft {
+    if (sc.current.parsed < '26.1') {
+        mappings channel: 'official', version: sc.current.version
+    }
+    runs {
+        configureEach {
+            workingDir = layout.projectDirectory.dir('run')
+            systemProperty 'forge.enabledGameTestNamespaces', property('mod.id')
+            mods {
+                amnetic {
+                    source sourceSets.main
+                }
+            }
+        }
+        register('client')
+        register('server') {
+            args '--nogui'
+        }
+    }
+}
+
+dependencies {
+    add('implementation', minecraft.dependency("net.minecraftforge:forge:${sc.current.version}-${forgeVersion}"))
+
+    add('jarJar', 'de.javagl:jgltf-model:2.0.4')
+    add('jarJar', 'de.javagl:jgltf-impl-v2:2.0.4')
+    add('jarJar', 'com.fasterxml.jackson.core:jackson-databind:2.13.4.2')
+    add('jarJar', 'com.fasterxml.jackson.core:jackson-core:2.13.4')
+    add('jarJar', 'com.fasterxml.jackson.core:jackson-annotations:2.13.4')
+    add('implementation', 'de.javagl:jgltf-model:2.0.4')
+    add('implementation', 'de.javagl:jgltf-impl-v2:2.0.4')
+    add('implementation', 'com.fasterxml.jackson.core:jackson-databind:2.13.4.2')
+    add('implementation', 'com.fasterxml.jackson.core:jackson-core:2.13.4')
+    add('implementation', 'com.fasterxml.jackson.core:jackson-annotations:2.13.4')
+    add('implementation', files(rootProject.file('libs/bb4j.jar')))
+
+    add('jarJar', "org.lwjgl:lwjgl-assimp:${lwjglVersion}")
+    add('implementation', "org.lwjgl:lwjgl-assimp:${lwjglVersion}")
+    add('runtimeOnly', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-windows")
+    add('runtimeOnly', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-linux")
+    add('runtimeOnly', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-macos")
+    add('runtimeOnly', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-macos-arm64")
+    add('assimpNatives', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-windows")
+    add('assimpNatives', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-linux")
+    add('assimpNatives', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-macos")
+    add('assimpNatives', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-macos-arm64")
+    add('compileOnly', 'io.github.spair:imgui-java-binding:1.92.0')
+
+    if (requiresProductionRemap) {
+        add('annotationProcessor', 'org.spongepowered:mixin:0.8.7:processor')
+    }
+}
+
+if (requiresProductionRemap) {
+    renamer.enableMixinRefmaps {
+        config 'amnetic.mixins.json'
+    }
+    renamer.classes(tasks.named('jarJar', Jar)) {
+        output = layout.buildDirectory.file("libs/${base.archivesName.get()}-${project.version}.jar")
+        mappings renamer.mixin.generatedMappings
+    }
+    renamer.mappings(minecraft.dependency.toSrg)
+}
+
+def absentClasses = ['client/ui/AmneticEditor', 'client/ui/TexturePreview', 'client/ui/inspector/GBufferInspector',
+        'mixin/WindowGlContextMixin']
+if (sc.current.parsed < '1.20.2') absentClasses.add('mixin/accessor/LevelRendererAccessor')
+if (sc.current.parsed < '1.21.2') absentClasses.addAll(['mixin/EntityRenderStateMixin', 'mixin/EntityRendererMixin', 'mixin/WeatherEffectRendererMixin'])
+if (sc.current.parsed < '1.21.5') absentClasses.addAll(['mixin/GlCommandEncoderMixin', 'client/render/MeshPipeline',
+        'client/entityfx/internal/EntityEffectPipeline', 'client/framebuffer/internal/WrappedGlTexture',
+        'mixin/accessor/RenderTypeInvoker'])
+if (sc.current.parsed >= '1.21.5') absentClasses.add('mixin/accessor/LightTextureAccessor')
+
+tasks.withType(JavaCompile).configureEach {
+    absentClasses.each { path -> exclude("com/meekdev/amnetic/${path}.java") }
+    exclude('com/meekdev/amnetic/client/AmneticDataGenerator.java')
+    options.encoding = 'UTF-8'
+    options.compilerArgs.addAll(['-Xmaxerrs', '100000'])
+    options.release = requiredJava
+}
+
+processResources {
+    inputs.property('absentClasses', absentClasses)
+    inputs.property('javaCompatibility', requiredJava)
+    inputs.property('mixinCompatibility', Math.min(requiredJava, 21))
+    exclude('fabric.mod.json')
+    filesMatching('amnetic.mixins.json') {
+        expand java: "JAVA_${Math.min(requiredJava, 21)}"
+        filter { line -> absentClasses.any { line.trim().replaceAll(',$', '') == "\"${it.replaceFirst('^mixin/', '').replace('/', '.')}\"" } ? '' : line }
+    }
+    filesMatching('META-INF/mods.toml') {
+        expand version: project.version,
+                minecraft_version: sc.current.version,
+                forge_version: forgeVersion
+    }
+    doLast {
+        def format = sc.current.parsed < '1.20.5' ? 15 : (sc.current.parsed < '26.1' ? 34 : 75)
+        new File(destinationDir, 'pack.mcmeta').text = groovy.json.JsonOutput.toJson([
+                pack: [description: 'Amnetic resources', pack_format: format]
+        ])
+    }
+}
+
+jar {
+    archiveClassifier = 'slim'
+    from(rootProject.file('LICENSE.txt')) { rename { "${it}_amnetic" } }
+    from(zipTree(rootProject.file('libs/bb4j.jar'))) {
+        exclude 'META-INF/**', 'org/lwjgl/**'
+    }
+    from({ configurations.assimpNatives.collect { zipTree(it) } }) { exclude 'META-INF/**' }
+    manifest {
+        attributes 'MixinConfigs': 'amnetic.mixins.json'
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = "${property('mod.id')}-forge"
+            from components.java
+        }
+    }
+}
+
+tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
+    dependsOn tasks.named('stonecutterGenerate')
+}

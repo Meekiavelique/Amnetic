@@ -1,0 +1,192 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version "2.0.147"
+    id 'idea'
+}
+
+version = "${findProperty('mod_version') ?: '1.0-SNAPSHOT'}+26.1.2-neoforge"
+group = 'com.meekdev'
+
+base {
+    archivesName = "amnetic-neoforge"
+}
+
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://api.modrinth.com/maven"
+                name = "Modrinth"
+            }
+        }
+        filter {
+            includeGroup("maven.modrinth")
+        }
+    }
+    maven {
+        url = "https://maven.sinytra.org"
+        name = "Sinytra"
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://maven.ryanhcode.dev/releases"
+                name = "RyanHCode Maven"
+            }
+        }
+        filter {
+            includeGroup("foundry.imguimc")
+        }
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir rootProject.file("src/main/java")
+        }
+        resources {
+            srcDir rootProject.file("src/main/resources")
+            exclude "fabric.mod.json"
+        }
+    }
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
+}
+
+neoForge {
+    version = '26.1.2.109'
+
+    runs {
+        neoForgeClient {
+            client()
+            ideName = "Amnetic NeoForge Client"
+            gameDirectory = project.file("run/client")
+        }
+        neoForgeServer {
+            server()
+            ideName = "Amnetic NeoForge Server"
+            gameDirectory = project.file("run/server")
+            programArgument "--nogui"
+        }
+        neoForgeData {
+            clientData()
+            ideName = "Amnetic NeoForge Data"
+            gameDirectory = project.file("run/data")
+            programArguments.addAll "--mod", "amnetic", "--all",
+                    "--output", rootProject.file("src/generated/resources").absolutePath,
+                    "--existing", rootProject.file("src/main/resources").absolutePath
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    mods {
+        amnetic {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+configurations {
+    assimpNatives
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    implementation "org.sinytra.forgified-fabric-api:forgified-fabric-api:0.155.2+26.1.2+3.5.5"
+
+    implementation "de.javagl:jgltf-model:2.0.4"
+    implementation "de.javagl:jgltf-impl-v2:2.0.4"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.13.4.2"
+    implementation "com.fasterxml.jackson.core:jackson-core:2.13.4"
+    implementation "com.fasterxml.jackson.core:jackson-annotations:2.13.4"
+    implementation files(rootProject.file("libs/bb4j.jar"))
+
+    implementation "org.lwjgl:lwjgl-assimp:3.4.1"
+    ["natives-windows", "natives-linux", "natives-macos", "natives-macos-arm64"].each { platform ->
+        runtimeOnly "org.lwjgl:lwjgl-assimp:3.4.1:${platform}"
+        assimpNatives "org.lwjgl:lwjgl-assimp:3.4.1:${platform}"
+    }
+
+    compileOnly "foundry.imguimc:imguimc-common-26.1:2.0.5"
+    compileOnly "io.github.spair:imgui-java-binding:1.92.0"
+    localRuntime "foundry.imguimc:imguimc-neoforge-26.1:2.0.5"
+
+    jarJar("de.javagl:jgltf-model:2.0.4") {
+        version { strictly "[2.0.4]" }
+    }
+    jarJar("de.javagl:jgltf-impl-v2:2.0.4") {
+        version { strictly "[2.0.4]" }
+    }
+    jarJar("com.fasterxml.jackson.core:jackson-databind:2.13.4.2") {
+        version { strictly "[2.13.4.2]" }
+    }
+    jarJar("com.fasterxml.jackson.core:jackson-core:2.13.4") {
+        version { strictly "[2.13.4]" }
+    }
+    jarJar("com.fasterxml.jackson.core:jackson-annotations:2.13.4") {
+        version { strictly "[2.13.4]" }
+    }
+    jarJar("org.lwjgl:lwjgl-assimp:3.4.1") {
+        version { strictly "[3.4.1]" }
+    }
+}
+
+tasks.withType(ProcessResources).configureEach {
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", '26.1.2'
+    inputs.property "neoforge_version", '26.1.2.109'
+    inputs.property "imguimc_version", '2.0.5'
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand "version": project.version,
+                "minecraft_version": '26.1.2',
+                "neoforge_version": '26.1.2.109',
+                "imguimc_version": '2.0.5'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release.set(25)
+}
+
+tasks.named("jar", Jar) {
+    from({ configurations.assimpNatives.collect { zipTree(it) } }) { exclude "META-INF/**" }
+    from(zipTree(rootProject.file("libs/bb4j.jar"))) {
+        exclude "META-INF/**", "org/lwjgl/**"
+    }
+    from(rootProject.file("LICENSE.txt")) {
+        rename { "${it}_amnetic" }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = "amnetic-neoforge"
+            from components.java
+        }
+    }
+}
+
+compileJava.dependsOn(':26.1.2-fabric:stonecutterGenerate')
+processResources { exclude 'META-INF/mods.toml' }
+
+
+tasks.withType(JavaCompile).configureEach { exclude 'com/meekdev/amnetic/ForgeClientEvents.java' }
+
+
+
+processResources {
+    inputs.property 'javaCompatibility', 'JAVA_25'
+    filesMatching('amnetic.mixins.json') {
+        expand java: 'JAVA_25'
+        filter { line -> line.trim().replaceAll(',$', '') == '"accessor.LightTextureAccessor"' ? '' : line }
+    }
+}

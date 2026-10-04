@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.dev;
 
 import com.meekdev.amnetic.client.render.ShaderProgram;
+import com.meekdev.amnetic.platform.Platform;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -16,9 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +30,6 @@ public final class ShaderHotReload {
     private static final Map<Path, Path> ROOTS = new HashMap<>();
     private static final Map<Path, Long> PENDING = new HashMap<>();
     private static WatchService watcher;
-    private static boolean tickHooked;
     private static long tick;
     private static volatile long generation;
 
@@ -43,40 +40,34 @@ public final class ShaderHotReload {
     private ShaderHotReload() {}
 
     public static synchronized void watchMod(String modId) {
-        if (!FabricLoader.getInstance().isDevelopmentEnvironment()) return;
-        ModContainer mod = FabricLoader.getInstance().getModContainer(modId).orElse(null);
-        if (mod == null) return;
-        watchContainer(modId, mod);
-        hookTick();
+        if (!Platform.isDevelopmentEnvironment()) return;
+        watchRoots(modId, Platform.developmentResourceRoots());
     }
 
     public static synchronized void watchAllDevMods() {
-        if (!FabricLoader.getInstance().isDevelopmentEnvironment()) return;
-        for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
-            watchContainer(mod.getMetadata().getId(), mod);
-        }
-        hookTick();
+        if (!Platform.isDevelopmentEnvironment()) return;
+        watchRoots("development classpath", Platform.developmentResourceRoots());
     }
 
-    private static void watchContainer(String modId, ModContainer mod) {
+    private static void watchRoots(String label, List<Path> roots) {
         try {
-            for (Path root : mod.getRootPaths()) {
+            for (Path root : roots) {
                 if (!"file".equals(root.toUri().getScheme()) || !Files.isDirectory(root)) continue;
                 Path src = sourceRootFor(root);
                 if (src != null && !ROOTS.containsKey(src)) {
                     ROOTS.put(src, root);
                     registerTreeWatch(src);
-                    LOG.info("watching {} shader sources: {}", modId, src);
+                    LOG.info("watching {} shader sources: {}", label, src);
                 }
                 Path runtime = root.toAbsolutePath().normalize();
                 if (src != null && !ROOTS.containsKey(runtime)) {
                     ROOTS.put(runtime, root);
                     registerTreeWatch(runtime);
-                    LOG.info("watching {} runtime resources: {}", modId, runtime);
+                    LOG.info("watching {} runtime resources: {}", label, runtime);
                 }
             }
         } catch (Exception e) {
-            LOG.warn("shader hot reload unavailable for {}: {}", modId, e.toString());
+            LOG.warn("shader hot reload unavailable for {}: {}", label, e.toString());
         }
     }
 
@@ -137,36 +128,32 @@ public final class ShaderHotReload {
         }
     }
 
-    private static void hookTick() {
-        if (tickHooked) return;
-        tickHooked = true;
-        ClientTickEvents.END_CLIENT_TICK.register(mc -> {
-            tick++;
-            Path p;
-            while ((p = DIRTY.poll()) != null) PENDING.put(p, tick);
-            if (PENDING.isEmpty()) return;
+    public static void tick() {
+        tick++;
+        Path p;
+        while ((p = DIRTY.poll()) != null) PENDING.put(p, tick);
+        if (PENDING.isEmpty()) return;
 
-            int synced = 0;
-            var it = PENDING.entrySet().iterator();
-            while (it.hasNext()) {
-                var e = it.next();
-                if (e.getValue() >= tick) continue;
-                it.remove();
-                if (sync(e.getKey()) != null) synced++;
-            }
-            if (synced == 0) return;
+        int synced = 0;
+        var it = PENDING.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            if (e.getValue() >= tick) continue;
+            it.remove();
+            if (sync(e.getKey()) != null) synced++;
+        }
+        if (synced == 0) return;
 
-            generation++;
-            ShaderProgram.invalidateAll();
-            for (Runnable cb : RELOAD_CALLBACKS) {
-                try {
-                    cb.run();
-                } catch (Exception e) {
-                    LOG.warn("shader reload callback failed: {}", e.toString());
-                }
+        generation++;
+        ShaderProgram.invalidateAll();
+        for (Runnable cb : RELOAD_CALLBACKS) {
+            try {
+                cb.run();
+            } catch (Exception e) {
+                LOG.warn("shader reload callback failed: {}", e.toString());
             }
-            LOG.info("hot-reloaded {} shader file(s)", synced);
-        });
+        }
+        LOG.info("hot-reloaded {} shader file(s)", synced);
     }
 
     private static Path sync(Path srcFile) {

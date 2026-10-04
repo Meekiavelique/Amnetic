@@ -2,7 +2,7 @@ package com.meekdev.amnetic.client.taa;
 
 import com.meekdev.amnetic.client.taa.internal.CasPass;
 import com.meekdev.amnetic.client.taa.internal.TaaPass;
-import net.fabricmc.loader.api.FabricLoader;
+import com.meekdev.amnetic.platform.Platform;
 
 public final class Taa {
 
@@ -10,7 +10,7 @@ public final class Taa {
 
     // under Iris every Amnetic screen pass skips itself, the projection jitter has to skip
     // too or the world shimmers with no resolve pass to integrate it
-    private static final boolean IRIS = FabricLoader.getInstance().isModLoaded("iris");
+    private static final boolean IRIS = Platform.isModLoaded("iris") || Platform.isModLoaded("oculus");
 
     private Taa() {}
 

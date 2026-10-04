@@ -10,18 +10,22 @@ loomx.loom_version = "1.16-SNAPSHOT"
 mod.mc_compat = "1.20.1"
 deps.fabric_api = "0.92.12+1.20.1"
 deps.lwjgl = "3.3.1"
+deps.forge = "47.1.3"
 
 ["1.21.1"]
 mod.mc_compat = "1.21.1"
 deps.fabric_api = "0.116.17+1.21.1"
 deps.lwjgl = "3.3.3"
+deps.forge = "52.1.16"
 
 ["1.21.11"]
 mod.mc_compat = "1.21.11"
 deps.fabric_api = "0.141.6+1.21.11"
 deps.lwjgl = "3.3.3"
+deps.forge = "61.2.1"
 
 ["26.1.2"]
 mod.mc_compat = "~26.1"
 deps.fabric_api = "0.150.0+26.1.2"
 deps.lwjgl = "3.4.1"
+deps.forge = "64.1.3"

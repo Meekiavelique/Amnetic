@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.render;
 
-import net.fabricmc.loader.api.FabricLoader;
+import com.meekdev.amnetic.platform.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +24,7 @@ public abstract class ScreenPass {
 
     protected final void dispatch() {
         if (!guard.alive() || !enabled()) return;
-        if (skipUnderIris() && FabricLoader.getInstance().isModLoaded("iris")) return;
+        if (skipUnderIris() && (Platform.isModLoaded("iris") || Platform.isModLoaded("oculus"))) return;
         CameraSnapshot cam = CameraSnapshot.current();
         if (cam == null) return;
         if (program == null) program = createProgram();

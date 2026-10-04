@@ -1,12 +1,11 @@
 package com.meekdev.amnetic.client.compat;
 
-import net.fabricmc.loader.api.FabricLoader;
+import com.meekdev.amnetic.platform.Platform;
 
 public final class Sodium {
 
     private static final boolean PRESENT =
-            FabricLoader.getInstance().isModLoaded("sodium")
-                    || FabricLoader.getInstance().isModLoaded("embeddium");
+            Platform.isModLoaded("sodium") || Platform.isModLoaded("embeddium");
 
     private Sodium() {
     }
