@@ -118,7 +118,7 @@ tasks {
     }
 
     withType<Jar> {
-        from(rootProject.file("LICENSE")) { rename { "${it}_amnetic" } }
+        from(rootProject.file("LICENSE.txt")) { rename { "${it}_amnetic" } }
     }
 
     jar {
@@ -136,17 +136,25 @@ publishing {
 }
 
 if (loaderPlatform == "quilt") {
-    val prepareQuiltMods = tasks.register<Sync>("prepareQuiltMods") {
-        dependsOn(tasks.named("jar"))
-        from(tasks.named<Jar>("jar").flatMap { it.archiveFile })
-        from(configurations.named("runtimeClasspath").map { cp ->
-            cp.filter { it.name.startsWith("fabric-api-") || it.name.startsWith("imguimc-fabric-") }
-        })
-        into(layout.buildDirectory.dir("run/quilt/mods"))
+    val prepareQuiltLibraries = tasks.register<Sync>("prepareQuiltLibraries") {
+        dependsOn("processIncludeJars")
+        from(layout.buildDirectory.dir("processIncludeJars")) {
+            include("jackson-*.jar", "jgltf-*.jar")
+        }
+        into(layout.buildDirectory.dir("run/quilt/development-libraries"))
     }
     tasks.withType<JavaExec>().matching { it.name.startsWith("run") }.configureEach {
-        dependsOn(prepareQuiltMods)
-        workingDir(layout.buildDirectory.dir("run/quilt"))
-        mainClass.set(if (name.contains("Server")) "org.quiltmc.loader.impl.launch.knot.KnotServer" else "org.quiltmc.loader.impl.launch.knot.KnotClient")
+        dependsOn(prepareQuiltLibraries)
+        // Quilt supplies Fabric compatibility classes. Model libraries load as mod-owned jars,
+        // keeping Jackson off the application loader and preventing split-classloader errors.
+        classpath = classpath.filter { !it.name.startsWith("fabric-loader-") && !it.name.startsWith("jackson-") && !it.name.startsWith("jgltf-") }
+        systemProperty("loader.development", "true")
+        systemProperty("loader.classPathGroups", sourceSets.main.get().output.files.joinToString(System.getProperty("path.separator")) { it.absolutePath })
+        systemProperty("loader.modsDir", layout.buildDirectory.dir("run/quilt/development-libraries").get().asFile.absolutePath)
+        // Retain Loom's injector for its asset arguments and launch.cfg.
+        doFirst {
+            jvmArgs = (jvmArgs ?: emptyList()).filter { !it.startsWith("-Dfabric.dli.main=") }
+            systemProperty("fabric.dli.main", if (name.contains("Server")) "org.quiltmc.loader.impl.launch.knot.KnotServer" else "org.quiltmc.loader.impl.launch.knot.KnotClient")
+        }
     }
 }

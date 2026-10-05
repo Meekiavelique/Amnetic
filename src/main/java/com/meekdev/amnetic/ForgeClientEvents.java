@@ -9,6 +9,7 @@ import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.event.GameShuttingDownEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 //? if <1.21.9 {
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -44,6 +45,7 @@ final class ForgeClientEvents {
         MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::tick);
         MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::disconnect);
         MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::renderLevel);
+        MinecraftForge.EVENT_BUS.addListener(ForgeClientEvents::stopping);
         //?} else if >=1.21.9 {
         /*RegisterKeyMappingsEvent.BUS.addListener(AmneticEditorBridge::registerKeyMapping);
         RegisterClientReloadListenersEvent.BUS.addListener(ForgeClientEvents::registerReloadListener);
@@ -51,11 +53,16 @@ final class ForgeClientEvents {
                 AmneticClient.endClientTick(Minecraft.getInstance()));
         ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(event -> AmneticClient.disconnect());
         AddFramePassEvent.BUS.addListener(ForgeClientEvents::registerFramePass);
+        GameShuttingDownEvent.BUS.addListener(ForgeClientEvents::stopping);
         *///?}
     }
 
     private static void registerReloadListener(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener((ResourceManagerReloadListener) manager -> AmneticClient.reloadResources());
+    }
+
+    private static void stopping(GameShuttingDownEvent event) {
+        AmneticClient.stopping();
     }
 
     //? if <1.21.9 {

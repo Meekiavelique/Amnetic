@@ -36,6 +36,7 @@ repositories {
 
 configurations {
     assimpNatives
+
 }
 
 configurations.assimpNatives {
@@ -46,6 +47,14 @@ jarJar.register {
     archiveClassifier = requiresProductionRemap ? 'unmapped' : null
 }
 
+configurations {
+    forgeDevLibraries {
+        extendsFrom configurations.jarJar
+        canBeResolved = true
+        canBeConsumed = false
+    }
+}
+
 minecraft {
     if (sc.current.parsed < '26.1') {
         mappings channel: 'official', version: sc.current.version
@@ -53,6 +62,8 @@ minecraft {
     runs {
         configureEach {
             workingDir = layout.projectDirectory.dir('run')
+            if (!requiresProductionRemap) args "--mixin.config=amnetic.mixins.json"
+            extraLibraries configurations.forgeDevLibraries, configurations.assimpNatives
             systemProperty 'forge.enabledGameTestNamespaces', property('mod.id')
             mods {
                 amnetic {
@@ -172,4 +183,10 @@ publishing {
 
 tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
     dependsOn tasks.named('stonecutterGenerate')
+}
+
+tasks.withType(JavaExec).matching { it.name.startsWith('run') }.configureEach {
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(requiredJava)
+    }
 }

@@ -33,7 +33,13 @@ public class Amnetic implements ModInitializer {
         warnIfNested();
     }
     //?} else {
-    /*public Amnetic(FMLJavaModLoadingContext context) {
+    /*//? if <1.21 {
+    public Amnetic() {
+        this(FMLJavaModLoadingContext.get());
+    }
+    //?}
+
+    public Amnetic(FMLJavaModLoadingContext context) {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ForgeClientEvents.install(context);
             AmneticClient.initialize();

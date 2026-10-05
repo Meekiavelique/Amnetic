@@ -94,7 +94,7 @@ neoForge {
 }
 
 configurations {
-    assimpNatives
+    assimpNatives { transitive = false }
     runtimeClasspath.extendsFrom localRuntime
 }
 

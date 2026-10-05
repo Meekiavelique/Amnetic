@@ -25,6 +25,7 @@ deps.lwjgl = "3.3.3"
 deps.forge = "61.2.1"
 
 ["26.1.2"]
+deps.imguimc = "2.0.5"
 mod.mc_compat = "~26.1"
 deps.fabric_api = "0.150.0+26.1.2"
 deps.lwjgl = "3.4.1"
