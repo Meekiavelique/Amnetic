@@ -38,10 +38,12 @@ Amnetic; ImGuiMC is optional for the editor.
 
 For Quilt, install the Fabric artifact and Fabric API. Start the Quilt development
 client with `./gradlew :26.1.2-fabric:runClient -Ploader_platform=quilt` (replace the
-Minecraft version for another target). Quilt client runs use their own mods folder.
+Minecraft version for another target). Quilt development runs keep model libraries
+in a separate folder so Quilt loads them through the correct classloader.
 
-The builds are checked by Gradle. In-game rendering on NeoForge and Quilt still
-needs testing; shader-pack compatibility is not covered by these changes.
+Build, packaging and client checks are described in [tests/README.md](tests/README.md).
+The ImGui editor is available on Fabric, Quilt and NeoForge; Forge builds omit it.
+Shader-pack compatibility is not covered by these tests.
 
 ## Installation
 

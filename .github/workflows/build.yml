@@ -26,6 +26,9 @@ jobs:
       - name: Build
         run: ./gradlew build -Porg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
 
+      - name: Check packaged jars
+        run: python3 tests/verify-artifacts.py
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
