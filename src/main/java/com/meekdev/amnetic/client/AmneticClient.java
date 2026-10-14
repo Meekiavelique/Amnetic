@@ -1,5 +1,7 @@
 package com.meekdev.amnetic.client;
 
+import com.meekdev.amnetic.client.compat.IrisCompat;
+
 import com.meekdev.amnetic.client.anim.Animations;
 import com.meekdev.amnetic.client.bloom.Bloom;
 import com.meekdev.amnetic.client.compute.ComputeCapabilities;
@@ -89,6 +91,7 @@ public class AmneticClient implements ClientModInitializer {
 *///?}
 
     private static LevelCamera pendingPostCamera;
+    private static LevelCamera shaderLightCamera;
     private static boolean initialized;
 
     public static void renderPost() {
@@ -121,7 +124,9 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 50, "Decals", ctx -> Decals.render());
 
-        Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> ShadowMapPass.INSTANCE.render(ctx.camera()));
+        Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> {
+            if (!IrisCompat.shadersActive()) ShadowMapPass.INSTANCE.render(ctx.camera());
+        });
         Pipeline.add(RenderStage.LIGHTING, 20, "Deferred Lighting", ctx -> DeferredLightingPass.INSTANCE.renderSurface());
 
         Pipeline.add(RenderStage.SCREEN_SPACE, 5, "Subsurface", ctx -> Subsurface.render());
@@ -234,6 +239,8 @@ public class AmneticClient implements ClientModInitializer {
     }
 
     public static void disconnect() {
+        pendingPostCamera = null;
+        shaderLightCamera = null;
         WorldModels.clear();
         ItemModels.clear();
         Decals.clear();
@@ -250,7 +257,7 @@ public class AmneticClient implements ClientModInitializer {
     }
 
     public static void beforeTranslucent(LevelCamera levelCamera) {
-        if (CaptureManager.INSTANCE.isCapturing()) return;
+        if (CaptureManager.INSTANCE.isCapturing() || IrisCompat.shadowPass()) return;
         boolean captured = ParticleSimulation.INSTANCE.captureSceneDepth();
         int snapshot = captured ? SceneDepth.snapshotDepthGlId() : 0;
         MainTargetFramebuffer.setDepthOverride(snapshot);
@@ -262,7 +269,9 @@ public class AmneticClient implements ClientModInitializer {
     }
 
     public static void endMain(LevelCamera levelCamera) {
+        if (IrisCompat.shadowPass()) return;
         pendingPostCamera = null;
+        shaderLightCamera = null;
         if (CaptureManager.INSTANCE.isCapturing()) return;
         ModelRegistry.INSTANCE.warmup();
         GlUploadQueue.drain(2_000_000L);
@@ -272,9 +281,23 @@ public class AmneticClient implements ClientModInitializer {
         FrameContext fc = new FrameContext(CameraSnapshot.current(), levelCamera, SceneDepth.snapshotDepthGlId());
         Pipeline.runStage(RenderStage.GEOMETRY, fc);
         MainTargetFramebuffer.setDepthOverride(0);
-        Pipeline.runStage(RenderStage.LIGHTING, fc);
+        if (IrisCompat.shadersActive()) shaderLightCamera = levelCamera;
+        else Pipeline.runStage(RenderStage.LIGHTING, fc);
         Pipeline.runStage(RenderStage.SCREEN_SPACE, fc);
         pendingPostCamera = levelCamera;
+    }
+
+    public static void renderShaderLights() {
+        LevelCamera camera = shaderLightCamera;
+        shaderLightCamera = null;
+        if (camera == null || CaptureManager.INSTANCE.isCapturing()
+                || !IrisCompat.beginComposite()) return;
+        try {
+            MainTargetFramebuffer.setDepthOverride(0);
+            Pipeline.runStage(RenderStage.LIGHTING, new FrameContext(CameraSnapshot.current(), camera, 0));
+        } finally {
+            IrisCompat.endComposite();
+        }
     }
 
     private static long surfaceLastNano;

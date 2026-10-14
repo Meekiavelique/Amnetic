@@ -5,6 +5,7 @@
   "compatibilityLevel": "${java}",
   "mixins": [],
   "client": [
+    "IrisPipelineMixin",
     "GameRendererMixin",
     "ItemInHandRendererMixin",
     "GlCommandEncoderMixin",

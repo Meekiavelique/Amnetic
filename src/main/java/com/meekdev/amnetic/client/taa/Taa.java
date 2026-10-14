@@ -2,15 +2,11 @@ package com.meekdev.amnetic.client.taa;
 
 import com.meekdev.amnetic.client.taa.internal.CasPass;
 import com.meekdev.amnetic.client.taa.internal.TaaPass;
-import com.meekdev.amnetic.platform.Platform;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 
 public final class Taa {
 
     private static final TaaSettings SETTINGS = new TaaSettings();
-
-    // under Iris every Amnetic screen pass skips itself, the projection jitter has to skip
-    // too or the world shimmers with no resolve pass to integrate it
-    private static final boolean IRIS = Platform.isModLoaded("iris") || Platform.isModLoaded("oculus");
 
     private Taa() {}
 
@@ -19,7 +15,7 @@ public final class Taa {
     }
 
     public static boolean jitterActive() {
-        return SETTINGS.isEnabled() && !IRIS;
+        return SETTINGS.isEnabled() && !IrisCompat.shadersActive();
     }
 
     public static void enable() {

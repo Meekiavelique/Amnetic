@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.light.internal;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import java.util.List;
 import java.util.ArrayList;
 import com.meekdev.amnetic.client.light.Light;
@@ -69,7 +70,12 @@ public final class DeferredLightingPass extends ScreenPass {
 
     public void render() { renderSurface(); }
 
-    @Override protected boolean enabled() { return !LightRegistry.INSTANCE.isEmpty(); }
+    @Override protected boolean skipUnderIris() { return false; }
+
+    @Override protected boolean enabled() {
+        return !LightRegistry.INSTANCE.isEmpty()
+                && (!IrisCompat.shadersActive() || (IrisCompat.compositing() && !volumetricOnly));
+    }
 
     @Override
     protected ShaderProgram createProgram() {
@@ -86,7 +92,9 @@ public final class DeferredLightingPass extends ScreenPass {
         if (ShadingModelRegistry.INSTANCE.consumeDirty()) program.invalidate();
 
         frustum.set(cam.viewProj);
-        boolean volumes = LightSettings.defaults().lightVolumes() && !volumetricOnly && debugMode == 0;
+        boolean shaderPack = IrisCompat.compositing();
+        boolean volumes = LightSettings.defaults().lightVolumes() && !volumetricOnly && debugMode == 0
+                && !shaderPack;
         packed.clear();
         int count = lightBuffer.pack(LightRegistry.INSTANCE.all(), cam.eye, frustum,
                 volumes ? packed : null);
@@ -98,19 +106,17 @@ public final class DeferredLightingPass extends ScreenPass {
                 if (l.type() == LightType.DIRECTIONAL) { anyDirectional = true; break; }
             }
         }
-        boolean gbufferDepth = GBufferTargets.INSTANCE.isPopulated()
-                && GBufferTargets.INSTANCE.depthGlId() != 0;
         // the fullscreen pass recomposes the whole frame, which is only needed when something
         // darkens it (sun/directional) or replaces it (custom shading, debug, volumetrics)
         boolean needsFullscreen = !volumes
                 || volumetricOnly
                 || debugMode != 0
                 || anyDirectional
-                || ShadowMapPass.INSTANCE.sunActive()
-                || ShadingModelRegistry.INSTANCE.hasCustomModels();
+                || (!shaderPack && ShadowMapPass.INSTANCE.sunActive())
+                || (!shaderPack && ShadingModelRegistry.INSTANCE.hasCustomModels());
 
         if (!volumetricOnly) capture.blitColorFromMain();
-        if (needsFullscreen || !gbufferDepth || volumes) capture.blitDepthFromMain();
+        capture.blitDepthFromMain();
 
         boolean toHalf = volumetricOnly && volumetricTarget != null;
         int prevFbo = -1;
@@ -118,14 +124,14 @@ public final class DeferredLightingPass extends ScreenPass {
         try {
             GlState.bindTexture(0, capture.colorTextureGlId(0));
             GlState.bindTexture(1, capture.depthTextureGlId());
-            boolean hasGBuffer = GBufferTargets.INSTANCE.isPopulated();
+            boolean hasGBuffer = !shaderPack && GBufferTargets.INSTANCE.isPopulated();
             if (hasGBuffer) {
                 GlState.bindTexture(2, GBufferTargets.INSTANCE.normalGlId());
                 GlState.bindTexture(3, GBufferTargets.INSTANCE.materialGlId());
                 GlState.bindTexture(10, GBufferTargets.INSTANCE.albedoGlId());
             }
-            boolean shadows = ShadowMapPass.INSTANCE.isActive();
-            boolean sunShadows = ShadowMapPass.INSTANCE.sunActive();
+            boolean shadows = !shaderPack && ShadowMapPass.INSTANCE.isActive();
+            boolean sunShadows = !shaderPack && ShadowMapPass.INSTANCE.sunActive();
             if (shadows) {
                 GlState.bindTexture(4, SpotShadowAtlas.glTextureId());
                 GlState.bindTexture(6, SpotShadowAtlas.colorTextureId());
@@ -140,9 +146,9 @@ public final class DeferredLightingPass extends ScreenPass {
                 GL33.glBindSampler(8, 0);
                 GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             }
-            GlState.bindTexture(9, levelLightmapGlId());
+            if (!shaderPack) GlState.bindTexture(9, levelLightmapGlId());
             lightBuffer.bind();
-            MaterialParams.INSTANCE.bind();
+            if (!shaderPack) MaterialParams.INSTANCE.bind();
 
             program.begin();
             applyShared(program, cam, shadows, sunShadows, hasGBuffer, count, volumes);
@@ -171,6 +177,7 @@ public final class DeferredLightingPass extends ScreenPass {
             GlState.bindTexture(6, 0);
             GlState.bindTexture(7, 0);
             GlState.bindTexture(9, 0);
+            GlState.bindTexture(10, 0);
             TexelBuffer.unbind(LightBuffer.UNIT);
             TexelBuffer.unbind(MaterialParams.UNIT);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
@@ -249,6 +256,8 @@ public final class DeferredLightingPass extends ScreenPass {
             p.setFloat("SunShadowDistance", ShadowMapPass.INSTANCE.sunDistance());
         }
         p.setInt("HasGBuffer", hasGBuffer ? 1 : 0);
+        p.setInt("ShaderPackComposite", IrisCompat.compositing() ? 1 : 0);
+        p.setInt("DepthReversed", IrisCompat.compositing() && IrisCompat.reverseDepth() ? 1 : 0);
         p.setMatrix4("InvViewProj", cam.invViewProj);
         p.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
         p.setInt("LightCount", count);

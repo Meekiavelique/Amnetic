@@ -10,7 +10,7 @@ uniform vec2 ScreenSize;
 void main() {
     vec2 uv = gl_FragCoord.xy / ScreenSize;
     float depth = texture(DepthSampler, uv).r;
-    if (depth >= 1.0) discard;
+    if (skyDepth(depth)) discard;
 
     vec3 fragPos = reconstruct(uv, depth);
 
@@ -30,15 +30,18 @@ void main() {
     }
 
     vec3 V = normalize(-fragPos);
-    vec3 albedo = texture(AlbedoSampler, uv).rgb;
-    vec4 published = texture(GAlbedoSampler, uv);
-    if (published.a > 0.5) albedo = published.rgb;
+    vec3 scene = texture(AlbedoSampler, uv).rgb;
+    vec3 albedo = lightMaterial(scene);
+    if (HasGBuffer == 1) {
+        vec4 published = texture(GAlbedoSampler, uv);
+        if (published.a > 0.5) albedo = published.rgb;
+    }
 
     vec3 specular = vec3(0.0);
     float sunShadow = 0.0;
     vec3 radiance = lightContribution(LightIndex, fragPos, N, V, rough, f0, specular, sunShadow);
 
-    vec3 lit = albedo * radiance + specular;
+    vec3 lit = compositeLight(scene, albedo * radiance + specular);
     lit = max(lit, vec3(0.0));
     if (any(isnan(lit)) || any(isinf(lit))) lit = vec3(0.0);
     FragColor = vec4(lit, 1.0);

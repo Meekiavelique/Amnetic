@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.render;
 
-import com.meekdev.amnetic.platform.Platform;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +24,8 @@ public abstract class ScreenPass {
 
     protected final void dispatch() {
         if (!guard.alive() || !enabled()) return;
-        if (skipUnderIris() && (Platform.isModLoaded("iris") || Platform.isModLoaded("oculus"))) return;
+        if (IrisCompat.shadowPass()) return;
+        if (skipUnderIris() && IrisCompat.shadersActive()) return;
         CameraSnapshot cam = CameraSnapshot.current();
         if (cam == null) return;
         if (program == null) program = createProgram();

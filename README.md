@@ -41,9 +41,19 @@ client with `./gradlew :26.1.2-fabric:runClient -Ploader_platform=quilt` (replac
 Minecraft version for another target). Quilt development runs keep model libraries
 in a separate folder so Quilt loads them through the correct classloader.
 
-Build, packaging and client checks are described in [tests/README.md](tests/README.md).
 The ImGui editor is available on Fabric, Quilt and NeoForge; Forge builds omit it.
-Shader-pack compatibility is not covered by these tests.
+
+### Iris shader packs
+
+Amnetic composites local lights after Iris finishes the shader-pack image. Lights
+use the pack's camera matrices and world depth, so they follow ground and visible
+surfaces rather than being overwritten by the pack. Dark surfaces retain a visible
+light response, with a soft brightness limit to avoid washed-out highlights.
+
+Shader packs retain their own sunlight, shadows and temporal antialiasing. Amnetic's
+local-light composite does not feed the pack's reflections or bloom, and Amnetic
+shadow maps and screen effects stay disabled while a pack is active. With shaders
+turned off, Amnetic's normal rendering and effects remain available.
 
 ## Installation
 
