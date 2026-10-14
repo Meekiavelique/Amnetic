@@ -55,6 +55,21 @@ local-light composite does not feed the pack's reflections or bloom, and Amnetic
 shadow maps and screen effects stay disabled while a pack is active. With shaders
 turned off, Amnetic's normal rendering and effects remain available.
 
+### Lighting performance
+
+Local lights default to Balanced quality. With eight or more visible lights, Amnetic
+renders their contribution at 75% resolution and upsamples it using scene depth.
+The world image stays at full resolution. Small light counts, directional lights,
+custom shading and Iris lighting keep their existing full-resolution path.
+
+In the editor, open **Renderer → Lights → Global lighting → Lighting quality**:
+High uses full resolution, Balanced uses 75%, and Performance uses 50%. Lower modes
+can soften lighting at thin edges. They do not reduce shadow-map or volumetric costs.
+
+Without the editor, add `-Damnetic.lightingQuality=performance` to the launcher's
+JVM arguments (or use `high` / `balanced`). Mods can set the scale through
+`LightSettings.defaults().surfaceScale(0.5f)`.
+
 ## Installation
 
 Amnetic is a **standalone mod**. Install it as a separate mod (e.g. from Modrinth)
