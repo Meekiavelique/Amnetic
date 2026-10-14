@@ -1,13 +1,16 @@
 package com.meekdev.amnetic.client.ui;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import com.meekdev.amnetic.platform.Platform;
+//? fabric {
 //? if >=26.1 {
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 //?} else {
 /*import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 *///?}
-import net.fabricmc.loader.api.FabricLoader;
+//?} else {
+/*import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+*///?}
 import net.minecraft.client.KeyMapping;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -34,29 +37,33 @@ public final class AmneticEditorBridge {
                 //?} else {
                 /*"key.categories.misc");
                 *///?}
-        //? if >=26.1 {
+        //? fabric && >=26.1 {
         KeyMappingHelper.registerKeyMapping(toggleKey);
-        //?} else {
+        //?} else if fabric {
         /*KeyBindingHelper.registerKeyBinding(toggleKey);
         *///?}
 
-        //? if >=1.21 {
-        if (FabricLoader.getInstance().isModLoaded(IMGUIMC)) {
+        //? if fabric && >=1.21 {
+        if (Platform.isModLoaded(IMGUIMC)) {
             AmneticEditor.init();
             available = true;
         }
         //?}
-
-        ClientTickEvents.END_CLIENT_TICK.register(client -> tick());
     }
 
-    private static void tick() {
+    //? forge {
+    /*public static void registerKeyMapping(RegisterKeyMappingsEvent event) {
+        event.register(toggleKey);
+    }
+    *///?}
+
+    public static void tick() {
         if (toggleKey == null) return;
         boolean toggled = false;
         while (toggleKey.consumeClick()) toggled = true;
         if (!toggled) return;
 
-        //? if >=1.21 {
+        //? if fabric && >=1.21 {
         if (available) {
             AmneticEditor.toggle();
             return;

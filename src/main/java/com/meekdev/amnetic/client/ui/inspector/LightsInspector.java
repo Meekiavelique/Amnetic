@@ -22,6 +22,7 @@ public final class LightsInspector extends Inspector {
 
     private static final String[] FALLOFF = {"SMOOTH", "LINEAR", "INVERSE_SQUARE", "EXPONENT"};
     private static final String[] IES = {"None", "Narrow", "Wide wash", "Multi-lobe", "Tight beam", "Ribbed"};
+    private static final String[] QUALITY = {"High", "Balanced", "Performance"};
 
     private final ImString cookiePath = new ImString("minecraft:textures/block/glass.png", 256);
     private final SpawnTarget spawn = new SpawnTarget();
@@ -70,6 +71,9 @@ public final class LightsInspector extends Inspector {
     private void globalLighting() {
         if (!ImGui.collapsingHeader("Global lighting")) return;
         LightSettings s = LightSettings.defaults();
+        ImInt quality = new ImInt(s.surfaceScale() > 0.9f ? 0 : s.surfaceScale() < 0.6f ? 2 : 1);
+        if (ImGui.combo("Lighting quality", quality, QUALITY)) s.surfaceScale(new float[] {1f, 0.75f, 0.5f}[quality.get()]);
+        if (ImGui.isItemHovered()) ImGui.setTooltip("Balanced and Performance reduce local-light resolution. World detail stays sharp; lighting edges may be softer. Small light counts and directional/custom shading keep full resolution.");
 
         ImBoolean cs = new ImBoolean(s.contactShadows());
         if (ImGui.checkbox("Contact shadows (screen-space)", cs)) s.contactShadows(cs.get());

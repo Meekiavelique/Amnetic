@@ -5,8 +5,8 @@
   "compatibilityLevel": "${java}",
   "mixins": [],
   "client": [
+    "IrisPipelineMixin",
     "GameRendererMixin",
-    "BufferUploaderMixin",
     "ItemInHandRendererMixin",
     "GlCommandEncoderMixin",
     "MinecraftMainTargetMixin",
@@ -23,6 +23,7 @@
     "accessor.CameraInvoker",
     "accessor.LevelRendererAccessor",
     "accessor.LightTextureAccessor",
+    "accessor.RenderTypeInvoker",
     "FrustumMixin"
   ],
   "injectors": {

@@ -1,5 +1,7 @@
 package com.meekdev.amnetic.client;
 
+import com.meekdev.amnetic.client.compat.IrisCompat;
+
 import com.meekdev.amnetic.client.anim.Animations;
 import com.meekdev.amnetic.client.bloom.Bloom;
 import com.meekdev.amnetic.client.compute.ComputeCapabilities;
@@ -46,6 +48,7 @@ import com.meekdev.amnetic.client.render.AmneticResources;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.Geometry;
 import com.meekdev.amnetic.client.render.ImageOps;
+import com.meekdev.amnetic.client.render.LevelCamera;
 import com.meekdev.amnetic.client.render.OverlayRender;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
 import com.meekdev.amnetic.client.shadow.Shadows;
@@ -55,9 +58,11 @@ import com.meekdev.amnetic.client.subsurface.Subsurface;
 import com.meekdev.amnetic.client.ssgi.Ssgi;
 import com.meekdev.amnetic.client.ssr.Ssr;
 import com.meekdev.amnetic.client.surface.reactive.Reactive;
+import com.meekdev.amnetic.client.surface.internal.WorldSurfaceRenderer;
 import com.meekdev.amnetic.client.taa.Taa;
 import com.meekdev.amnetic.client.ui.AmneticEditorBridge;
 import net.minecraft.client.Minecraft;
+//? fabric {
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -74,22 +79,25 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 *///?}
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+//?}
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManager;
 
+//? fabric {
 public class AmneticClient implements ClientModInitializer {
+//?} else {
+/*public class AmneticClient {
+*///?}
 
-    //? if >=26.1 {
-    private static LevelRenderContext pendingPostCtx;
-    //?} else {
-    /*private static WorldRenderContext pendingPostCtx;
-    *///?}
+    private static LevelCamera pendingPostCamera;
+    private static LevelCamera shaderLightCamera;
+    private static boolean initialized;
 
     public static void renderPost() {
-        var ctx = pendingPostCtx;
-        pendingPostCtx = null;
-        if (ctx == null || CaptureManager.INSTANCE.isCapturing()) return;
+        LevelCamera levelCamera = pendingPostCamera;
+        pendingPostCamera = null;
+        if (levelCamera == null || CaptureManager.INSTANCE.isCapturing()) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.getMainRenderTarget() != null
@@ -99,7 +107,7 @@ public class AmneticClient implements ClientModInitializer {
         }
 
         int snapshotDepth = SceneDepth.snapshotDepthGlId();
-        FrameContext fc = new FrameContext(CameraSnapshot.current(), ctx, snapshotDepth);
+        FrameContext fc = new FrameContext(CameraSnapshot.current(), levelCamera, snapshotDepth);
 
         if (snapshotDepth > 0) MainTargetFramebuffer.setDepthOverride(snapshotDepth);
         Pipeline.runStage(RenderStage.AFTER_WATER, fc);
@@ -116,7 +124,9 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 50, "Decals", ctx -> Decals.render());
 
-        Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> ShadowMapPass.INSTANCE.render(ctx.camera()));
+        Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> {
+            if (!IrisCompat.shadersActive()) ShadowMapPass.INSTANCE.render(ctx.camera());
+        });
         Pipeline.add(RenderStage.LIGHTING, 20, "Deferred Lighting", ctx -> DeferredLightingPass.INSTANCE.renderSurface());
 
         Pipeline.add(RenderStage.SCREEN_SPACE, 5, "Subsurface", ctx -> Subsurface.render());
@@ -136,20 +146,53 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.OVERLAY, 10, "Overlay", ctx -> OverlayRender.render());
     }
 
+    //? fabric {
     @Override
     public void onInitializeClient() {
+        initialize();
+        registerFabricEvents();
+    }
+
+    private static void registerFabricEvents() {
+        ClientTickEvents.END_CLIENT_TICK.register(AmneticClient::endClientTick);
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> stopping());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> disconnect());
+
+        //? if >=26.1 {
+        LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> beforeTranslucent(LevelCamera.of(ctx.levelState().cameraRenderState)));
+        LevelRenderEvents.END_MAIN.register(ctx -> endMain(LevelCamera.of(ctx.levelState().cameraRenderState)));
+        //?} else if >=1.21.9 {
+        /*WorldRenderEvents.BEFORE_TRANSLUCENT.register(ctx -> beforeTranslucent(LevelCamera.main()));
+        WorldRenderEvents.END_MAIN.register(ctx -> endMain(LevelCamera.main()));
+        *///?} else {
+        /*WorldRenderEvents.BEFORE_DEBUG_RENDER.register(ctx -> beforeTranslucent(LevelCamera.main()));
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(ctx -> endMain(LevelCamera.main()));
+        *///?}
+
+        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                new SimpleSynchronousResourceReloadListener() {
+                    @Override
+                    public Identifier getFabricId() {
+                        return Identifier.fromNamespaceAndPath("amnetic", "post_effect_cache");
+                    }
+
+                    @Override
+                    public void onResourceManagerReload(ResourceManager manager) {
+                        reloadResources();
+                    }
+                }
+        );
+    }
+    //?}
+
+    public static void initialize() {
+        if (initialized) return;
+        initialized = true;
         LightStyles.touch();
         ShadingModelRegistry.touch();
 
         ShaderHotReload.watchAllDevMods();
         PostShaderReload.install();
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            ComputeCapabilities.probeOnce();
-            EntityEffectRegistry.INSTANCE.tick();
-            TextureOverrideRegistry.INSTANCE.tick();
-            MeshTapRegistry.INSTANCE.tick();
-        });
-
         Particles.init();
 
         AmneticEditorBridge.init();
@@ -182,71 +225,79 @@ public class AmneticClient implements ClientModInitializer {
         AmneticResources.register(SceneColorSnapshot.INSTANCE::dispose);
         AmneticResources.register(EntityMeshTap::clear);
         AmneticResources.register(EntityTextureOverride::clearAll);
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> AmneticResources.disposeAll());
-
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            WorldModels.clear();
-            ItemModels.clear();
-            Decals.clear();
-            Lights.clear();
-        });
-
         registerDefaultPasses();
+    }
 
-        //? if >=26.1 {
-        LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> {
-        //?} else if >=1.21.9 {
-        /*WorldRenderEvents.BEFORE_TRANSLUCENT.register(ctx -> {
-        *///?} else {
-        /*WorldRenderEvents.BEFORE_DEBUG_RENDER.register(ctx -> {
-        *///?}
-            if (CaptureManager.INSTANCE.isCapturing()) return;
-            boolean captured = ParticleSimulation.INSTANCE.captureSceneDepth();
-            int snapshot = captured ? SceneDepth.snapshotDepthGlId() : 0;
-            MainTargetFramebuffer.setDepthOverride(snapshot);
-            if (!EntityEffectRegistry.INSTANCE.isEmpty()) {
-                SceneColorSnapshot.INSTANCE.capture();
-                EntityEffectRegistry.INSTANCE.uploadAll();
-            }
-            Pipeline.runStage(RenderStage.SETUP, new FrameContext(CameraSnapshot.current(), ctx, snapshot));
-        });
+    public static void endClientTick(Minecraft client) {
+        ComputeCapabilities.probeOnce();
+        EntityEffectRegistry.INSTANCE.tick();
+        TextureOverrideRegistry.INSTANCE.tick();
+        MeshTapRegistry.INSTANCE.tick();
+        ShaderHotReload.tick();
+        AmneticEditorBridge.tick();
+        WorldSurfaceRenderer.INSTANCE.tick(client);
+    }
 
-        //? if >=26.1 {
-        LevelRenderEvents.END_MAIN.register(ctx -> {
-        //?} else if >=1.21.9 {
-        /*WorldRenderEvents.END_MAIN.register(ctx -> {
-        *///?} else {
-        /*WorldRenderEvents.AFTER_TRANSLUCENT.register(ctx -> {
-        *///?}
-            pendingPostCtx = null;
-            if (CaptureManager.INSTANCE.isCapturing()) return;
-            ModelRegistry.INSTANCE.warmup();
-            GlUploadQueue.drain(2_000_000L);
-            Animations.update();
-            Reactive.tick(surfaceDt());
-            GBuffer.beginFrame();
-            FrameContext fc = new FrameContext(CameraSnapshot.current(), ctx, SceneDepth.snapshotDepthGlId());
-            Pipeline.runStage(RenderStage.GEOMETRY, fc);
+    public static void disconnect() {
+        pendingPostCamera = null;
+        shaderLightCamera = null;
+        WorldModels.clear();
+        ItemModels.clear();
+        Decals.clear();
+        Lights.clear();
+    }
+
+    public static void stopping() {
+        AmneticResources.disposeAll();
+    }
+
+    public static void reloadResources() {
+        PostEffectRegistry.INSTANCE.invalidatePipelineCaches();
+        AmmeshScanner.scanAsync();
+    }
+
+    public static void beforeTranslucent(LevelCamera levelCamera) {
+        if (CaptureManager.INSTANCE.isCapturing() || IrisCompat.shadowPass()) return;
+        boolean captured = ParticleSimulation.INSTANCE.captureSceneDepth();
+        int snapshot = captured ? SceneDepth.snapshotDepthGlId() : 0;
+        MainTargetFramebuffer.setDepthOverride(snapshot);
+        if (!EntityEffectRegistry.INSTANCE.isEmpty()) {
+            SceneColorSnapshot.INSTANCE.capture();
+            EntityEffectRegistry.INSTANCE.uploadAll();
+        }
+        Pipeline.runStage(RenderStage.SETUP, new FrameContext(CameraSnapshot.current(), levelCamera, snapshot));
+    }
+
+    public static void endMain(LevelCamera levelCamera) {
+        if (IrisCompat.shadowPass()) return;
+        pendingPostCamera = null;
+        shaderLightCamera = null;
+        if (CaptureManager.INSTANCE.isCapturing()) return;
+        ModelRegistry.INSTANCE.warmup();
+        GlUploadQueue.drain(2_000_000L);
+        Animations.update();
+        Reactive.tick(surfaceDt());
+        GBuffer.beginFrame();
+        FrameContext fc = new FrameContext(CameraSnapshot.current(), levelCamera, SceneDepth.snapshotDepthGlId());
+        Pipeline.runStage(RenderStage.GEOMETRY, fc);
+        MainTargetFramebuffer.setDepthOverride(0);
+        if (IrisCompat.shadersActive()) shaderLightCamera = levelCamera;
+        else Pipeline.runStage(RenderStage.LIGHTING, fc);
+        Pipeline.runStage(RenderStage.SCREEN_SPACE, fc);
+        pendingPostCamera = levelCamera;
+    }
+
+    public static void renderShaderLights() {
+        LevelCamera camera = shaderLightCamera;
+        shaderLightCamera = null;
+        if (camera == null || CaptureManager.INSTANCE.isCapturing()
+                || !IrisCompat.beginComposite()) return;
+        try {
             MainTargetFramebuffer.setDepthOverride(0);
-            Pipeline.runStage(RenderStage.LIGHTING, fc);
-            Pipeline.runStage(RenderStage.SCREEN_SPACE, fc);
-            pendingPostCtx = ctx;
-        });
-
-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
-                new SimpleSynchronousResourceReloadListener() {
-                    @Override
-                    public Identifier getFabricId() {
-                        return Identifier.fromNamespaceAndPath("amnetic", "post_effect_cache");
-                    }
-
-                    @Override
-                    public void onResourceManagerReload(ResourceManager manager) {
-                        PostEffectRegistry.INSTANCE.invalidatePipelineCaches();
-                        AmmeshScanner.scanAsync();
-                    }
-                }
-        );
+            Pipeline.runStage(RenderStage.LIGHTING, new FrameContext(CameraSnapshot.current(), camera, 0));
+        } finally {
+            IrisCompat.endComposite();
+        }
     }
 
     private static long surfaceLastNano;

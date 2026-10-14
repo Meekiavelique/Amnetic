@@ -104,6 +104,7 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     public void draw() {
+        GL30.glBindVertexArray(vao);
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3);
     }
 

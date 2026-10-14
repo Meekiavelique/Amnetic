@@ -97,7 +97,7 @@ void main() {
 
     if (VolumetricOnly == 1) {
         vec3 fp;
-        if (depth >= 1.0) {
+        if (skyDepth(depth)) {
             vec3 rd = reconstruct(vUV, 0.5);
             float rl = length(rd);
             if (rl < 1e-5) { FragColor = vec4(0.0, 0.0, 0.0, depth); return; }
@@ -109,7 +109,7 @@ void main() {
         return;
     }
 
-    if (depth >= 1.0) { FragColor = vec4(texture(AlbedoSampler, vUV).rgb, 1.0); return; } // sky: pass scene through, composite replaces rather than adds
+    if (skyDepth(depth)) { FragColor = vec4(texture(AlbedoSampler, vUV).rgb, 1.0); return; }
 
     vec3 fragPos = reconstruct(vUV, depth);
     vec3 N;
@@ -141,8 +141,8 @@ void main() {
 
     vec3 V = normalize(-fragPos);
     vec3 albedo = texture(AlbedoSampler, vUV).rgb;
-    vec4 published = texture(GAlbedoSampler, vUV);
-    vec3 material = published.a > 0.5 ? published.rgb : albedo;
+    vec4 published = HasGBuffer == 1 ? texture(GAlbedoSampler, vUV) : vec4(0.0);
+    vec3 material = published.a > 0.5 ? published.rgb : lightMaterial(albedo);
 
     if (DebugMode != 0) {
         vec3 dbg = vec3(0.0);
@@ -163,11 +163,11 @@ void main() {
 
     // scene is already day-lit, darken where the sun is occluded, then local lights and specular on top
     float sunMul = clamp(1.0 - sunShadow, 0.0, 1.0);
-    vec3 outColor = albedo * sunMul + material * radiance + specular; // god-rays added in a separate pass
+    vec3 outColor = albedo * sunMul + compositeLight(albedo, material * radiance + specular);
     outColor = max(outColor, vec3(0.0));
     if (any(isnan(outColor)) || any(isinf(outColor))) outColor = vec3(0.0);
 
-    if (materialId != 0) {
+    if (materialId != 0 && ShaderPackComposite == 0) {
         bool handled;
         vec3 custom = shadeCustomMaterial(materialId,
                 GBufferSample(albedo, N, fragPos, rough, metallic, outColor,

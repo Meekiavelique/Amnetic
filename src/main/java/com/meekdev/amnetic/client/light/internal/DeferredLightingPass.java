@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.light.internal;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import java.util.List;
 import java.util.ArrayList;
 import com.meekdev.amnetic.client.light.Light;
@@ -46,6 +47,9 @@ public final class DeferredLightingPass extends ScreenPass {
     private Framebuffer capture;
     private final List<Light> packed = new ArrayList<>();
     private LightBuffer lightBuffer;
+    private Framebuffer surfaceTarget;
+    private ShaderProgram surfaceUpscale;
+    private float surfaceScale = -1f;
     private final FrustumIntersection frustum = new FrustumIntersection();
 
     private DeferredLightingPass() { super("Light"); }
@@ -69,7 +73,12 @@ public final class DeferredLightingPass extends ScreenPass {
 
     public void render() { renderSurface(); }
 
-    @Override protected boolean enabled() { return !LightRegistry.INSTANCE.isEmpty(); }
+    @Override protected boolean skipUnderIris() { return false; }
+
+    @Override protected boolean enabled() {
+        return !LightRegistry.INSTANCE.isEmpty()
+                && (!IrisCompat.shadersActive() || (IrisCompat.compositing() && !volumetricOnly));
+    }
 
     @Override
     protected ShaderProgram createProgram() {
@@ -86,7 +95,9 @@ public final class DeferredLightingPass extends ScreenPass {
         if (ShadingModelRegistry.INSTANCE.consumeDirty()) program.invalidate();
 
         frustum.set(cam.viewProj);
-        boolean volumes = LightSettings.defaults().lightVolumes() && !volumetricOnly && debugMode == 0;
+        boolean shaderPack = IrisCompat.compositing();
+        boolean volumes = LightSettings.defaults().lightVolumes() && !volumetricOnly && debugMode == 0
+                && !shaderPack;
         packed.clear();
         int count = lightBuffer.pack(LightRegistry.INSTANCE.all(), cam.eye, frustum,
                 volumes ? packed : null);
@@ -98,34 +109,43 @@ public final class DeferredLightingPass extends ScreenPass {
                 if (l.type() == LightType.DIRECTIONAL) { anyDirectional = true; break; }
             }
         }
-        boolean gbufferDepth = GBufferTargets.INSTANCE.isPopulated()
-                && GBufferTargets.INSTANCE.depthGlId() != 0;
         // the fullscreen pass recomposes the whole frame, which is only needed when something
         // darkens it (sun/directional) or replaces it (custom shading, debug, volumetrics)
         boolean needsFullscreen = !volumes
                 || volumetricOnly
                 || debugMode != 0
                 || anyDirectional
-                || ShadowMapPass.INSTANCE.sunActive()
-                || ShadingModelRegistry.INSTANCE.hasCustomModels();
+                || (!shaderPack && ShadowMapPass.INSTANCE.sunActive())
+                || (!shaderPack && ShadingModelRegistry.INSTANCE.hasCustomModels());
+        // Upscaling costs more than it saves for just a few light volumes.
+        boolean reducedSurface = volumes && !needsFullscreen && count >= 8
+                && LightSettings.defaults().surfaceScale() < 1f;
+        if (reducedSurface) {
+            ensureSurfaceTarget(LightSettings.defaults().surfaceScale());
+            surfaceTarget.begin();
+            try { surfaceTarget.clear(0f, 0f, 0f, 0f); }
+            finally { surfaceTarget.end(); }
+            surfaceTarget.blitDepthFromMain();
+        }
 
         if (!volumetricOnly) capture.blitColorFromMain();
-        if (needsFullscreen || !gbufferDepth || volumes) capture.blitDepthFromMain();
+        capture.blitDepthFromMain();
 
         boolean toHalf = volumetricOnly && volumetricTarget != null;
+        Framebuffer destination = toHalf ? volumetricTarget : reducedSurface ? surfaceTarget : null;
         int prevFbo = -1;
-        if (toHalf) volumetricTarget.begin(); else prevFbo = MainTargetFramebuffer.bind();
+        if (destination != null) destination.begin(); else prevFbo = MainTargetFramebuffer.bind();
         try {
             GlState.bindTexture(0, capture.colorTextureGlId(0));
             GlState.bindTexture(1, capture.depthTextureGlId());
-            boolean hasGBuffer = GBufferTargets.INSTANCE.isPopulated();
+            boolean hasGBuffer = !shaderPack && GBufferTargets.INSTANCE.isPopulated();
             if (hasGBuffer) {
                 GlState.bindTexture(2, GBufferTargets.INSTANCE.normalGlId());
                 GlState.bindTexture(3, GBufferTargets.INSTANCE.materialGlId());
                 GlState.bindTexture(10, GBufferTargets.INSTANCE.albedoGlId());
             }
-            boolean shadows = ShadowMapPass.INSTANCE.isActive();
-            boolean sunShadows = ShadowMapPass.INSTANCE.sunActive();
+            boolean shadows = !shaderPack && ShadowMapPass.INSTANCE.isActive();
+            boolean sunShadows = !shaderPack && ShadowMapPass.INSTANCE.sunActive();
             if (shadows) {
                 GlState.bindTexture(4, SpotShadowAtlas.glTextureId());
                 GlState.bindTexture(6, SpotShadowAtlas.colorTextureId());
@@ -140,9 +160,9 @@ public final class DeferredLightingPass extends ScreenPass {
                 GL33.glBindSampler(8, 0);
                 GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             }
-            GlState.bindTexture(9, levelLightmapGlId());
+            if (!shaderPack) GlState.bindTexture(9, levelLightmapGlId());
             lightBuffer.bind();
-            MaterialParams.INSTANCE.bind();
+            if (!shaderPack) MaterialParams.INSTANCE.bind();
 
             program.begin();
             applyShared(program, cam, shadows, sunShadows, hasGBuffer, count, volumes);
@@ -163,7 +183,8 @@ public final class DeferredLightingPass extends ScreenPass {
                 GlState.bindTexture(0, capture.colorTextureGlId(0));
                 GlState.bindTexture(1, capture.depthTextureGlId());
                 LightVolumePass.INSTANCE.render(cam, packed,
-                        capture.width(), capture.height(),
+                        reducedSurface ? surfaceTarget.width() : capture.width(),
+                        reducedSurface ? surfaceTarget.height() : capture.height(),
                         p -> applyShared(p, cam, shadows, sunShadows, hasGBuffer, count, volumes));
             }
         } finally {
@@ -171,6 +192,7 @@ public final class DeferredLightingPass extends ScreenPass {
             GlState.bindTexture(6, 0);
             GlState.bindTexture(7, 0);
             GlState.bindTexture(9, 0);
+            GlState.bindTexture(10, 0);
             TexelBuffer.unbind(LightBuffer.UNIT);
             TexelBuffer.unbind(MaterialParams.UNIT);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
@@ -180,15 +202,51 @@ public final class DeferredLightingPass extends ScreenPass {
             GL11.glBindTexture(GL30.GL_TEXTURE_2D_ARRAY, 0);
             GL33.glBindSampler(8, 0);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0);
-            if (toHalf) volumetricTarget.end(); else MainTargetFramebuffer.restore(prevFbo);
+            if (destination != null) destination.end(); else MainTargetFramebuffer.restore(prevFbo);
         }
+        if (reducedSurface) compositeSurface(cam);
         return true;
+    }
+
+    private void ensureSurfaceTarget(float scale) {
+        if (surfaceTarget != null && surfaceScale == scale) return;
+        if (surfaceTarget != null) surfaceTarget.dispose();
+        surfaceTarget = Framebuffers.screen("Local light accumulation", scale,
+                FramebufferSpec.builder().color(ColorFormat.RGBA16F).depthTexture().build());
+        surfaceScale = scale;
+        if (surfaceUpscale == null) surfaceUpscale = new ShaderProgram(VSH,
+                Identifier.fromNamespaceAndPath("amnetic", "shaders/light/upscale.fsh"));
+    }
+
+    private void compositeSurface(CameraSnapshot cam) {
+        int previous = MainTargetFramebuffer.bind();
+        try {
+            GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
+            GlStateManager._depthMask(false); GL11.glDepthMask(false);
+            GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
+            GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+            GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE);
+            GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE);
+            GlState.bindTexture(0, surfaceTarget.colorTextureGlId(0));
+            GlState.bindTexture(1, capture.depthTextureGlId());
+            GlState.bindTexture(2, surfaceTarget.depthTextureGlId());
+            surfaceUpscale.begin();
+            surfaceUpscale.setSampler("LightSampler", 0);
+            surfaceUpscale.setSampler("DepthSampler", 1);
+            surfaceUpscale.setSampler("LowDepthSampler", 2);
+            surfaceUpscale.setMatrix4("InvViewProj", cam.invViewProj);
+            surfaceUpscale.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
+            surfaceUpscale.draw();
+        } finally { MainTargetFramebuffer.restore(previous); }
     }
 
     @Override
     protected void onDispose() {
         if (lightBuffer != null) { lightBuffer.close(); lightBuffer = null; }
         if (capture != null) { capture.dispose(); capture = null; }
+        if (surfaceTarget != null) { surfaceTarget.dispose(); surfaceTarget = null; }
+        if (surfaceUpscale != null) { surfaceUpscale.close(); surfaceUpscale = null; }
+        surfaceScale = -1f;
     }
 
     private final Set<Identifier> loadedCookies = new HashSet<>();
@@ -249,6 +307,8 @@ public final class DeferredLightingPass extends ScreenPass {
             p.setFloat("SunShadowDistance", ShadowMapPass.INSTANCE.sunDistance());
         }
         p.setInt("HasGBuffer", hasGBuffer ? 1 : 0);
+        p.setInt("ShaderPackComposite", IrisCompat.compositing() ? 1 : 0);
+        p.setInt("DepthReversed", IrisCompat.compositing() && IrisCompat.reverseDepth() ? 1 : 0);
         p.setMatrix4("InvViewProj", cam.invViewProj);
         p.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
         p.setInt("LightCount", count);

@@ -3,6 +3,10 @@ plugins {
     `maven-publish`
 }
 
+stonecutter {
+    properties.tags(current.project.substringBeforeLast('-'))
+}
+
 version = "${findProperty("mod_version") ?: property("mod.version")}+${sc.current.version}"
 group = property("mod.group") as String
 base.archivesName = property("mod.id") as String
@@ -13,14 +17,16 @@ val requiredJava: JavaVersion = when {
     else -> JavaVersion.VERSION_17
 }
 val toolchainJava: JavaVersion = maxOf(requiredJava, JavaVersion.VERSION_21)
+val loaderPlatform = providers.gradleProperty("loader_platform").getOrElse("fabric")
+require(loaderPlatform in listOf("fabric", "quilt"))
 val hasImGuiMc = sc.current.parsed >= "1.21"
 
 repositories {
+    maven("https://maven.quiltmc.org/repository/release")
     exclusiveContent {
         forRepository { maven("https://maven.ryanhcode.dev/releases") { name = "RyanHCode Maven" } }
         filter { includeGroup("foundry.imguimc") }
     }
-    maven("https://repo.javagl.de/") { name = "javagl Maven" }
 }
 
 dependencies {
@@ -32,6 +38,10 @@ dependencies {
     minecraft("com.mojang:minecraft:$mc")
     loomx.applyMojangMappings()
     modImplementation("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
+    if (loaderPlatform == "quilt") {
+        modLocalRuntime("org.quiltmc:quilt-loader:0.31.0-beta.4")
+        modLocalRuntime("org.quiltmc:quilt-loader-dependencies:0.31.0-beta.4")
+    }
     modImplementation("net.fabricmc.fabric-api:fabric-api:$fabricApi")
 
     include(implementation("de.javagl:jgltf-model:2.0.4")!!)
@@ -74,20 +84,22 @@ val absentClasses: List<String> = buildList {
     if (sc.current.parsed < "1.20.2") add("mixin/accessor/LevelRendererAccessor")
     if (sc.current.parsed < "1.21.2") addAll(listOf("mixin/EntityRenderStateMixin", "mixin/EntityRendererMixin", "mixin/WeatherEffectRendererMixin"))
     if (sc.current.parsed < "1.21.5") addAll(listOf("mixin/GlCommandEncoderMixin", "client/render/MeshPipeline",
-            "client/entityfx/internal/EntityEffectPipeline", "client/framebuffer/internal/WrappedGlTexture"))
-    if (sc.current.parsed >= "1.21.5") addAll(listOf("mixin/accessor/LightTextureAccessor", "mixin/BufferUploaderMixin"))
+            "client/entityfx/internal/EntityEffectPipeline", "client/framebuffer/internal/WrappedGlTexture",
+            "mixin/accessor/RenderTypeInvoker"))
+    if (sc.current.parsed >= "1.21.5") add("mixin/accessor/LightTextureAccessor")
 }
 
 tasks {
     withType<JavaCompile>().configureEach {
+        exclude("com/meekdev/amnetic/ForgeClientEvents.java")
         for (path in absentClasses) exclude("com/meekdev/amnetic/$path.java")
-        if (sc.current.parsed < "1.21.5") exclude("net/minecraft/client/renderer/rendertype/AmneticRenderTypeAccess.java")
         options.encoding = "UTF-8"
         options.compilerArgs.addAll(listOf("-Xmaxerrs", "100000"))
         options.release = requiredJava.majorVersion.toInt()
     }
 
     processResources {
+        exclude("META-INF/mods.toml")
         inputs.property("absentClasses", absentClasses)
         filesMatching("amnetic.mixins.json") {
             filter { line -> if (absentClasses.any { line.trim().trimEnd(',') == "\"${it.removePrefix("mixin/").replace('/', '.')}\"" }) "" else line }
@@ -106,7 +118,7 @@ tasks {
     }
 
     withType<Jar> {
-        from(rootProject.file("LICENSE")) { rename { "${it}_amnetic" } }
+        from(rootProject.file("LICENSE.txt")) { rename { "${it}_amnetic" } }
     }
 
     jar {
@@ -119,6 +131,30 @@ publishing {
         create<MavenPublication>("mavenJava") {
             artifactId = property("mod.id") as String
             from(components["java"])
+        }
+    }
+}
+
+if (loaderPlatform == "quilt") {
+    val prepareQuiltLibraries = tasks.register<Sync>("prepareQuiltLibraries") {
+        dependsOn("processIncludeJars")
+        from(layout.buildDirectory.dir("processIncludeJars")) {
+            include("jackson-*.jar", "jgltf-*.jar")
+        }
+        into(layout.buildDirectory.dir("run/quilt/development-libraries"))
+    }
+    tasks.withType<JavaExec>().matching { it.name.startsWith("run") }.configureEach {
+        dependsOn(prepareQuiltLibraries)
+        // Quilt supplies Fabric compatibility classes. Model libraries load as mod-owned jars,
+        // keeping Jackson off the application loader and preventing split-classloader errors.
+        classpath = classpath.filter { !it.name.startsWith("fabric-loader-") && !it.name.startsWith("jackson-") && !it.name.startsWith("jgltf-") }
+        systemProperty("loader.development", "true")
+        systemProperty("loader.classPathGroups", sourceSets.main.get().output.files.joinToString(System.getProperty("path.separator")) { it.absolutePath })
+        systemProperty("loader.modsDir", layout.buildDirectory.dir("run/quilt/development-libraries").get().asFile.absolutePath)
+        // Retain Loom's injector for its asset arguments and launch.cfg.
+        doFirst {
+            jvmArgs = (jvmArgs ?: emptyList()).filter { !it.startsWith("-Dfabric.dli.main=") }
+            systemProperty("fabric.dli.main", if (name.contains("Server")) "org.quiltmc.loader.impl.launch.knot.KnotServer" else "org.quiltmc.loader.impl.launch.knot.KnotClient")
         }
     }
 }
