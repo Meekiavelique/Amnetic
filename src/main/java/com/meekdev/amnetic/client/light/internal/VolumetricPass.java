@@ -39,6 +39,10 @@ public final class VolumetricPass {
     private VolumetricPass() {}
 
     public void render() {
+        if (com.meekdev.amnetic.client.compat.IrisCompat.shadersActive()) {
+            historyValid = false;
+            return;
+        }
         LightSettings ls = LightSettings.defaults();
         if (!ls.volumetric() || LightRegistry.INSTANCE.isEmpty()) { historyValid = false; return; }
         CameraSnapshot cam = CameraSnapshot.current();

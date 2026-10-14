@@ -3,6 +3,7 @@ package com.meekdev.amnetic.client.light.internal;
 import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.light.LightSettings;
 import com.meekdev.amnetic.client.light.LightType;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.render.TexelBuffer;
 import net.minecraft.world.phys.Vec3;
 import org.joml.FrustumIntersection;
@@ -36,24 +37,29 @@ public final class LightBuffer implements AutoCloseable {
         boolean cull = s.frustumCull();
         float fadeStart = s.lodFadeStart();
         float fadeEnd = s.lodFadeEnd();
+        boolean localOnly = IrisCompat.compositing();
 
         scratch.clear();
         if (outPacked != null) outPacked.clear();
         int count = 0;
         for (Light l : lights) {
-            if (!l.isEnabled() || count >= maxLights) continue;
+            if (count >= maxLights) break;
+            if (!l.isEnabled() || l.intensity() <= 0f) continue;
 
             float rx = (float) (l.x() - camPos.x);
             float ry = (float) (l.y() - camPos.y);
             float rz = (float) (l.z() - camPos.z);
             boolean infinite = l.type() == LightType.DIRECTIONAL;
+            if (localOnly && infinite) continue;
 
             float fade = 1f;
             if (!infinite) {
-                if (cull && frustum != null && !frustum.testSphere(rx, ry, rz, l.range())) continue;
-                float dist = (float) Math.sqrt(rx * rx + ry * ry + rz * rz);
-                float edge = dist - l.range();
-                if (edge > fadeEnd) continue;
+                float reach = l.range() + Math.max(Math.max(l.areaW(), l.areaH()), l.tubeLen() * 0.5f);
+                if (cull && frustum != null && !frustum.testSphere(rx, ry, rz, reach)) continue;
+                float distanceSquared = rx * rx + ry * ry + rz * rz;
+                float cutoff = reach + fadeEnd;
+                if (distanceSquared >= cutoff * cutoff) continue;
+                float edge = (float) Math.sqrt(distanceSquared) - reach;
                 if (edge > fadeStart) fade = 1f - (edge - fadeStart) / (fadeEnd - fadeStart);
             }
 
@@ -62,7 +68,7 @@ public final class LightBuffer implements AutoCloseable {
             scratch.put(l.dirX()).put(l.dirY()).put(l.dirZ()).put((float) l.type().id());
             scratch.put(l.cosInner()).put(l.cosOuter()).put((float) l.falloffId()).put(l.falloffParam());
             scratch.put(l.areaW()).put(l.areaH()).put(l.tubeLen()).put(l.shadowStrength());
-            scratch.put(l.tanX()).put(l.tanY()).put(l.tanZ()).put((float) l.shadowRef());
+            scratch.put(l.tanX()).put(l.tanY()).put(l.tanZ()).put(localOnly ? -1f : (float) l.shadowRef());
             scratch.put(l.cookie() ? 1f : 0f).put((float) l.iesProfile()).put(l.godray()).put((float) l.style());
             scratch.put((float) l.godraySteps()).put(l.godrayDensity()).put(l.godrayAniso()).put(l.godrayShadows() ? 1f : 0f);
             if (outPacked != null) outPacked.add(l);

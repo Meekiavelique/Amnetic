@@ -10,6 +10,7 @@ public final class LightSettings {
 
     private boolean frustumCull = true;
     private boolean lightVolumes = true;
+    private float surfaceScale = initialSurfaceScale();
     private float lodFadeStart = 64f; // blocks past a light's range where it starts fading out
     private float lodFadeEnd = 128f; // blocks past range where it's fully culled
 
@@ -31,9 +32,26 @@ public final class LightSettings {
 
     private LightSettings() {}
 
+    private static float initialSurfaceScale() {
+        return switch (System.getProperty("amnetic.lightingQuality", "balanced").toLowerCase(java.util.Locale.ROOT)) {
+            case "high" -> 1f;
+            case "performance" -> 0.5f;
+            default -> 0.75f;
+        };
+    }
+
     public static LightSettings defaults() {
         return INSTANCE;
     }
+
+    /** Resolution of local surface lighting; the world image remains full resolution. */
+    public LightSettings surfaceScale(float scale) {
+        if (!Float.isFinite(scale)) throw new IllegalArgumentException("Lighting scale must be finite");
+        surfaceScale = Math.max(0.5f, Math.min(1f, scale));
+        return this;
+    }
+
+    public float surfaceScale() { return surfaceScale; }
 
     public LightSettings maxLights(int max) {
         this.maxLights = Math.max(1, max);

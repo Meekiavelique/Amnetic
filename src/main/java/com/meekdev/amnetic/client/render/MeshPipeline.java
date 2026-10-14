@@ -15,7 +15,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.HashMap;
 import java.util.Map;
-import net.minecraft.client.renderer.rendertype.AmneticRenderTypeAccess;
+import com.meekdev.amnetic.mixin.accessor.RenderTypeInvoker;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.resources.Identifier;
@@ -38,7 +38,7 @@ public final class MeshPipeline {
                     .withTexture("Sampler1", texture1)
                     .withTexture("DepthSampler", SceneDepth.ID)
                     .createRenderSetup();
-            return AmneticRenderTypeAccess.create("amnetic_mesh/" + RENDER_TYPES.size(), setup);
+            return RenderTypeInvoker.amnetic$create("amnetic_mesh/" + RENDER_TYPES.size(), setup);
         });
     }
 
@@ -55,7 +55,7 @@ public final class MeshPipeline {
                     .withTexture("Sampler1", texture1)
                     .withTexture("DepthSampler", SceneDepth.ID)
                     .createRenderSetup();
-            return AmneticRenderTypeAccess.create("amnetic_mesh_cutout/" + RENDER_TYPES.size(), setup);
+            return RenderTypeInvoker.amnetic$create("amnetic_mesh_cutout/" + RENDER_TYPES.size(), setup);
         });
     }
 

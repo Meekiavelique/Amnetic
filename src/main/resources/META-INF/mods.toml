@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="All-Rights-Reserved"
+clientSideOnly=true
+
+[[mods]]
+modId="amnetic"
+version="${version}"
+displayName="Amnetic"
+description='''A rendering and visual-effects library for Minecraft.'''
+
+[[dependencies.amnetic]]
+modId="forge"
+mandatory=true
+versionRange="[${forge_version},)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.amnetic]]
+modId="minecraft"
+mandatory=true
+versionRange="[${minecraft_version}]"
+ordering="NONE"
+side="CLIENT"
+
+[[mixins]]
+config="amnetic.mixins.json"

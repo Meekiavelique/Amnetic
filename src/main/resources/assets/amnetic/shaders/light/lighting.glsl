@@ -5,6 +5,24 @@ uniform sampler2D GMaterialSampler; // r = roughness, g = metallic, b = material
 uniform sampler2D GAlbedoSampler; // rgb = the material colour a forward pass published, a = whether it did
 uniform sampler2D LightmapSampler;
 uniform int HasGBuffer;
+uniform int ShaderPackComposite;
+uniform int DepthReversed;
+
+bool skyDepth(float depth) {
+    return DepthReversed == 1 ? depth <= 0.0 : depth >= 1.0;
+}
+
+vec3 lightMaterial(vec3 scene) {
+    // The shader pack has already shaded and tonemapped the image. Keep local lamps
+    // visible on dark ground without assuming a pack-specific colortex layout.
+    return ShaderPackComposite == 1 ? max(scene, vec3(0.2)) : scene;
+}
+
+vec3 compositeLight(vec3 scene, vec3 light) {
+    return ShaderPackComposite == 1
+        ? max(vec3(1.0) - scene, vec3(0.0)) * (vec3(1.0) - exp(-max(light, vec3(0.0))))
+        : light;
+}
 
 uniform mat4 InvViewProj;
 uniform int ZeroToOne;
@@ -55,7 +73,7 @@ float contactShadow(vec3 P, vec3 L) {
         vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
         float sd = texture(DepthSampler, uv).r;
-        if (sd < 1.0) {
+        if (!skyDepth(sd)) {
             vec3 sceneP = reconstruct(uv, sd);
             float diff = length(p) - length(sceneP);
             if (diff > 0.02 && diff < ContactThickness) return 0.0;
@@ -109,6 +127,8 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     float intens = texelFetch(LightTexels, i * 8 + 1).w;
     vec3 dir = texelFetch(LightTexels, i * 8 + 2).xyz;
     int type = int(texelFetch(LightTexels, i * 8 + 2).w + 0.5);
+    // Shader packs own their sun and shadow maps; only add Amnetic's local lights.
+    if (ShaderPackComposite == 1 && type == 2) return vec3(0.0);
     float cosIn = texelFetch(LightTexels, i * 8 + 3).x;
     float cosOut = texelFetch(LightTexels, i * 8 + 3).y;
     int curve = int(texelFetch(LightTexels, i * 8 + 3).z + 0.5);

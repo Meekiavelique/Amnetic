@@ -3,6 +3,7 @@ package com.meekdev.amnetic.client.model.internal.ammesh;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import com.meekdev.amnetic.platform.Platform;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -16,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.CRC32;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
@@ -30,7 +30,7 @@ public final class AmmeshCache {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Type MANIFEST_TYPE = new TypeToken<HashMap<String, ManifestEntry>>() {}.getType();
 
-    private final Path cacheDir = FabricLoader.getInstance().getGameDir().resolve("amnetic").resolve("ammesh_cache");
+    private final Path cacheDir = Platform.gameDirectory().resolve("amnetic").resolve("ammesh_cache");
     private final Path manifestPath = cacheDir.resolve("manifest.json");
     private final Map<String, ManifestEntry> manifest = new ConcurrentHashMap<>();
     private volatile boolean manifestLoaded;

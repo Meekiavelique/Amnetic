@@ -42,4 +42,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: versions/*/build/libs/amnetic-${{ steps.version.outputs.version }}+*.jar
+          files: |
+            versions/*/build/libs/amnetic-*+*.jar
+            neoforge/build/libs/amnetic-neoforge-*+*.jar

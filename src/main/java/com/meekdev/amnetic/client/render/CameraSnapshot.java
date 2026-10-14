@@ -2,6 +2,7 @@ package com.meekdev.amnetic.client.render;
 
 import com.meekdev.amnetic.client.camera.internal.FrameView;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -43,9 +44,16 @@ public final class CameraSnapshot {
 
         Matrix4f projection = FrameView.INSTANCE.getProjection(PROJ_SCRATCH, crs.projectionMatrix);
         Matrix4f view = FrameView.INSTANCE.get(VIEW_SCRATCH, crs.viewRotationMatrix);
+        boolean zeroToOne = VanillaCompat.zeroToOne();
+        if (IrisCompat.compositing()) {
+            IrisCompat.projection(projection);
+            IrisCompat.view(view);
+            // Iris uses the OpenGL shader-pack projection, including on 26.1.
+            zeroToOne = false;
+        }
 
         CameraSnapshot c = cached;
-        if (c != null && c.eye.equals(crs.pos) && c.projection.equals(projection) && c.view.equals(view)) {
+        if (c != null && c.zeroToOne == zeroToOne && c.eye.equals(crs.pos) && c.projection.equals(projection) && c.view.equals(view)) {
             return c;
         }
 
@@ -54,7 +62,7 @@ public final class CameraSnapshot {
         Matrix4f viewProj = new Matrix4f(proj).mul(v);
         Matrix4f invViewProj = new Matrix4f(viewProj).invert();
         cached = new CameraSnapshot(crs.pos, proj, v, viewProj, invViewProj,
-                VanillaCompat.zeroToOne());
+                zeroToOne);
         return cached;
     }
 }

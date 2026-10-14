@@ -57,6 +57,10 @@ public abstract class GameRendererMixin {
 /*public abstract class GameRendererMixin implements NaturalFov {
 *///?}
 
+    //? if forge {
+    @Unique private static int amnetic$handVertexArray;
+    //?}
+
     //? if >=26.1 {
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void amnetic$skipHandInCapture(CameraRenderState cam, float partialTick, Matrix4fc handProjection, CallbackInfo ci) {
@@ -136,6 +140,14 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void amnetic$skipHandInCapture(Camera camera, float partialTick, Matrix4f viewRotation, CallbackInfo ci) {
+        //? if forge {
+        if (org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL30.GL_VERTEX_ARRAY_BINDING) == 0) {
+            if (amnetic$handVertexArray == 0
+                    || !org.lwjgl.opengl.GL30.glIsVertexArray(amnetic$handVertexArray))
+                amnetic$handVertexArray = org.lwjgl.opengl.GL30.glGenVertexArrays();
+            org.lwjgl.opengl.GL30.glBindVertexArray(amnetic$handVertexArray);
+        }
+        //?}
         if (CaptureManager.INSTANCE.isCapturing()) {
             ci.cancel();
             return;

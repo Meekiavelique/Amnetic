@@ -28,7 +28,7 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    implementation project(':26.1.2')
+    implementation project(':26.1.2-fabric')
 
     localRuntime "foundry.imguimc:imguimc-fabric-26.1:${project.imguimc_version}"
 }
@@ -40,7 +40,7 @@ loom {
         }
         // load the Amnetic lib as a mod in the examples dev run (the examples mod depends on it)
         "amnetic" {
-            sourceSet project(":26.1.2").sourceSets.main
+            sourceSet project(":26.1.2-fabric").sourceSets.main
         }
     }
 }

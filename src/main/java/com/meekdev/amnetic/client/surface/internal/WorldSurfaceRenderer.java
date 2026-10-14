@@ -18,7 +18,6 @@ import java.nio.FloatBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
@@ -107,7 +106,6 @@ public final class WorldSurfaceRenderer {
         if (registered) return;
         registered = true;
         Pipeline.add(RenderStage.AFTER_WATER, 60, "World Surfaces", this::render);
-        ClientTickEvents.END_CLIENT_TICK.register(mc -> pick(mc));
     }
 
     private void render(FrameContext fc) {
@@ -309,7 +307,7 @@ public final class WorldSurfaceRenderer {
         GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
     }
 
-    private void pick(Minecraft mc) {
+    public void tick(Minecraft mc) {
         pointerOverSurface = false;
         if (mc.player == null || mc.screen != null || surfaces.isEmpty()) return;
         Vec3 eye = mc.player.getEyePosition();

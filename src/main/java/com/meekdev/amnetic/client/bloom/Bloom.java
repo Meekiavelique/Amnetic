@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.bloom;
 
 import com.meekdev.amnetic.client.bloom.internal.BloomRenderer;
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.render.LevelCamera;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,7 @@ public final class Bloom {
     }
 
     public static void render(LevelCamera camera) {
+        if (IrisCompat.shadersActive() || IrisCompat.shadowPass()) return;
         try {
             RENDERER.render(camera, SETTINGS);
         } catch (Exception e) {

@@ -30,10 +30,8 @@ public final class GBufferTargets {
     private int cachedEmissive = -1;
     private int cachedAlbedo = -1;
     private final int[] savedViewport = new int[4];
-    // outer framebuffer to restore to. querying it (glGetInteger) drains the GL pipeline so we read it at
-    // most once per main-target (re)creation, keyed on the main color texture's GL id
+    // Capture once per frame, then reuse it for every object in that frame.
     private int outerFbo;
-    private int outerKey = -1;
     private boolean attachedThisFrame;
     private boolean populated;
 
@@ -127,13 +125,8 @@ public final class GBufferTargets {
         savedViewport[1] = 0;
         savedViewport[2] = main.width;
         savedViewport[3] = main.height;
-        // only re-read the bound FBO when the main target was (re)created (its color texture id changes on
-        // resize / same-size reload). steady state does no GL query at all, so no pipeline drain
-        int colorId = VanillaCompat.colorTextureGlId(main);
-        if (colorId != outerKey) {
-            outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-            outerKey = colorId;
-        }
+        // Iris can replace its FBOs without replacing Minecraft's color texture.
+        outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
     }
 
     public void beginFrame() {

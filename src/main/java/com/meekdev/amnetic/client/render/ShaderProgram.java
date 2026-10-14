@@ -105,6 +105,9 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     public void draw() {
+        // Other render passes can bind VAO 0 directly while Mojang's cached
+        // vertex-array state still points at this fullscreen VAO.
+        GL30.glBindVertexArray(vao);
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3);
     }
 
