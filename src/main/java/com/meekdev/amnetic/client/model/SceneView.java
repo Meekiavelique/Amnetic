@@ -89,7 +89,7 @@ public final class SceneView {
 
         float aspect = (float) width / (float) height;
         boolean zeroToOne = VanillaCompat.zeroToOne();
-        Matrix4f projView = new Matrix4f().perspective(fov, aspect, near, far, zeroToOne)
+        Matrix4f projView = VanillaCompat.matchDepth(new Matrix4f().perspective(fov, aspect, near, far, zeroToOne))
                 .mul(new Matrix4f().lookAt(eye, look, UP));
 
         framebuffer.begin();

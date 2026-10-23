@@ -34,6 +34,7 @@ import com.meekdev.amnetic.client.model.WorldModels;
 import com.meekdev.amnetic.client.model.internal.GlUploadQueue;
 import com.meekdev.amnetic.client.model.internal.ModelRegistry;
 import com.meekdev.amnetic.client.model.internal.ammesh.AmmeshScanner;
+import com.meekdev.amnetic.client.outline.internal.OutlinePass;
 import com.meekdev.amnetic.client.particle.ParticleSimulation;
 import com.meekdev.amnetic.client.particle.Particles;
 import com.meekdev.amnetic.client.particle.SceneDepth;
@@ -120,6 +121,7 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.GEOMETRY, 30, "Instanced Mesh (World)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_LAST, ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 50, "Decals", ctx -> Decals.render());
+        Pipeline.add(RenderStage.GEOMETRY, 52, "Film Decals", ctx -> Decals.renderFilms());
 
         Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> ShadowMapPass.INSTANCE.render(ctx.camera()));
         Pipeline.add(RenderStage.LIGHTING, 20, "Deferred Lighting", ctx -> DeferredLightingPass.INSTANCE.renderSurface());
@@ -141,10 +143,12 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.POST, 30, "CAS Sharpen", ctx -> Taa.renderSharpen());
 
         Pipeline.add(RenderStage.OVERLAY, 10, "Overlay", ctx -> OverlayRender.render());
+        Pipeline.add(RenderStage.OVERLAY, 20, "Outline", ctx -> OutlinePass.INSTANCE.render());
     }
 
     @Override
     public void onInitializeClient() {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> ShaderWarmup.tick());
         LightStyles.touch();
         ShadingModelRegistry.touch();
 
@@ -197,6 +201,7 @@ public class AmneticClient implements ClientModInitializer {
             WorldModels.clear();
             ItemModels.clear();
             Decals.clear();
+            Decals.clearFilms();
             Lights.clear();
         });
 

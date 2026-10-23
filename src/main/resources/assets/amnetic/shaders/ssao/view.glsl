@@ -1,3 +1,4 @@
+#include "amnetic:shaders/common/depth.glsl"
 uniform vec4 ProjInfo;
 uniform vec2 DepthInfo;
 uniform int ZeroToOne;

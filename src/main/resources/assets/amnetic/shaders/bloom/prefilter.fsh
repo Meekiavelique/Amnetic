@@ -1,4 +1,5 @@
 #version 330 core
+#include "amnetic:shaders/common/depth.glsl"
 
 in vec2 vUV;
 out vec4 FragColor;
@@ -14,7 +15,7 @@ uniform float Knee;
 // bloom no matter how bright they render. threshold/knee still shape a soft-knee curve on top for
 // intensity grading. without a g-buffer it falls back to a depth-aware HDR threshold on scene color
 void main() {
-    if (texture(DepthSampler, vUV).r >= 1.0) discard;
+    if (IS_SKY(texture(DepthSampler, vUV).r)) discard;
 
     vec3 c;
     if (HasGBuffer == 1) {

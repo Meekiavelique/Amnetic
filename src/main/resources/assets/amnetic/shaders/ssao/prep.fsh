@@ -22,7 +22,7 @@ void main() {
     vec2 full = vec2(size);
     ivec2 src = min(ivec2(vUV * full), size - 1);
     float d = texelFetch(DepthSampler, src, 0).r;
-    if (d >= 1.0) {
+    if (IS_SKY(d)) {
         LinearOut = vec4(65504.0);
         NormalOut = vec4(0.5, 0.5, 1.0, 0.0);
         return;

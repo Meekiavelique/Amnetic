@@ -4,6 +4,9 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
+//? if >=26.2 {
+/*import net.minecraft.client.renderer.state.level.CameraRenderState;
+*///?}
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
@@ -29,6 +32,11 @@ public interface LevelRendererAccessor {
     void amnetic$setNearbyVisibleSections(ObjectArrayList<SectionRenderDispatcher.RenderSection> sections);
     //?}
 
+    //? if >=26.2 {
+    /*@Invoker("compileSections")
+    void amnetic$compileSections(CameraRenderState camera);
+    *///?} else {
     @Invoker("compileSections")
     void amnetic$compileSections(Camera camera);
+    //?}
 }

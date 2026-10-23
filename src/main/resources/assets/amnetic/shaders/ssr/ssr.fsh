@@ -44,7 +44,7 @@ vec3 skyEnv(vec3 d) {
 
 void main() {
     float depth = texture(DepthSampler, vUV).r;
-    if (depth >= 1.0) { FragColor = vec4(0.0); return; }
+    if (IS_SKY(depth)) { FragColor = vec4(0.0); return; }
 
     vec3 P = reconstruct(vUV, depth);
 
@@ -56,7 +56,7 @@ void main() {
         N = normalize(gn.xyz);
         vec4 gm = texture(GMaterialSampler, vUV);
         float rough = gm.r;
-        float f0 = gm.b;
+        float f0 = mix(0.04, 1.0, gm.g);
         baseRefl = f0;
         roughFactor = 1.0 - rough;
     } else {
@@ -95,7 +95,7 @@ void main() {
         if (any(lessThan(suv, vec2(0.0))) || any(greaterThan(suv, vec2(1.0)))) break;
 
         float sd = texture(DepthSampler, suv).r;
-        if (sd >= 1.0) continue; // marched over sky, keep going
+        if (IS_SKY(sd)) continue;
 
         float dRay = linZ(cur);
         float dScene = sceneZ(suv);

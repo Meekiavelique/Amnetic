@@ -12,7 +12,7 @@ uniform int ZeroToOne;
 
 void main() {
     float centerD = texture(DepthSampler, vUV).r;
-    if (centerD >= 1.0) { FragColor = vec4(0.0); return; } // sky: no indirect
+    if (IS_SKY(centerD)) { FragColor = vec4(0.0); return; }
 
     vec3 cP = reconstruct(vUV, centerD);
     float centerDist = length(cP);
@@ -24,7 +24,7 @@ void main() {
         for (int x = -2; x <= 2; x++) {
             vec2 o = vec2(float(x), float(y)) * ts;
             float d = texture(DepthSampler, vUV + o).r;
-            if (d >= 1.0) continue;
+            if (IS_SKY(d)) continue;
             vec3 p = reconstruct(vUV + o, d);
             float w = exp(-abs(length(p) - centerDist) / (centerDist * 0.05 + 1e-4));
             sum += texture(GiSampler, vUV + o).rgb * w;

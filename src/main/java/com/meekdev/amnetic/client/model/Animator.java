@@ -24,6 +24,7 @@ public final class Animator {
     private String crossfadeTo;
     private float crossfadeDuration;
     private float crossfadeElapsed;
+    private float crossfadeStart;
     private boolean loop = true;
     private float speed = 1f;
     private float time;
@@ -248,10 +249,15 @@ public final class Animator {
     }
 
     public Animator crossfade(String from, String clip, float seconds) {
+        return crossfade(from, clip, seconds, 0f);
+    }
+
+    public Animator crossfade(String from, String clip, float seconds, float startTime) {
         this.current = from;
         this.crossfadeTo = clip;
         this.crossfadeDuration = Math.max(1e-3f, seconds);
         this.crossfadeElapsed = 0f;
+        this.crossfadeStart = Math.max(0f, startTime);
         return this;
     }
 
@@ -262,7 +268,7 @@ public final class Animator {
             if (crossfadeElapsed >= crossfadeDuration) {
                 current = crossfadeTo;
                 crossfadeTo = null;
-                time = 0f;
+                time = crossfadeStart + crossfadeElapsed;
             }
         }
         return this;
@@ -284,7 +290,7 @@ public final class Animator {
             ModelIR.Animation target = ir.animation(crossfadeTo);
             if (target != null) {
                 float blend = Math.min(1f, crossfadeElapsed / crossfadeDuration);
-                blendInto(target, crossfadeElapsed, blend);
+                blendInto(target, crossfadeStart + crossfadeElapsed, blend);
             }
         }
 

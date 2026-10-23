@@ -178,7 +178,7 @@ public final class GlFramebuffer {
         GL11.glClearColor(r, g, b, a);
         int mask = GL11.GL_COLOR_BUFFER_BIT;
         if (depthAttachment != null) {
-            GL11.glClearDepth(1.0);
+            GL11.glClearDepth(VanillaCompat.clearDepth());
             mask |= GL11.GL_DEPTH_BUFFER_BIT;
         }
         GL11.glClear(mask);

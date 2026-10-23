@@ -33,7 +33,7 @@ vec3 normalFromDepth(vec2 uv, vec3 P) {
 void main() {
     vec2 uv = gl_FragCoord.xy / vec2(textureSize(DepthSampler, 0));
     float depth = texture(DepthSampler, uv).r;
-    if (depth >= 1.0) discard;
+    if (IS_SKY(depth)) discard;
 
     vec3 P = reconstruct(uv, depth);
     vec3 local = (DecalInv * vec4(P, 1.0)).xyz;
@@ -41,8 +41,7 @@ void main() {
     vec2 duv = local.xz + 0.5;
 
     vec3 axis = normalize(DecalAxis);
-    vec3 Nsurf = normalFromDepth(uv, P);
-    float fade = smoothstep(AngleFade, 1.0, dot(Nsurf, axis));
+    float fade = AngleFade > 0.0 ? smoothstep(AngleFade, 1.0, dot(normalFromDepth(uv, P), axis)) : 1.0;
     fade *= 1.0 - smoothstep(0.35, 0.5, abs(local.y));
     if (fade <= 0.0) discard;
     float cov = Opacity * fade;

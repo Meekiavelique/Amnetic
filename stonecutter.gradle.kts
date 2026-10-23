@@ -35,5 +35,12 @@ stonecutter parameters {
         string(current.parsed >= "1.21.5") {
             replace("blaze3d.platform.GlStateManager", "blaze3d.opengl.GlStateManager")
         }
+        string(current.parsed >= "26.2") {
+            replace("GlStateManager._enableBlend()", "GlStateManager._enableBlend(0)")
+            replace("GlStateManager._disableBlend()", "GlStateManager._disableBlend(0)")
+        }
+        string(current.parsed >= "26.2") {
+            replace(".getMainRenderTarget()", ".gameRenderer.mainRenderTarget()")
+        }
     }
 }

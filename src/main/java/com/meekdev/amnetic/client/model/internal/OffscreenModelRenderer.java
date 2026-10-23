@@ -46,7 +46,7 @@ public final class OffscreenModelRenderer implements AutoCloseable {
         GlStateManager._activeTexture(GL13.GL_TEXTURE1);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         RenderState.DEFAULT.apply();
-        GL11.glDepthFunc(GL11.GL_LEQUAL);
+        GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
         shader.bind();
         try {
             shader.uploadLighting(ModelLighting.INSTANCE);
