@@ -58,6 +58,7 @@ public final class OccluderCache {
     }
 
     public static void invalidateAt(BlockPos pos) {
+        SunOccluders.blockChanged(pos);
         long key = sectionKey(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
         Set<Long> ids = sectionToIds.get(key);
         if (ids == null || ids.isEmpty()) return;

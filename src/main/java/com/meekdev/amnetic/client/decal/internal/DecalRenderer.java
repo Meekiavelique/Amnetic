@@ -12,8 +12,11 @@ import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
@@ -25,6 +28,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL31;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryStack;
 
@@ -33,7 +37,8 @@ public final class DecalRenderer extends ScreenPass {
     public static final DecalRenderer INSTANCE = new DecalRenderer();
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/decal.vsh");
-    private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/decal.fsh");
+    private static final Identifier BATCH_VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/decal_batch.vsh");
+    private static final Identifier BATCH_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/decal_batch.fsh");
     private static final Identifier GBUFFER_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/decal_gbuffer.fsh");
 
     private Framebuffer depthCapture;
@@ -41,8 +46,29 @@ public final class DecalRenderer extends ScreenPass {
     private ShaderProgram gbufferProgram;
     private final Set<Identifier> loaded = new HashSet<>();
     private List<Decal> decals;
+    private final DecalBounds bounds = new DecalBounds();
+
+    private static final int BATCH = 32;
+
+    private record Group(Identifier texture, boolean multiply) {}
+
+    private final Map<Group, List<Decal>> groups = new LinkedHashMap<>();
+    private final float[] invs = new float[BATCH * 16];
+    private final float[] rects = new float[BATCH * 4];
+    private final float[] axes = new float[BATCH * 4];
+    private final float[] params = new float[BATCH * 4];
+    private final float[] tints = new float[BATCH * 4];
 
     private DecalRenderer() { super("Decal"); }
+
+    private void flush(ShaderProgram program, int count) {
+        program.setMatrix4Array("DecalInvs", invs, count);
+        program.setVec4Array("Rects", rects, count);
+        program.setVec4Array("Axes", axes, count);
+        program.setVec4Array("Params", params, count);
+        program.setVec4Array("Tints", tints, count);
+        GL31.glDrawArraysInstanced(GL11.GL_TRIANGLE_STRIP, 0, 4, count);
+    }
 
     public void render(List<Decal> decals) {
         this.decals = decals;
@@ -60,7 +86,7 @@ public final class DecalRenderer extends ScreenPass {
         GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
         GL33.glSamplerParameteri(nearestSampler, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
         gbufferProgram = new ShaderProgram(VSH, GBUFFER_FSH);
-        return new ShaderProgram(VSH, FSH);
+        return new ShaderProgram(BATCH_VSH, BATCH_FSH);
     }
 
     @Override
@@ -77,24 +103,37 @@ public final class DecalRenderer extends ScreenPass {
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
 
         MainTargetFramebuffer.bind();
+        boolean scissor = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
         try {
             GlState.bindTexture(1, depthCapture.depthTextureGlId());
 
             program.begin();
             program.setSampler("DepthSampler", 1);
+            program.setSampler("DecalSampler", 0);
             program.setMatrix4("InvViewProj", cam.invViewProj);
             program.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
 
-            Matrix4f model = new Matrix4f();
-            Matrix4f inv = new Matrix4f();
+            // decals sharing a texture and blend go out as one instanced draw per batch, each instance
+            // covering only its own screen rect, so hundreds of small prints are a handful of draws
+            groups.clear();
             for (Decal d : decals) {
                 if (d.isRemoved()) continue;
-                decalMatrix(d, eye, model);
-                inv.set(model).invert();
-
+                groups.computeIfAbsent(new Group(d.texture(), d.multiply()), k -> new ArrayList<>()).add(d);
+            }
+            Matrix4f model = new Matrix4f();
+            Matrix4f inv = new Matrix4f();
+            int w = targetWidth(), h = targetHeight();
+            for (Map.Entry<Group, List<Decal>> e : groups.entrySet()) {
+                Group gr = e.getKey();
+                if (gr.multiply()) {
+                    GlStateManager._blendFuncSeparate(GL11.GL_DST_COLOR, GL11.GL_ZERO, GL11.GL_ZERO, GL11.GL_ONE);
+                } else {
+                    GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
+                }
                 boolean hasTex = false;
-                if (d.texture() != null) {
-                    int g = loadTextureGlId(d.texture());
+                if (gr.texture() != null) {
+                    int g = loadTextureGlId(gr.texture());
                     if (g != 0) {
                         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
                         GL11.glBindTexture(GL11.GL_TEXTURE_2D, g);
@@ -102,16 +141,38 @@ public final class DecalRenderer extends ScreenPass {
                         hasTex = true;
                     }
                 }
-                program.setSampler("DecalSampler", 0);
                 program.setInt("HasTexture", hasTex ? 1 : 0);
-                program.setMatrix4("DecalInv", inv);
-                program.setVec3("DecalAxis", d.normal().x, d.normal().y, d.normal().z);
-                program.setFloat("Opacity", d.opacity());
-                program.setFloat("AngleFade", d.angleFade());
-                program.setVec3("Tint", d.tint().x, d.tint().y, d.tint().z);
-                program.draw();
+                program.setInt("Multiply", gr.multiply() ? 1 : 0);
+                int count = 0;
+                for (Decal d : e.getValue()) {
+                    decalMatrix(d, eye, model);
+                    if (!bounds.compute(cam.viewProj, model, true, w, h)) continue;
+                    int[] r = bounds.rect();
+                    inv.set(model).invert().get(invs, count * 16);
+                    int o = count * 4;
+                    rects[o] = r[0] * 2f / w - 1f;
+                    rects[o + 1] = r[1] * 2f / h - 1f;
+                    rects[o + 2] = (r[0] + r[2]) * 2f / w - 1f;
+                    rects[o + 3] = (r[1] + r[3]) * 2f / h - 1f;
+                    axes[o] = d.normal().x;
+                    axes[o + 1] = d.normal().y;
+                    axes[o + 2] = d.normal().z;
+                    params[o] = d.opacity();
+                    params[o + 1] = d.angleFade();
+                    params[o + 2] = d.flipV() ? 1f : 0f;
+                    tints[o] = d.tint().x;
+                    tints[o + 1] = d.tint().y;
+                    tints[o + 2] = d.tint().z;
+                    if (++count == BATCH) {
+                        flush(program, count);
+                        count = 0;
+                    }
+                }
+                if (count > 0) flush(program, count);
             }
+            GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
         } finally {
+            if (scissor) GL11.glEnable(GL11.GL_SCISSOR_TEST);
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, mcFbo);
             GlStateManager._viewport(mcViewport[0], mcViewport[1], mcViewport[2], mcViewport[3]);
         }
@@ -129,6 +190,7 @@ public final class DecalRenderer extends ScreenPass {
         if (!g.isPopulated()) return; // need the depth-reconstructed normals underneath
         int prevFbo = g.bind();
         if (prevFbo == -1) return;
+        bounds.begin();
         try {
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, 0, 0);
             try (MemoryStack s = MemoryStack.stackPush()) {
@@ -147,6 +209,8 @@ public final class DecalRenderer extends ScreenPass {
             for (Decal d : decals) {
                 if (d.isRemoved() || !d.writesGBuffer()) continue;
                 decalMatrix(d, eye, model);
+                if (!bounds.compute(cam.viewProj, model, true, targetWidth(), targetHeight())) continue;
+                bounds.apply();
                 inv.set(model).invert();
                 basis(d, n, right, up);
 
@@ -173,11 +237,8 @@ public final class DecalRenderer extends ScreenPass {
                 gbufferProgram.draw();
             }
         } finally {
-            try (MemoryStack s = MemoryStack.stackPush()) {
-                IntBuffer bufs = s.ints(GL30.GL_COLOR_ATTACHMENT0, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2,
-                        GL30.GL_COLOR_ATTACHMENT3);
-                GL30.glDrawBuffers(bufs);
-            }
+            bounds.end();
+            GBufferTargets.drawAll();
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, mcFbo);
             GlStateManager._viewport(mcViewport[0], mcViewport[1], mcViewport[2], mcViewport[3]);
         }
@@ -189,6 +250,10 @@ public final class DecalRenderer extends ScreenPass {
         if (nearestSampler != 0) { GL33.glDeleteSamplers(nearestSampler); nearestSampler = 0; }
         if (gbufferProgram != null) { gbufferProgram.close(); gbufferProgram = null; }
     }
+
+    // scissor rects are in the main target's pixels, not whatever viewport an earlier pass left behind
+    private static int targetWidth() { return Minecraft.getInstance().getMainRenderTarget().width; }
+    private static int targetHeight() { return Minecraft.getInstance().getMainRenderTarget().height; }
 
     private static void basis(Decal d, Vector3f n, Vector3f right, Vector3f up) {
         n.set(d.normal()).normalize();

@@ -32,6 +32,6 @@ public final class Orthographic {
         var window = Minecraft.getInstance().getWindow();
         float aspect = (float) window.getWidth() / Math.max(1, window.getHeight());
         float h = halfHeight;
-        return into.setOrtho(-h * aspect, h * aspect, -h, h, 0.05f, depth, VanillaCompat.zeroToOne());
+        return VanillaCompat.matchDepth(into.setOrtho(-h * aspect, h * aspect, -h, h, 0.05f, depth, VanillaCompat.zeroToOne()));
     }
 }

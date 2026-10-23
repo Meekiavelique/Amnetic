@@ -20,7 +20,7 @@ void main() {
     vec3 outc = cur.rgb;
 
     if (Feedback > 0.0) {
-        vec3 P = (depth < 1.0) ? reconstruct(vUV, depth) + EyeDelta : reconstruct(vUV, 0.5);
+        vec3 P = !IS_SKY(depth) ? reconstruct(vUV, depth) + EyeDelta : reconstruct(vUV, 0.5);
         vec4 pc = PrevViewProj * vec4(P, 1.0);
         if (pc.w > 0.0) {
             vec2 puv = pc.xy / pc.w * 0.5 + 0.5;

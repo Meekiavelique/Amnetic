@@ -3,91 +3,98 @@
 in vec2 vUV;
 out vec4 FragColor;
 
-uniform sampler2D DepthSampler;
-uniform sampler2D GNormalSampler;
-uniform int HasGBuffer;
-uniform mat4 ViewProj;
-uniform mat4 InvViewProj;
-uniform mat4 View;
-uniform int ZeroToOne;
+uniform sampler2D LinearSampler;
+uniform sampler2D NormalSampler;
 uniform float Radius;
 uniform float Intensity;
 uniform float Bias;
 uniform float Power;
+uniform float PixelScale;
 uniform int Frame;
 
-#include "amnetic:shaders/common/screen.glsl"
+#include "amnetic:shaders/ssao/view.glsl"
 
-float viewZ(vec3 camRelWorld) {
-    return -(View * vec4(camRelWorld, 1.0)).z;
+const float PI = 3.14159265;
+const float HALF_PI = 1.57079633;
+const int SLICES = 2;
+const int STEPS = 4;
+
+float fastAcos(float x) {
+    float a = abs(x);
+    float r = (-0.156583 * a + HALF_PI) * sqrt(1.0 - a);
+    return x >= 0.0 ? r : PI - r;
 }
 
-const vec3 KERNEL[16] = vec3[16](
-    vec3(0.121, 0.112, 0.330), vec3(-0.245, 0.338, 0.461),
-    vec3(0.472, -0.255, 0.540), vec3(-0.583, -0.261, 0.695),
-    vec3(0.610, 0.692, 0.161), vec3(-0.234, 0.740, 0.320),
-    vec3(0.855, -0.230, 0.350), vec3(-0.840, -0.350, 0.290),
-    vec3(0.345, 0.890, 0.410), vec3(-0.820, 0.480, 0.380),
-    vec3(0.950, -0.480, 0.310), vec3(-0.490, -0.860, 0.430),
-    vec3(0.800, 0.640, 0.560), vec3(-0.680, 0.800, 0.500),
-    vec3(0.630, -0.860, 0.630), vec3(-0.960, -0.580, 0.700)
-);
-
 void main() {
-    float depth = texture(DepthSampler, vUV).r;
-    if (depth >= 1.0) { FragColor = vec4(1.0); return; }
-
-    vec3 P = reconstruct(vUV, depth);
-    vec4 gn = (HasGBuffer == 1) ? texture(GNormalSampler, vUV) : vec4(0.0);
-    vec3 N = (gn.a > 0.5) ? normalize(gn.xyz) : betterNormal(vUV, P);
-
-    // robust TBN that won't NaN out if N aligns with a hardcoded world vector
-    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-    vec3 tangent = normalize(cross(up, N));
-    vec3 bitangent = cross(N, tangent);
-    mat3 TBN = mat3(tangent, bitangent, N);
-
-    // 4x4 dither rotated in tangent space. the ordered offset decorrelates neighbouring pixels,
-    // the per-frame golden-ratio advance rotates the kernel every frame so the temporal pass
-    // integrates fresh samples instead of freezing on one estimate. Frame is held at 0 when
-    // temporal accumulation is off so the pattern stays stable, no flicker
     ivec2 px = ivec2(gl_FragCoord.xy);
-    float base = float((px.x & 3) * 4 + (px.y & 3)) / 16.0;
-    float a = fract(base + float(Frame) * 0.6180339887) * 6.2831853;
-    float c = cos(a), s = sin(a);
-    mat3 rot = mat3(
-        c, s, 0.0,
-       -s, c, 0.0,
-       0.0, 0.0, 1.0
-    );
-    TBN = TBN * rot;
+    ivec2 size = textureSize(LinearSampler, 0);
+    float signedZ = texelFetch(LinearSampler, px, 0).r;
+    float z = abs(signedZ);
+    bool terrain = signedZ < 0.0;
+    vec4 packedN = texelFetch(NormalSampler, px, 0);
+    float reach = Radius * PixelScale / z;
+    if (z > 60000.0 || packedN.a < 0.5 || reach < 1.0) { FragColor = vec4(1.0); return; }
 
-    float pz = viewZ(P);
-    float occlusion = 0.0;
-    for (int i = 0; i < 16; i++) {
-        // cluster samples toward the origin (quadratic) so most taps land in the near field where
-        // contact occlusion lives. normalising first removes the >1.0 magnitudes in the hardcoded
-        // kernel that used to sample past Radius and inflate variance
-        float scale = mix(0.1, 1.0, float(i * i) / 256.0);
-        vec3 sp = P + (TBN * (normalize(KERNEL[i]) * scale)) * Radius;
-        vec4 clip = ViewProj * vec4(sp, 1.0);
-        if (clip.w <= 0.0) continue;
-        vec2 suv = (clip.xy / clip.w) * 0.5 + 0.5;
-        if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) continue;
+    vec2 texel = 1.0 / vec2(size);
+    vec2 uv = (vec2(px) + 0.5) * texel;
+    vec3 N = normalize(packedN.xyz * 2.0 - 1.0);
+    vec3 P = viewAt(uv, z) + N * Bias;
+    vec3 V = normalize(-P);
+    reach = min(reach, 96.0);
 
-        float sd = texture(DepthSampler, suv).r;
-        if (sd >= 1.0) continue;
-        vec3 sceneP = reconstruct(suv, sd);
+    float falloffRange = 0.615 * Radius;
+    float falloffMul = -1.0 / falloffRange;
+    float falloffAdd = (Radius - falloffRange) / falloffRange + 1.0;
 
-        float sampleZ = viewZ(sp);
-        float sceneZ = viewZ(sceneP);
+    vec2 seed = vec2(px) + 5.588238 * float(Frame & 63);
+    float sliceNoise = interleaved(seed);
+    float stepNoise = interleaved(seed + vec2(47.0, 17.0));
 
-        // linear falloff that hits exactly 0 at Radius, kills the background halo
-        float rangeCheck = smoothstep(0.0, 1.0, max(1.0 - abs(pz - sceneZ) / Radius, 0.0));
-        if (sceneZ < sampleZ - Bias) occlusion += rangeCheck;
+    float visibility = 0.0;
+    for (int s = 0; s < SLICES; s++) {
+        float phi = (float(s) + sliceNoise) * PI / float(SLICES);
+        vec2 omega = vec2(cos(phi), sin(phi));
+        vec3 dir = vec3(omega, 0.0);
+        vec3 ortho = dir - dot(dir, V) * V;
+        vec3 axis = normalize(cross(ortho, V));
+        vec3 projN = N - axis * dot(N, axis);
+        float projLen = length(projN);
+        float cosN = clamp(dot(projN, V) / max(projLen, 1e-4), 0.0, 1.0);
+        float n = (dot(ortho, projN) >= 0.0 ? 1.0 : -1.0) * fastAcos(cosN);
+        float low0 = cos(n + HALF_PI);
+        float low1 = cos(n - HALF_PI);
+        float h0 = low0;
+        float h1 = low1;
+        for (int j = 0; j < STEPS; j++) {
+            float t = (float(j) + stepNoise) / float(STEPS);
+            vec2 offset = omega * (1.0 + t * t * (reach - 1.0));
+            vec2 a = floor(vec2(px) + 0.5 + offset) + 0.5;
+            vec2 b = floor(vec2(px) + 0.5 - offset) + 0.5;
+            if (all(greaterThanEqual(a, vec2(0.0))) && all(lessThan(a, vec2(size)))) {
+                float za = texelFetch(LinearSampler, ivec2(a), 0).r;
+                if (terrain && za < 0.0) za = 65504.0;
+                vec3 d = viewAt(a * texel, za) - P;
+                float l = length(d);
+                float w = clamp(l * falloffMul + falloffAdd, 0.0, 1.0);
+                h0 = max(h0, mix(low0, dot(d, V) / l, w));
+            }
+            if (all(greaterThanEqual(b, vec2(0.0))) && all(lessThan(b, vec2(size)))) {
+                float zb = texelFetch(LinearSampler, ivec2(b), 0).r;
+                if (terrain && zb < 0.0) zb = 65504.0;
+                vec3 d = viewAt(b * texel, zb) - P;
+                float l = length(d);
+                float w = clamp(l * falloffMul + falloffAdd, 0.0, 1.0);
+                h1 = max(h1, mix(low1, dot(d, V) / l, w));
+            }
+        }
+        float a0 = n + clamp(-fastAcos(clamp(h1, -1.0, 1.0)) - n, -HALF_PI, HALF_PI);
+        float a1 = n + clamp(fastAcos(clamp(h0, -1.0, 1.0)) - n, -HALF_PI, HALF_PI);
+        float sinN = sin(n);
+        float arc0 = (cosN + 2.0 * a0 * sinN - cos(2.0 * a0 - n)) * 0.25;
+        float arc1 = (cosN + 2.0 * a1 * sinN - cos(2.0 * a1 - n)) * 0.25;
+        visibility += projLen * (arc0 + arc1);
     }
-
-    float ao = 1.0 - (occlusion / 16.0) * Intensity;
-    ao = pow(clamp(ao, 0.0, 1.0), Power);
-    FragColor = vec4(vec3(ao), 1.0);
+    visibility = clamp(visibility / float(SLICES), 0.0, 1.0);
+    float ao = pow(clamp(1.0 - (1.0 - visibility) * Intensity, 0.0, 1.0), Power);
+    FragColor = vec4(ao);
 }

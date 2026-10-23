@@ -143,6 +143,7 @@ public final class DeferredLightingPass extends ScreenPass {
                 GlState.bindTexture(2, GBufferTargets.INSTANCE.normalGlId());
                 GlState.bindTexture(3, GBufferTargets.INSTANCE.materialGlId());
                 GlState.bindTexture(10, GBufferTargets.INSTANCE.albedoGlId());
+                shade(GBufferTargets.INSTANCE.shadeGlId());
             }
             boolean shadows = !shaderPack && ShadowMapPass.INSTANCE.isActive();
             boolean sunShadows = !shaderPack && ShadowMapPass.INSTANCE.sunActive();
@@ -193,6 +194,7 @@ public final class DeferredLightingPass extends ScreenPass {
             GlState.bindTexture(7, 0);
             GlState.bindTexture(9, 0);
             GlState.bindTexture(10, 0);
+            shade(0);
             TexelBuffer.unbind(LightBuffer.UNIT);
             TexelBuffer.unbind(MaterialParams.UNIT);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
@@ -240,6 +242,14 @@ public final class DeferredLightingPass extends ScreenPass {
         } finally { MainTargetFramebuffer.restore(previous); }
     }
 
+    private static void shade(int glId) {
+        GL13.glActiveTexture(GL13.GL_TEXTURE0 + 13);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
+        GL33.glBindSampler(13, 0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0);
+    }
+
     @Override
     protected void onDispose() {
         if (lightBuffer != null) { lightBuffer.close(); lightBuffer = null; }
@@ -276,6 +286,7 @@ public final class DeferredLightingPass extends ScreenPass {
         p.setSampler("SpotShadowColor", 6);
         p.setSampler("LightmapSampler", 9);
         p.setSampler("GAlbedoSampler", 10);
+        p.setSampler("GShadeSampler", 13);
         p.setSampler("LightTexels", LightBuffer.UNIT);
         p.setSampler("MaterialTexels", MaterialParams.UNIT);
         p.setInt("ShadowActive", shadows ? 1 : 0);

@@ -57,19 +57,31 @@ public final class ScreenSurface {
     }
 
     public boolean isOpen() {
+        //? if >=26.2 {
+        /*return screen != null && Minecraft.getInstance().gui.screen() == screen;
+        *///?} else {
         return screen != null && Minecraft.getInstance().screen == screen;
+        //?}
     }
 
     public ScreenSurface open() {
         if (!isOpen()) {
             screen = new SurfaceScreen(this);
+            //? if >=26.2 {
+            /*Minecraft.getInstance().gui.setScreen(screen);
+            *///?} else {
             Minecraft.getInstance().setScreen(screen);
+            //?}
         }
         return this;
     }
 
     public void close() {
+        //? if >=26.2 {
+        /*if (isOpen()) Minecraft.getInstance().gui.setScreen(null);
+        *///?} else {
         if (isOpen()) Minecraft.getInstance().setScreen(null);
+        //?}
         screen = null;
     }
 

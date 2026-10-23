@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.model.ModelLighting;
 import java.nio.FloatBuffer;
@@ -36,6 +37,7 @@ final class ModelShader implements AutoCloseable {
     private final int materialIdLoc;
     private final int skinnedLoc;
     private final int jointCountLoc;
+    private final int prevJointBaseLoc;
     private final int cameraPosLoc;
     private final int worldSpaceLoc;
     private final int sourceIndexedLoc;
@@ -60,6 +62,7 @@ final class ModelShader implements AutoCloseable {
     static final int ROUGHNESS_UNIT = 4;
     static final int METALLIC_UNIT = 7;
     static final int OCCLUSION_UNIT = 12;
+    static final int LIGHTMAP_UNIT = 13;
     static final int[] MATERIAL_UNITS = {0, 1, 2, 3, ROUGHNESS_UNIT, METALLIC_UNIT, OCCLUSION_UNIT};
     private final int emissiveEncodedLoc;
     private final int hasRoughnessMapLoc;
@@ -83,6 +86,7 @@ final class ModelShader implements AutoCloseable {
         this.materialIdLoc = uniform("MaterialId");
         this.skinnedLoc = uniform("Skinned");
         this.jointCountLoc = uniform("JointCount");
+        this.prevJointBaseLoc = uniform("PrevJointBase");
         this.cameraPosLoc = uniform("CameraPos");
         this.worldSpaceLoc = uniform("WorldSpace");
         this.sourceIndexedLoc = uniform("SourceIndexed");
@@ -207,6 +211,16 @@ final class ModelShader implements AutoCloseable {
         }
     }
 
+    void setPrevJointBase(int base) {
+        if (prevJointBaseLoc != -1) {
+            GL20.glUniform1i(prevJointBaseLoc, base);
+        }
+    }
+
+    int programId() {
+        return program;
+    }
+
     void setJointCount(int count) {
         if (jointCountLoc != -1) {
             GL20.glUniform1i(jointCountLoc, count);
@@ -298,6 +312,7 @@ final class ModelShader implements AutoCloseable {
         setSampler("MetallicSampler", METALLIC_UNIT);
         setSampler("OcclusionSampler", OCCLUSION_UNIT);
         setSampler("EnvCube", 5);
+        setSampler("LightMap", LIGHTMAP_UNIT);
         setSampler("JointMatrixTex", JOINT_UNIT);
         for (int slot = 0; slot < SurfaceInputs.TEXTURE_SLOTS; slot++) {
             setSampler("SurfaceTexture" + slot, SURFACE_TEXTURE_UNIT + slot);

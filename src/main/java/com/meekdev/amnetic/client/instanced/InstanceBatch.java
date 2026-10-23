@@ -21,6 +21,9 @@ public final class InstanceBatch<T> {
     private ByteBuffer boundsBuffer;
     private int boundsCount;
 
+    private double minX, minY, minZ, maxX, maxY, maxZ;
+    private int spanned;
+
     private final FrustumIntersection frustum = new FrustumIntersection();
     private boolean cullReady;
     private double camX, camY, camZ;
@@ -40,7 +43,27 @@ public final class InstanceBatch<T> {
 
     public void add(T instance, double worldX, double worldY, double worldZ, float radius) {
         add(instance);
+        span(worldX, worldY, worldZ, radius);
         recordBounds(worldX, worldY, worldZ, radius);
+    }
+
+    private void span(double x, double y, double z, float r) {
+        if (spanned++ == 0) {
+            minX = x - r; minY = y - r; minZ = z - r;
+            maxX = x + r; maxY = y + r; maxZ = z + r;
+            return;
+        }
+        minX = Math.min(minX, x - r); minY = Math.min(minY, y - r); minZ = Math.min(minZ, z - r);
+        maxX = Math.max(maxX, x + r); maxY = Math.max(maxY, y + r); maxZ = Math.max(maxZ, z + r);
+    }
+
+    public boolean spansAll() {
+        return count > 0 && spanned == count;
+    }
+
+    public void spanBox(double[] out) {
+        out[0] = minX; out[1] = minY; out[2] = minZ;
+        out[3] = maxX; out[4] = maxY; out[5] = maxZ;
     }
 
     private void recordBounds(double worldX, double worldY, double worldZ, float radius) {
@@ -83,7 +106,9 @@ public final class InstanceBatch<T> {
     }
 
     public void addVisible(T instance, double worldX, double worldY, double worldZ, float radius) {
-        if (visible(worldX, worldY, worldZ, radius)) add(instance);
+        if (!visible(worldX, worldY, worldZ, radius)) return;
+        add(instance);
+        span(worldX, worldY, worldZ, radius);
     }
 
     private void grow() {
@@ -106,6 +131,7 @@ public final class InstanceBatch<T> {
             boundsBuffer.clear();
         }
         boundsCount = 0;
+        spanned = 0;
     }
 
     public void free() {

@@ -1,0 +1,165 @@
+uniform sampler2D DepthSampler;
+uniform sampler2D FieldA;
+uniform sampler2D FieldB;
+uniform mat4 InvViewProj;
+uniform int ZeroToOne;
+uniform vec3 Origin;
+uniform vec3 Size;
+uniform vec2 Res;
+uniform float Opacity;
+uniform float MaxThickness;
+uniform vec3 Absorb;
+uniform vec3 AbsorbAged;
+uniform vec3 StainTint;
+uniform vec3 Scatter;
+uniform vec2 Edge;
+uniform vec2 EdgeNoise;
+uniform float StainThreshold;
+uniform float Ring;
+uniform vec2 Normals;
+uniform vec2 Flow;
+uniform float Parallax;
+uniform float Specular;
+uniform vec2 Rough;
+uniform float Reflectance;
+uniform vec3 SunDir;
+uniform vec3 SunColor;
+uniform vec3 SkyColor;
+uniform vec3 BlockColor;
+uniform float Time;
+uniform int PixelArt;
+uniform float TexelsPerUnit;
+uniform vec3 Palette[8];
+uniform vec2 OriginTexel;
+uniform float PixelJitter;
+uniform float PixelOutline;
+uniform float PixelCore;
+uniform float PixelHighlights;
+uniform sampler2D PatternWet;
+uniform sampler2D PatternDry;
+uniform int HasPattern;
+uniform vec4 LightPos[4];
+uniform vec4 LightCol[4];
+uniform vec4 LightDir[4];
+uniform int LightCount;
+
+#include "amnetic:shaders/common/screen.glsl"
+
+float filmHash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
+float filmNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(filmHash(i), filmHash(i + vec2(1.0, 0.0)), u.x),
+               mix(filmHash(i + vec2(0.0, 1.0)), filmHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+float filmFbm(vec2 p) {
+    return 0.55 * filmNoise(p) + 0.3 * filmNoise(p * 2.13 + 7.1) + 0.15 * filmNoise(p * 4.37 + 3.3);
+}
+
+float filmThickness(vec2 st) {
+    float e = texture(FieldA, st).r;
+    return e * e * MaxThickness;
+}
+
+struct FilmSample {
+    vec3 P;
+    vec3 N;
+    vec3 V;
+    float cov;
+    float t;
+    float wet;
+    float stain;
+    float age;
+    float flow;
+    float sky;
+    float block;
+    float mask; // on the right floor and facing up
+};
+
+bool filmSample(out FilmSample s) {
+    vec2 uv = gl_FragCoord.xy / vec2(textureSize(DepthSampler, 0));
+    float depth = texture(DepthSampler, uv).r;
+    if (IS_SKY(depth)) return false;
+    vec3 P = reconstruct(uv, depth);
+    vec3 L = (P - Origin) / Size;
+    if (any(lessThan(L, vec3(0.0))) || any(greaterThan(L, vec3(1.0)))) return false;
+    vec2 st = L.xz;
+
+    ivec2 base = ivec2(floor(st * Res - 0.5));
+    float nearest = 1e9;
+    for (int i = 0; i < 4; i++) {
+        ivec2 q = clamp(base + ivec2(i & 1, i >> 1), ivec2(0), ivec2(Res) - 1);
+        float e = texelFetch(FieldB, q, 0).r;
+        if (e > 0.0) nearest = min(nearest, abs(P.y - (Origin.y + e * Size.y)));
+    }
+    if (nearest > 1e8) return false;
+    float dist = length(P);
+    float tol = 0.03 + dist * 0.0015;
+    float onFloor = 1.0 - smoothstep(tol, tol * 2.0, nearest);
+    vec3 Ng = betterNormal(uv, P);
+    bool degenerate = dot(Ng, -P / max(dist, 1e-4)) > 0.9999;
+    float facing = degenerate ? 1.0 : smoothstep(0.35, 0.7, Ng.y);
+    if (degenerate) Ng = vec3(0.0, 1.0, 0.0);
+    float mask = onFloor * facing * Opacity;
+    if (mask <= 0.001) return false;
+
+    vec3 V = normalize(-P);
+    if (Parallax > 0.0) {
+        float t0 = filmThickness(st);
+        st += V.xz * (t0 * Parallax / max(0.25, V.y)) / Size.xz;
+    }
+    vec4 a = texture(FieldA, st);
+    vec4 b = texture(FieldB, st);
+    float t = a.r * a.r * MaxThickness;
+    vec2 texel = 1.0 / Res;
+
+    vec4 wide = 0.25 * (texture(FieldA, st + vec2(-0.5, -0.5) * texel) + texture(FieldA, st + vec2(0.5, -0.5) * texel)
+                      + texture(FieldA, st + vec2(-0.5, 0.5) * texel) + texture(FieldA, st + vec2(0.5, 0.5) * texel));
+    float tw = wide.r * wide.r * MaxThickness;
+
+    vec2 w = st * Size.xz;
+    float n = filmFbm(w * EdgeNoise.y);
+    float threshold = Edge.x * (1.0 + EdgeNoise.x * (n - 0.5) * 2.0);
+    float cov = smoothstep(threshold - Edge.y, threshold + Edge.y, tw);
+
+    float sx = texture(FieldA, st + vec2(texel.x, 0.0)).b - texture(FieldA, st - vec2(texel.x, 0.0)).b;
+    float sz = texture(FieldA, st + vec2(0.0, texel.y)).b - texture(FieldA, st - vec2(0.0, texel.y)).b;
+    float ringBand = clamp(length(vec2(sx, sz)) * 2.5, 0.0, 1.0);
+    float stainCov = smoothstep(StainThreshold * 0.5, StainThreshold * 1.5, wide.b + (n - 0.5) * 0.12);
+    float stain = clamp(a.b * (1.0 + Ring * ringBand), 0.0, 1.0) * stainCov;
+
+    vec2 wt = Size.xz / Res;
+    float tx = filmThickness(st + vec2(texel.x, 0.0)) - filmThickness(st - vec2(texel.x, 0.0));
+    float tz = filmThickness(st + vec2(0.0, texel.y)) - filmThickness(st - vec2(0.0, texel.y));
+    float rim = 1.0 + Normals.y * (1.0 - smoothstep(Edge.x, Edge.x * 4.0, t));
+    vec2 grad = vec2(tx, tz) / (2.0 * wt) * Normals.x * rim;
+    if (a.a > 0.0) {
+        vec2 rp = w * 7.0;
+        float tm = Time * Flow.x;
+        float r1 = filmNoise(rp + vec2(tm, tm * 0.7));
+        float r2 = filmNoise(rp + vec2(1.7, 4.2) - vec2(tm * 0.6, tm));
+        grad += (vec2(r1, r2) - 0.5) * Flow.y * a.a;
+    }
+    vec3 N = normalize(Ng + vec3(-grad.x, 0.0, -grad.y) * cov);
+
+    s.P = P;
+    s.N = N;
+    s.V = V;
+    s.cov = cov;
+    s.t = t;
+    s.wet = a.g;
+    s.stain = stain;
+    s.age = b.g;
+    s.flow = a.a;
+    s.sky = b.b;
+    s.block = b.a;
+    s.mask = mask;
+    return true;
+}

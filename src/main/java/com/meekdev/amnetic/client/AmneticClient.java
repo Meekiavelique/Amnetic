@@ -14,6 +14,7 @@ import com.meekdev.amnetic.client.entityfx.internal.SceneColorSnapshot;
 import com.meekdev.amnetic.client.entityfx.internal.TextureOverrideRegistry;
 import com.meekdev.amnetic.client.framebuffer.internal.FramebufferRegistry;
 import com.meekdev.amnetic.client.gbuffer.GBuffer;
+import com.meekdev.amnetic.client.gbuffer.internal.EntityMotion;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferNormalFill;
 import com.meekdev.amnetic.client.geometry.EntityMeshTap;
 import com.meekdev.amnetic.client.geometry.internal.MeshTapRegistry;
@@ -35,6 +36,7 @@ import com.meekdev.amnetic.client.model.WorldModels;
 import com.meekdev.amnetic.client.model.internal.GlUploadQueue;
 import com.meekdev.amnetic.client.model.internal.ModelRegistry;
 import com.meekdev.amnetic.client.model.internal.ammesh.AmmeshScanner;
+import com.meekdev.amnetic.client.outline.internal.OutlinePass;
 import com.meekdev.amnetic.client.particle.ParticleSimulation;
 import com.meekdev.amnetic.client.particle.Particles;
 import com.meekdev.amnetic.client.particle.SceneDepth;
@@ -60,6 +62,7 @@ import com.meekdev.amnetic.client.ssr.Ssr;
 import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.surface.internal.WorldSurfaceRenderer;
 import com.meekdev.amnetic.client.taa.Taa;
+import com.meekdev.amnetic.client.taa.internal.ReactivePass;
 import com.meekdev.amnetic.client.ui.AmneticEditorBridge;
 import net.minecraft.client.Minecraft;
 //? fabric {
@@ -118,11 +121,15 @@ public class AmneticClient implements ClientModInitializer {
     }
 
     private static void registerDefaultPasses() {
+        Pipeline.add(RenderStage.SETUP, 90, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(true));
+        Pipeline.add(RenderStage.GEOMETRY, 1, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
         Pipeline.add(RenderStage.GEOMETRY, 10, "GBuffer Normal Fill", ctx -> GBufferNormalFill.INSTANCE.render());
+        Pipeline.add(RenderStage.GEOMETRY, 15, "Entity Motion", ctx -> EntityMotion.INSTANCE.render());
         Pipeline.add(RenderStage.GEOMETRY, 20, "Instanced Mesh (GBuffer)", ctx -> InstanceMeshRegistry.INSTANCE.renderGBuffer(InstancePhase.WORLD_LAST, ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 30, "Instanced Mesh (World)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_LAST, ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 50, "Decals", ctx -> Decals.render());
+        Pipeline.add(RenderStage.GEOMETRY, 52, "Film Decals", ctx -> Decals.renderFilms());
 
         Pipeline.add(RenderStage.LIGHTING, 10, "Shadow Map", ctx -> {
             if (!IrisCompat.shadersActive()) ShadowMapPass.INSTANCE.render(ctx.camera());
@@ -134,7 +141,9 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.SCREEN_SPACE, 20, "SSGI", ctx -> Ssgi.render());
         Pipeline.add(RenderStage.SCREEN_SPACE, 30, "SSR", ctx -> Ssr.render());
 
+        Pipeline.add(RenderStage.AFTER_WATER, 5, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(false));
         Pipeline.add(RenderStage.AFTER_WATER, 10, "Instanced Mesh (Translucent)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_TRANSLUCENT, ctx.levelCamera()));
+        Pipeline.add(RenderStage.AFTER_WATER, 15, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
 
         Pipeline.add(RenderStage.ATMOSPHERE, 10, "Volumetric", ctx -> VolumetricPass.INSTANCE.render());
 
@@ -144,6 +153,7 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.POST, 30, "CAS Sharpen", ctx -> Taa.renderSharpen());
 
         Pipeline.add(RenderStage.OVERLAY, 10, "Overlay", ctx -> OverlayRender.render());
+        Pipeline.add(RenderStage.OVERLAY, 20, "Outline", ctx -> OutlinePass.INSTANCE.render());
     }
 
     //? fabric {
@@ -208,6 +218,8 @@ public class AmneticClient implements ClientModInitializer {
         AmneticResources.register(EnvProbe.INSTANCE::dispose);
         AmneticResources.register(LayerSystem.INSTANCE::dispose);
         AmneticResources.register(GBufferNormalFill.INSTANCE::dispose);
+        AmneticResources.register(EntityMotion.INSTANCE::dispose);
+        AmneticResources.register(ReactivePass.INSTANCE::dispose);
         AmneticResources.register(GBuffer::dispose);
         AmneticResources.register(Shadows::dispose);
         AmneticResources.register(ColorGrade::dispose);
@@ -229,6 +241,7 @@ public class AmneticClient implements ClientModInitializer {
     }
 
     public static void endClientTick(Minecraft client) {
+        ShaderWarmup.tick();
         ComputeCapabilities.probeOnce();
         EntityEffectRegistry.INSTANCE.tick();
         TextureOverrideRegistry.INSTANCE.tick();
@@ -244,6 +257,7 @@ public class AmneticClient implements ClientModInitializer {
         WorldModels.clear();
         ItemModels.clear();
         Decals.clear();
+        Decals.clearFilms();
         Lights.clear();
     }
 
@@ -279,8 +293,8 @@ public class AmneticClient implements ClientModInitializer {
         Reactive.tick(surfaceDt());
         GBuffer.beginFrame();
         FrameContext fc = new FrameContext(CameraSnapshot.current(), levelCamera, SceneDepth.snapshotDepthGlId());
-        Pipeline.runStage(RenderStage.GEOMETRY, fc);
         MainTargetFramebuffer.setDepthOverride(0);
+        Pipeline.runStage(RenderStage.GEOMETRY, fc);
         if (IrisCompat.shadersActive()) shaderLightCamera = levelCamera;
         else Pipeline.runStage(RenderStage.LIGHTING, fc);
         Pipeline.runStage(RenderStage.SCREEN_SPACE, fc);

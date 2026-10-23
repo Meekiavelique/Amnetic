@@ -35,7 +35,11 @@ final class MinecraftRenderContext extends InstanceRenderContext {
     @Override
     public Vec3 cameraPos() {
         if (cameraPos == null) {
+            //? if >=26.2 {
+            /*cameraPos = client.gameRenderer.mainCamera().position();
+            *///?} else {
             cameraPos = client.gameRenderer.getMainCamera().position();
+            //?}
         }
         return cameraPos;
     }

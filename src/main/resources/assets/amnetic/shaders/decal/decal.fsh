@@ -12,6 +12,8 @@ uniform float Opacity;
 uniform float AngleFade;
 uniform vec3 DecalAxis;
 uniform vec3 Tint;
+uniform int Multiply; // 1 = multiply onto the surface (blend dst_color, zero), keeps its lighting
+uniform int FlipV; // 1 = image top row at the top of the box
 
 #include "amnetic:shaders/common/screen.glsl"
 
@@ -29,16 +31,16 @@ vec3 normalFromDepth(vec2 uv, vec3 P) {
 void main() {
     vec2 uv = gl_FragCoord.xy / vec2(textureSize(DepthSampler, 0));
     float depth = texture(DepthSampler, uv).r;
-    if (depth >= 1.0) discard; // sky
+    if (IS_SKY(depth)) discard;
 
     vec3 P = reconstruct(uv, depth);
     vec3 local = (DecalInv * vec4(P, 1.0)).xyz;
     if (abs(local.x) > 0.5 || abs(local.y) > 0.5 || abs(local.z) > 0.5) discard;
 
-    vec2 duv = local.xz + 0.5; // project along the box's axis (local Y)
+    vec2 duv = local.xz + 0.5;
+    if (FlipV == 1) duv.y = 1.0 - duv.y;
 
-    vec3 N = normalFromDepth(uv, P);
-    float fade = smoothstep(AngleFade, 1.0, dot(N, normalize(DecalAxis)));
+    float fade = AngleFade > 0.0 ? smoothstep(AngleFade, 1.0, dot(normalFromDepth(uv, P), normalize(DecalAxis))) : 1.0;
     fade *= 1.0 - smoothstep(0.35, 0.5, abs(local.y));
     if (fade <= 0.0) discard;
 
@@ -56,5 +58,9 @@ void main() {
 
     a *= Opacity * fade;
     if (a <= 0.001) discard;
+    if (Multiply == 1) {
+        FragColor = vec4(mix(vec3(1.0), col, a), 1.0);
+        return;
+    }
     FragColor = vec4(col, a);
 }

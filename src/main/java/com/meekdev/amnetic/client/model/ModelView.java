@@ -204,8 +204,8 @@ public final class ModelView {
         float far = distance + radius * 2f;
         float aspect = (float) width / (float) height;
 
-        Matrix4f proj = new Matrix4f().perspective(fov, aspect, near, far,
-                VanillaCompat.zeroToOne());
+        Matrix4f proj = VanillaCompat.matchDepth(new Matrix4f().perspective(fov, aspect, near, far,
+                VanillaCompat.zeroToOne()));
         Matrix4f view = new Matrix4f().lookAt(eye, center, UP);
         return proj.mul(view);
     }

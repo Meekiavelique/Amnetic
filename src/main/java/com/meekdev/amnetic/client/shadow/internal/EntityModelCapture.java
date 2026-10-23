@@ -69,7 +69,9 @@ public final class EntityModelCapture {
             model.setupAnim(living, limbPos, limbSpeed, living.tickCount + partialTick,
                     Mth.wrapDegrees(headRot - bodyRot), pitch);
             *///?}
-            //? if >=1.21 {
+            //? if >=26.2 {
+            /*model.renderToBuffer(pose, consumer, 15728880, OverlayTexture.NO_OVERLAY, -1);
+            *///?} else if >=1.21 {
             model.renderToBuffer(pose, consumer, 15728880, OverlayTexture.NO_OVERLAY);
             //?} else {
             /*model.renderToBuffer(pose, consumer, 15728880, OverlayTexture.NO_OVERLAY, 1f, 1f, 1f, 1f);

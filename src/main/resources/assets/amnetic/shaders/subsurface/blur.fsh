@@ -31,7 +31,7 @@ void main() {
     vec4 centre = texture(ColorSampler, vUV);
     float depth = texture(DepthSampler, vUV).r;
 
-    if (depth >= 1.0) {
+    if (IS_SKY(depth)) {
         FragColor = centre;
         return;
     }
@@ -69,7 +69,7 @@ void main() {
             if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) continue;
 
             float d = texture(DepthSampler, uv).r;
-            if (d >= 1.0) continue;
+            if (IS_SKY(d)) continue;
 
             int id = int(texture(GMaterialSampler, uv).z * 255.0 + 0.5);
             if (id != materialId) continue;

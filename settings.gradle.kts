@@ -23,6 +23,8 @@ stonecutter {
             target(minecraft, "fabric", "build.gradle.kts")
             target(minecraft, "forge", "build.forge.gradle")
         }
+        // no forge release for 26.2 yet
+        target("26.2", "fabric", "build.gradle.kts")
         vcsVersion = "26.1.2-fabric"
     }
 }
