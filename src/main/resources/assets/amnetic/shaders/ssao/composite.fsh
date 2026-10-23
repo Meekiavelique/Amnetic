@@ -12,7 +12,7 @@ uniform sampler2D ShadeSampler;
 
 float upsampled() {
     float d = texelFetch(DepthSampler, ivec2(gl_FragCoord.xy), 0).r;
-    if (d >= 1.0) discard;
+    if (IS_SKY(d)) discard;
     float z = linearDepth(d);
     ivec2 size = textureSize(AoSampler, 0);
     vec2 hp = vUV * vec2(size) - 0.5;

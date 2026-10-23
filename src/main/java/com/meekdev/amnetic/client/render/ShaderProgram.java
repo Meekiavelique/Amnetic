@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.render;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -31,6 +33,23 @@ public final class ShaderProgram implements AutoCloseable {
 
     public static void registerVirtualSource(Identifier id, Supplier<String> source) {
         VIRTUAL_SOURCES.put(id, source);
+    }
+
+    private boolean closed, warmFailed;
+
+    // links one program that has not been used yet, so the link stall lands at load time
+    // instead of mid game the first time an effect shows up. false once everything is linked
+    public static boolean warmOne() {
+        for (ShaderProgram p : new ArrayList<>(LIVE.keySet())) {
+            if (p == null || p.closed || p.program != 0 || p.warmFailed) continue;
+            try {
+                p.ensure();
+            } catch (RuntimeException e) {
+                p.warmFailed = true;
+            }
+            return true;
+        }
+        return false;
     }
 
     private final Identifier vshId;
@@ -178,6 +197,7 @@ public final class ShaderProgram implements AutoCloseable {
 
     @Override
     public void close() {
+        closed = true;
         if (program != 0) {
             GlStateManager.glDeleteProgram(program);
             program = 0;
@@ -227,7 +247,17 @@ public final class ShaderProgram implements AutoCloseable {
     private static String loadWithIncludes(Identifier id) {
         StringBuilder out = new StringBuilder();
         resolve(id, out, new LinkedHashSet<>());
+        if (VanillaCompat.reversedDepth()) defineAfterVersion(out, "AMNETIC_REVERSED_DEPTH");
         return out.toString();
+    }
+
+    // lets shared shaders tell which way depth runs, common/depth.glsl reads it
+    private static void defineAfterVersion(StringBuilder src, String name) {
+        int version = src.indexOf("#version");
+        if (version < 0) return;
+        int end = src.indexOf("\n", version);
+        if (end < 0) return;
+        src.insert(end + 1, "#define " + name + "\n");
     }
 
     private static void resolve(Identifier id, StringBuilder out, Set<Identifier> seen) {

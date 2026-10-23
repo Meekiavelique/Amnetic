@@ -10,11 +10,16 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.Identifier;
+import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL11;
 //? if >=1.21.5 {
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.textures.GpuTexture;
 //?} else {
 /*import com.meekdev.amnetic.mixin.accessor.LightTextureAccessor;
+*///?}
+//? if >=26.2 {
+/*import com.mojang.blaze3d.GpuFormat;
 *///?}
 //? if >=26.1 {
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -36,11 +41,47 @@ public final class VanillaCompat {
 
     // whether clip-space depth runs 0..1 rather than GL's -1..1
     public static boolean zeroToOne() {
-        //? if >=26.1 {
+        //? if >=26.2 {
+        /*return RenderSystem.getDevice().getDeviceInfo().isZZeroToOne();
+        *///?} else if >=26.1 {
         return RenderSystem.getDevice().isZZeroToOne();
         //?} else {
         /*return false;
         *///?}
+    }
+
+    // 26.2 renders reversed depth, near is 1 and far is 0
+    public static boolean reversedDepth() {
+        //? if >=26.2 {
+        /*return true;
+        *///?} else {
+        return false;
+        //?}
+    }
+
+    // depth test that keeps the nearer surface, mirrored for reversed depth
+    public static int depthNearerOrEqual() {
+        return reversedDepth() ? GL11.GL_GEQUAL : GL11.GL_LEQUAL;
+    }
+
+    // depth test that keeps the farther surface, mirrored for reversed depth
+    public static int depthFartherOrEqual() {
+        return reversedDepth() ? GL11.GL_LEQUAL : GL11.GL_GEQUAL;
+    }
+
+    // what an empty depth buffer holds, the far plane
+    public static double clearDepth() {
+        return reversedDepth() ? 0.0 : 1.0;
+    }
+
+    // flips a forward depth projection to match vanilla when it runs reversed, flipping twice undoes it
+    public static Matrix4f matchDepth(Matrix4f proj) {
+        if (!reversedDepth()) return proj;
+        if (zeroToOne()) {
+            return proj.m02(proj.m03() - proj.m02()).m12(proj.m13() - proj.m12())
+                    .m22(proj.m23() - proj.m22()).m32(proj.m33() - proj.m32());
+        }
+        return proj.m02(-proj.m02()).m12(-proj.m12()).m22(-proj.m22()).m32(-proj.m32());
     }
 
     public static float nearPlane() {
@@ -114,7 +155,9 @@ public final class VanillaCompat {
     //?}
 
     public static TextureTarget textureTarget(String name, int width, int height, boolean depth) {
-        //? if >=1.21.5 {
+        //? if >=26.2 {
+        /*return new TextureTarget(name, width, height, depth, GpuFormat.RGBA8_UNORM);
+        *///?} else if >=1.21.5 {
         return new TextureTarget(name, width, height, depth);
         //?} else {
         /*return new TextureTarget(width, height, depth, Minecraft.ON_OSX);
@@ -133,11 +176,19 @@ public final class VanillaCompat {
         var lr = Minecraft.getInstance().levelRenderer;
         if (lr == null || !id.getNamespace().equals("minecraft")) return null;
         return switch (id.getPath()) {
+            //? if >=26.2 {
+            /*case "translucent" -> lr.translucentTarget();
+            case "item_entity" -> lr.itemEntityTarget();
+            case "particles" -> lr.particlesTarget();
+            case "weather" -> lr.weatherTarget();
+            case "clouds" -> lr.cloudsTarget();
+            *///?} else {
             case "translucent" -> lr.getTranslucentTarget();
             case "item_entity" -> lr.getItemEntityTarget();
             case "particles" -> lr.getParticlesTarget();
             case "weather" -> lr.getWeatherTarget();
             case "clouds" -> lr.getCloudsTarget();
+            //?}
             //? if >=1.21.2 {
             case "entity_outline" -> lr.entityOutlineTarget();
             //?} else {

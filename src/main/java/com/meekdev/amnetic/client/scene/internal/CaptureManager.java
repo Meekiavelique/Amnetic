@@ -5,6 +5,9 @@ import com.meekdev.amnetic.client.scene.CaptureResult;
 import com.meekdev.amnetic.client.scene.PerspectiveCapture;
 import com.meekdev.amnetic.client.scene.PerspectiveView;
 import com.meekdev.amnetic.mixin.accessor.CameraInvoker;
+//? if >=26.2 {
+/*import com.meekdev.amnetic.mixin.accessor.GameRendererAccessor;
+*///?}
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.Camera;
@@ -83,8 +86,13 @@ public final class CaptureManager {
 
         Minecraft mc = Minecraft.getInstance();
         LevelRenderer lr = mc.levelRenderer;
+        //? if >=26.2 {
+        /*Camera cam = renderer.mainCamera();
+        var grs = renderer.gameRenderState();
+        *///?} else {
         Camera cam = renderer.getMainCamera();
         var grs = renderer.getGameRenderState();
+        //?}
         if (lr == null || cam == null || grs == null || grs.levelRenderState == null
                 || grs.levelRenderState.cameraRenderState == null || mc.level == null) {
             return;
@@ -118,7 +126,10 @@ public final class CaptureManager {
 
         CameraInvoker inv = (CameraInvoker) cam;
         LevelRendererAccessor lra = (LevelRendererAccessor) lr;
+        // 26.2 has no immediate buffer source left to flush
+        //? if <26.2 {
         var bufferSource = mc.renderBuffers().bufferSource();
+        //?}
 
         Vec3 savedPos = cam.position();
         float savedYaw = cam.yRot();
@@ -148,7 +159,9 @@ public final class CaptureManager {
         Frustum frustum = new Frustum(view.viewRotation(), obliqueProj);
         frustum.prepare(eye.x, eye.y, eye.z);
 
+        //? if <26.2 {
         bufferSource.endBatch();
+        //?}
         capturing = true;
         currentViewRotation = view.viewRotation();
         currentTarget = capture.target().target();
@@ -160,15 +173,23 @@ public final class CaptureManager {
             lra.amnetic$setNearbyVisibleSections(isolatedNearby);
             isolatedVisible.clear();
             isolatedNearby.clear();
+            //? if >=26.2 {
+            /*lr.sectionOcclusionGraph().addSectionsInFrustum(frustum, isolatedVisible, isolatedNearby);
+
+            mc.levelExtractor.extract(ticker, cam, pt);
+            *///?} else {
             lr.getSectionOcclusionGraph().addSectionsInFrustum(frustum, isolatedVisible, isolatedNearby);
 
             lr.extractLevel(ticker, cam, pt);
+            //?}
             crs.viewRotationMatrix.set(view.viewRotation());
             crs.projectionMatrix.set(obliqueProj);
             crs.pos = eye; // entities read crs.pos
             uploadCameraGlobals(renderer, ticker, eye);
             renderer.renderLevel(ticker); // into the capture target (redirected)
+            //? if <26.2 {
             bufferSource.endBatch();
+            //?}
         } catch (Throwable e) {
             LOG.error("[Capture] failed; disabling all captures", e);
             enabled = false;
@@ -188,10 +209,16 @@ public final class CaptureManager {
             inv.amnetic$setCullFrustum(savedFrustum);
             crs.pos = savedCrsPos;
             uploadCameraGlobals(renderer, ticker, savedCrsPos);
+            //? if >=26.2 {
+            /*mc.levelExtractor.extract(ticker, cam, pt); // refill shared state for the main view (roll preserved)
+            *///?} else {
             lr.extractLevel(ticker, cam, pt); // refill shared state for the main view (roll preserved)
+            //?}
             crs.viewRotationMatrix.set(mainView);
             crs.projectionMatrix.set(mainProj);
+            //? if <26.2 {
             bufferSource.endBatch();
+            //?}
         }
         capture.target().registerColor(capture.id());
     }
@@ -207,10 +234,16 @@ public final class CaptureManager {
 
     private void uploadCameraGlobals(GameRenderer renderer, DeltaTracker ticker, Vec3 pos) {
         Minecraft mc = Minecraft.getInstance();
-        var grs = renderer.getGameRenderState();
         long gameTime = mc.level == null ? 0L : mc.level.getGameTime();
+        //? if >=26.2 {
+        /*var grs = renderer.gameRenderState();
+        boolean rgss = grs.optionsRenderState.textureFiltering == TextureFilteringMethod.RGSS;
+        ((GameRendererAccessor) renderer).amnetic$getGlobalSettingsUniform().update(
+        *///?} else {
+        var grs = renderer.getGameRenderState();
         boolean rgss = grs.optionsRenderState.textureFiltering == TextureFilteringMethod.RGSS;
         renderer.getGlobalSettingsUniform().update(
+        //?}
                 grs.windowRenderState.width, grs.windowRenderState.height,
                 grs.optionsRenderState.glintStrength, gameTime, ticker,
                 grs.optionsRenderState.menuBackgroundBlurriness, pos, rgss);

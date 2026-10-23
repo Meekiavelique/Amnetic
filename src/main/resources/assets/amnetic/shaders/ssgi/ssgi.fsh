@@ -28,7 +28,7 @@ const vec3 KERNEL[16] = vec3[16](
 
 void main() {
     float depth = texture(DepthSampler, vUV).r;
-    if (depth >= 1.0) { FragColor = vec4(0.0); return; }
+    if (IS_SKY(depth)) { FragColor = vec4(0.0); return; }
 
     vec3 P = reconstruct(vUV, depth);
     vec4 gn = (HasGBuffer == 1) ? texture(GNormalSampler, vUV) : vec4(0.0);
@@ -54,7 +54,7 @@ void main() {
         vec2 suv = clip.xy / clip.w * 0.5 + 0.5;
         if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) continue;
         float sd = texture(DepthSampler, suv).r;
-        if (sd >= 1.0) continue;
+        if (IS_SKY(sd)) continue;
 
         vec3 sP = reconstruct(suv, sd);
         vec3 dir = sP - P;

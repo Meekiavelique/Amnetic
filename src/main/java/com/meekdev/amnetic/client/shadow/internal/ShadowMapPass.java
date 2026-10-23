@@ -279,7 +279,7 @@ public final class ShadowMapPass {
             GL11.glColorMask(true, true, true, true);
             GL11.glClearColor(0f, 0f, 0f, 0f);
             GL11.glEnable(GL11.GL_CULL_FACE);
-            GL11.glDepthFunc(GL11.GL_LEQUAL);
+            GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
             GL11.glDepthMask(true);
             GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
             GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);

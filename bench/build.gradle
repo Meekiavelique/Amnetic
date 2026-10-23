@@ -1,0 +1,64 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap' version '1.16.3'
+}
+
+version = project.mod_version + "-bench"
+group = "com.meekdev"
+
+base {
+    archivesName = "amnetic-bench"
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    implementation project(path: ':1.20.1', configuration: 'namedElements')
+    runtimeOnly "de.javagl:jgltf-model:2.0.4"
+    runtimeOnly "de.javagl:jgltf-impl-v2:2.0.4"
+    runtimeOnly "com.fasterxml.jackson.core:jackson-databind:2.13.4.2"
+    runtimeOnly files(rootProject.file("libs/bb4j.jar"))
+}
+
+loom {
+    runs {
+        client {
+            if (project.hasProperty("benchAuto")) {
+                vmArg "-Damnetic.bench.autorun=${project.property('benchAuto')}"
+                vmArg "-Damnetic.bench.autoquit=true"
+            }
+            if (project.hasProperty("benchGlDebug")) {
+                vmArg "-Damnetic.bench.gldebug=true"
+            }
+            if (project.hasProperty("benchDump")) {
+                vmArg "-Damnetic.bench.dump=true"
+            }
+        }
+    }
+    mods {
+        "amnetic-bench" {
+            sourceSet sourceSets.main
+        }
+        "amnetic" {
+            sourceSet project(":1.20.1").sourceSets.main
+        }
+    }
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    it.options.release.set(17)
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}

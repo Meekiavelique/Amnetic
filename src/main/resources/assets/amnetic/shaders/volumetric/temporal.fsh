@@ -23,7 +23,7 @@ void main() {
         // sky pixels have no surface to reproject. treat them as a direction and reproject by camera
         // rotation alone (PrevViewProj is rotation + projection, so dropping EyeDelta drops the
         // translation). the neighbourhood clamp below bounds the error from ignoring parallax
-        vec3 P = (depth < 1.0) ? reconstruct(vUV, depth) + EyeDelta : reconstruct(vUV, 0.5);
+        vec3 P = !IS_SKY(depth) ? reconstruct(vUV, depth) + EyeDelta : reconstruct(vUV, 0.5);
         vec4 pc = PrevViewProj * vec4(P, 1.0);
         if (pc.w > 0.0) {
             vec2 puv = pc.xy / pc.w * 0.5 + 0.5;

@@ -101,7 +101,7 @@ public final class SceneView {
         // match the device's clip-space convention: MC 26 runs 0..1 depth (glClipControl), a -1..1
         // JOML projection under that produces torn, z-fighting depth
         boolean zeroToOne = VanillaCompat.zeroToOne();
-        Matrix4f projView = new Matrix4f().perspective(fov, aspect, near, far, zeroToOne)
+        Matrix4f projView = VanillaCompat.matchDepth(new Matrix4f().perspective(fov, aspect, near, far, zeroToOne))
                 .mul(new Matrix4f().lookAt(eye, look, UP));
 
         framebuffer.begin();

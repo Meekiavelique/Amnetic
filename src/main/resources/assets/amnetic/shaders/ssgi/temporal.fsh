@@ -23,7 +23,7 @@ uniform float HistoryBlend; // EMA weight given to history (0 = none, close to 1
 void main() {
     vec3 current = texture(CurrentSampler, vUV).rgb;
     float depth = texture(DepthSampler, vUV).r;
-    if (depth >= 1.0 || HasHistory == 0) {
+    if (IS_SKY(depth) || HasHistory == 0) {
         FragColor = vec4(current, 0.0);
         return;
     }

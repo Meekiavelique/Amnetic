@@ -14,7 +14,7 @@ uniform float DefaultRoughness;
 
 void main() {
     float c = texture(DepthSampler, vUV).r;
-    if (c >= 1.0) { // sky: no surface, leave coverage 0
+    if (IS_SKY(c)) { // sky: no surface, leave coverage 0
         GNormal = vec4(0.0);
         GMaterial = vec4(0.0);
         return;

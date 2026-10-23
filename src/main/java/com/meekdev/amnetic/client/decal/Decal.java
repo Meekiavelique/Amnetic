@@ -16,6 +16,10 @@ public final class Decal {
     float angleFade = 0.3f;
     final Vector3f tint = new Vector3f(1f, 1f, 1f); // white = show the texture as-is; darken for scorch marks
     boolean removed;
+    // multiply onto the surface instead of alpha blending, keeps the surface's lighting so stains in the dark stay dark
+    boolean multiply;
+    // the projected v runs up the box, images are stored top row first, so wall sprites need this to stand upright
+    boolean flipV;
 
     // optional gbuffer-writing (relightable) decal: tangent-space normal map and/or material override
     // when any of these is set the decal also writes gbuffer normal/material so it relights
@@ -43,6 +47,12 @@ public final class Decal {
     public Decal normalMap(Identifier id) { this.normalMap = id; return this; }
     public Decal roughness(float v) { this.roughness = v; return this; }
     public Decal metallic(float v) { this.metallic = Math.max(0f, Math.min(1f, v)); return this; }
+    public Decal multiply(boolean v) { this.multiply = v; return this; }
+    public Decal flipV(boolean v) { this.flipV = v; return this; }
+    public boolean flipV() { return flipV; }
+    // swap the texture, e.g. to step through animation frames
+    public Decal texture(Identifier id) { this.texture = id; return this; }
+    public boolean multiply() { return multiply; }
 
     // true when this decal should also write the gbuffer (normal/material) so it relights
     public boolean writesGBuffer() { return normalMap != null || roughness >= 0f; }

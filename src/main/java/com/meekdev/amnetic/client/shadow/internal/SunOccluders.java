@@ -14,7 +14,9 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 final class SunOccluders {
 
-    private static final long BUDGET_NANOS = 2_000_000L;
+    private static final long BUDGET_NANOS = 1_000_000L;
+    // even a cold start has to stay under a frame, otherwise entering a new area hitches
+    private static final long COLD_BUDGET_NANOS = 6_000_000L;
     private static final LongOpenHashSet DIRTY = new LongOpenHashSet();
 
     private final Long2ObjectOpenHashMap<OccluderMesh> built = new Long2ObjectOpenHashMap<>();
@@ -43,6 +45,53 @@ final class SunOccluders {
             clear();
             this.level = level;
         }
+        int csx = (int) Math.floor(cx) >> 4, csy = (int) Math.floor(cy) >> 4, csz = (int) Math.floor(cz) >> 4;
+        boolean moved = csx != lastSx || csy != lastSy || csz != lastSz || r != lastR || wanted.isEmpty();
+        if (moved) collectWanted(cx, cy, cz, r);
+        lastSx = csx;
+        lastSy = csy;
+        lastSz = csz;
+        lastR = r;
+        if (moved) {
+            var it = built.long2ObjectEntrySet().fastIterator();
+            while (it.hasNext()) {
+                var e = it.next();
+                if (wantedSet.contains(e.getLongKey())) continue;
+                if (e.getValue() != null) e.getValue().close();
+                it.remove();
+            }
+        }
+
+        boolean cold = built.isEmpty();
+        long start = System.nanoTime();
+        long budget = cold ? COLD_BUDGET_NANOS : BUDGET_NANOS;
+        for (int i = 0; i < wanted.size(); i++) {
+            long k = wanted.getLong(i);
+            if (built.containsKey(k) && !DIRTY.contains(k)) continue;
+            if (System.nanoTime() - start > budget) break;
+            int sx = sectionX(k), sy = sectionY(k), sz = sectionZ(k);
+            ChunkAccess chunk = level.getChunk(sx, sz, ChunkStatus.FULL, false);
+            if (chunk == null) continue;
+            OccluderMesh mesh = build(chunk, sx, sy, sz, cx, cy, cz, r);
+            OccluderMesh old = built.put(k, mesh);
+            if (old != null) old.close();
+            DIRTY.remove(k);
+        }
+        if (!DIRTY.isEmpty()) DIRTY.removeIf(k -> !built.containsKey(k));
+
+        drawn.clear();
+        for (int i = 0; i < wanted.size(); i++) {
+            OccluderMesh m = built.get(wanted.getLong(i));
+            if (m != null) drawn.add(m);
+        }
+        return drawn;
+    }
+
+    private int lastSx = Integer.MIN_VALUE, lastSy, lastSz;
+    private float lastR = -1f;
+
+    // sections around the camera, nearest first. only redone when the camera changes section
+    private void collectWanted(float cx, float cy, float cz, float r) {
         wanted.clear();
         wantedSet.clear();
         int minSy = minSection();
@@ -59,44 +108,29 @@ final class SunOccluders {
                 }
             }
         }
-        wanted.sort((a, b) -> Float.compare(distance(a, cx, cy, cz), distance(b, cx, cy, cz)));
+        long[] keys = wanted.toLongArray();
+        float[] dist = new float[keys.length];
+        for (int i = 0; i < keys.length; i++) dist[i] = distance(keys[i], cx, cy, cz);
+        it.unimi.dsi.fastutil.ints.IntArrays.quickSort(order(keys.length), (a, b) -> Float.compare(dist[a], dist[b]));
+        wanted.clear();
+        for (int i : sortedOrder) wanted.add(keys[i]);
+    }
 
-        var it = built.long2ObjectEntrySet().fastIterator();
-        while (it.hasNext()) {
-            var e = it.next();
-            if (wantedSet.contains(e.getLongKey())) continue;
-            if (e.getValue() != null) e.getValue().close();
-            it.remove();
-        }
+    private int[] sortedOrder = new int[0];
 
-        boolean cold = built.isEmpty();
-        long start = System.nanoTime();
-        for (int i = 0; i < wanted.size(); i++) {
-            long k = wanted.getLong(i);
-            if (built.containsKey(k) && !DIRTY.contains(k)) continue;
-            if (!cold && System.nanoTime() - start > BUDGET_NANOS) break;
-            int sx = sectionX(k), sy = sectionY(k), sz = sectionZ(k);
-            ChunkAccess chunk = level.getChunk(sx, sz, ChunkStatus.FULL, false);
-            if (chunk == null) continue;
-            OccluderMesh mesh = build(chunk, sx, sy, sz, cx, cy, cz, r);
-            OccluderMesh old = built.put(k, mesh);
-            if (old != null) old.close();
-            DIRTY.remove(k);
-        }
-        DIRTY.removeIf(k -> !built.containsKey(k));
-
-        drawn.clear();
-        for (int i = 0; i < wanted.size(); i++) {
-            OccluderMesh m = built.get(wanted.getLong(i));
-            if (m != null) drawn.add(m);
-        }
-        return drawn;
+    private int[] order(int n) {
+        if (sortedOrder.length != n) sortedOrder = new int[n];
+        for (int i = 0; i < n; i++) sortedOrder[i] = i;
+        return sortedOrder;
     }
 
     void clear() {
         for (OccluderMesh m : built.values()) if (m != null) m.close();
         built.clear();
         drawn.clear();
+        wanted.clear();
+        wantedSet.clear();
+        lastSx = Integer.MIN_VALUE;
         level = null;
     }
 

@@ -302,7 +302,7 @@ public final class ModelRegistry {
         if (useGBuffer) gbuffer.program(prog.programId());
         RenderState state = config.renderState() == null ? RenderState.DEFAULT : config.renderState();
         state.apply();
-        GlStateManager._depthFunc(GL11.GL_LEQUAL);
+        GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
         try {
             float defaultEmissive = config.isEmissive() ? config.emissiveStrength() : 1f;
             emissiveGroups.clear();
@@ -396,7 +396,7 @@ public final class ModelRegistry {
                     if (state != null) state.restore();
                     state = wanted;
                     state.apply();
-                    GlStateManager._depthFunc(GL11.GL_LEQUAL);
+                    GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
                 }
                 if (item.prog != current) {
                     prepareProgram(item.prog, projView, time);

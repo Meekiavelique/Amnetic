@@ -1,0 +1,35 @@
+{
+  "targets": {
+    "swap": {}
+  },
+  "passes": [
+    {
+      "vertex_shader": "minecraft:core/screenquad",
+      "fragment_shader": "amneticbench:post/chroma",
+      "inputs": [
+        { "sampler_name": "In", "target": "minecraft:main", "bilinear": true }
+      ],
+      "uniforms": {
+        "ChromaConfig": [
+          { "name": "Strength", "type": "float", "value": 3.0 }
+        ]
+      },
+      "output": "swap"
+    },
+    {
+      "vertex_shader": "minecraft:core/screenquad",
+      "fragment_shader": "amneticbench:post/vignette",
+      "inputs": [
+        { "sampler_name": "In", "target": "swap" },
+        { "sampler_name": "Depth", "target": "minecraft:main", "use_depth_buffer": true }
+      ],
+      "uniforms": {
+        "VignetteConfig": [
+          { "name": "Tint", "type": "vec3", "value": [1.0, 0.55, 0.35] },
+          { "name": "Radius", "type": "float", "value": 0.75 }
+        ]
+      },
+      "output": "minecraft:main"
+    }
+  ]
+}

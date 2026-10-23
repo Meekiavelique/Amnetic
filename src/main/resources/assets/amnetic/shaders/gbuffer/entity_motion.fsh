@@ -13,7 +13,7 @@ uniform vec4 Boxes[96];
 
 void main() {
     float depth = texelFetch(DepthSampler, ivec2(gl_FragCoord.xy), 0).r;
-    if (depth >= 1.0) discard;
+    if (IS_SKY(depth)) discard;
     vec3 P = reconstruct(vUV, depth);
     for (int i = 0; i < BoxCount; i++) {
         vec3 lo = Boxes[i * 3].xyz;

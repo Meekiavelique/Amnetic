@@ -32,9 +32,24 @@ public final class PostEffectRegistry {
     }
 
     public void applyAll(RenderPhase phase, float deltaTick) {
+        boolean profiling = com.meekdev.amnetic.client.pipeline.PassProfiler.INSTANCE.active();
         for (PostEffectEntry entry : entries) {
+            if (!profiling || entry.getPhase() != phase || !entry.isEnabled()) {
+                entry.apply(phase, deltaTick);
+                continue;
+            }
+            String label = "post " + entry.getId().getPath();
+            com.meekdev.amnetic.client.pipeline.PassProfiler.INSTANCE.begin(label);
             entry.apply(phase, deltaTick);
+            com.meekdev.amnetic.client.pipeline.PassProfiler.INSTANCE.end(label);
         }
+    }
+
+    public boolean warmOne() {
+        for (PostEffectEntry entry : new java.util.ArrayList<>(entries)) {
+            if (entry.warm()) return true;
+        }
+        return false;
     }
 
     public boolean hasEnabledEffectInPhase(RenderPhase phase) {

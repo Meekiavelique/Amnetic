@@ -87,7 +87,7 @@ public final class ViewModels {
                     GL11.glDepthRange(handle.depthNear, handle.depthFar);
                     depthRangeChanged = true;
                 }
-                RENDERER.draw(model.internalGpu(), capturedProjection, world, null,
+                RENDERER.draw(model.internalGpu(), capturedProjection, world, handle.pose == null ? null : handle.pose.get(),
                         handle.blockLight, handle.skyLight, handle.emissiveStrength);
                 if (depthRangeChanged) {
                     GL11.glDepthRange(0.0, 1.0);
@@ -141,6 +141,7 @@ public final class ViewModels {
         private float skyLight = 0f;
         private float emissiveStrength = 1f;
         private Matrix4fc override;
+        private Supplier<Matrix4f[]> pose;
 
         private boolean depthClear = true;
         private boolean depthRanged = false;
@@ -211,6 +212,12 @@ public final class ViewModels {
          */
         public Handle transform(Matrix4fc cameraSpace) {
             this.override = cameraSpace == null ? null : new Matrix4f(cameraSpace);
+            return this;
+        }
+
+        // animated bone matrices (an Animator's pose()) read every frame, null draws the rest pose
+        public Handle pose(Supplier<Matrix4f[]> pose) {
+            this.pose = pose;
             return this;
         }
 

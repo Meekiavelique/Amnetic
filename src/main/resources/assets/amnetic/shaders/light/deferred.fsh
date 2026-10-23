@@ -111,7 +111,7 @@ void main() {
     // alpha carries depth for bilateral upscale
     if (VolumetricOnly == 1) {
         vec3 fp;
-        if (depth >= 1.0) {
+        if (IS_SKY(depth)) {
             vec3 rd = reconstruct(vUV, 0.5);
             float rl = length(rd);
             if (rl < 1e-5) { FragColor = vec4(0.0, 0.0, 0.0, depth); return; }
@@ -123,7 +123,7 @@ void main() {
         return;
     }
 
-    if (depth >= 1.0) { FragColor = vec4(texture(AlbedoSampler, vUV).rgb, 1.0); return; } // sky: pass scene through, composite replaces rather than adds
+    if (IS_SKY(depth)) { FragColor = vec4(texture(AlbedoSampler, vUV).rgb, 1.0); return; } // sky: pass scene through, composite replaces rather than adds
 
     vec3 fragPos = reconstruct(vUV, depth);
     vec3 N;

@@ -37,7 +37,8 @@ final class PostPipeline implements AutoCloseable {
     private record Pass(Identifier vertexShader, Identifier fragmentShader, List<Input> inputs, Identifier output,
                         Map<String, List<UniformValue>> blockUniforms, Map<String, UniformValue> memberUniforms) {}
 
-    private record TargetSpec(Integer width, Integer height, boolean persistent, int clearColor) {}
+    // scale sizes the target relative to the main target, for cheap half res passes
+    private record TargetSpec(Integer width, Integer height, boolean persistent, int clearColor, Float scale) {}
 
     private static final class Surface {
         int color;
@@ -83,7 +84,8 @@ final class PostPipeline implements AutoCloseable {
                         t.has("width") ? t.get("width").getAsInt() : null,
                         t.has("height") ? t.get("height").getAsInt() : null,
                         t.has("persistent") && t.get("persistent").getAsBoolean(),
-                        t.has("clear_color") ? t.get("clear_color").getAsInt() : 0));
+                        t.has("clear_color") ? t.get("clear_color").getAsInt() : 0,
+                        t.has("scale") ? t.get("scale").getAsFloat() : null));
             }
         }
 
@@ -128,6 +130,20 @@ final class PostPipeline implements AutoCloseable {
         return new PostPipeline(id, targets, passes);
     }
 
+    // compiles the next missing program, true when it did some work
+    boolean warmOne() {
+        if (programs.size() >= passes.size()) return false;
+        Pass pass = passes.get(programs.size());
+        try {
+            programs.add(new PostProgram(pass.vertexShader(), pass.fragmentShader()));
+        } catch (RuntimeException e) {
+            for (PostProgram program : programs) program.close();
+            programs.clear();
+            throw e;
+        }
+        return true;
+    }
+
     boolean usesTarget(Identifier target) {
         for (Pass pass : passes) {
             if (target.equals(pass.output())) return true;
@@ -141,16 +157,7 @@ final class PostPipeline implements AutoCloseable {
         RenderTarget main = mc.getMainRenderTarget();
         if (main == null) return;
         ensureResources();
-        if (programs.isEmpty()) {
-            List<PostProgram> built = new ArrayList<>();
-            try {
-                for (Pass pass : passes) built.add(new PostProgram(pass.vertexShader(), pass.fragmentShader()));
-            } catch (RuntimeException e) {
-                for (PostProgram program : built) program.close();
-                throw e;
-            }
-            programs.addAll(built);
-        }
+        while (programs.size() < passes.size()) warmOne();
 
         int prevFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         int[] prevViewport = new int[4];
@@ -262,8 +269,9 @@ final class PostPipeline implements AutoCloseable {
     }
 
     private Surface internalSurface(Identifier target, TargetSpec spec, RenderTarget main) {
-        int w = spec.width() != null ? spec.width() : main.width;
-        int h = spec.height() != null ? spec.height() : main.height;
+        float k = spec.scale() != null ? spec.scale() : 1f;
+        int w = spec.width() != null ? spec.width() : Math.max(1, Math.round(main.width * k));
+        int h = spec.height() != null ? spec.height() : Math.max(1, Math.round(main.height * k));
         Surface s = internal.get(target);
         boolean fresh = false;
         if (s == null || s.width != w || s.height != h) {
@@ -284,7 +292,7 @@ final class PostPipeline implements AutoCloseable {
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, s.color, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, s.depth, 0);
             GL11.glClearColor(((argb >> 16) & 0xFF) / 255f, ((argb >> 8) & 0xFF) / 255f, (argb & 0xFF) / 255f, ((argb >>> 24) & 0xFF) / 255f);
-            GL11.glClearDepth(1.0);
+            GL11.glClearDepth(VanillaCompat.clearDepth());
             GlStateManager._depthMask(true);
             GL11.glDepthMask(true);
             GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);

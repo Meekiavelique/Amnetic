@@ -56,7 +56,7 @@ float contactShadow(vec3 P, vec3 L) {
         vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
         float sd = texture(DepthSampler, uv).r;
-        if (sd < 1.0) {
+        if (!IS_SKY(sd)) {
             vec3 sceneP = reconstruct(uv, sd);
             float diff = length(p) - length(sceneP);
             if (diff > 0.02 && diff < ContactThickness) return 0.0;

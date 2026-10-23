@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "amnetic-bench",
+  "version": "${version}",
+  "name": "Amnetic Bench",
+  "description": "Test and benchmark scenes for Amnetic on 1.20.1.",
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.meekdev.amnetic.bench.BenchClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": "*",
+    "fabric-api": "*",
+    "minecraft": "1.20.1",
+    "amnetic": "*"
+  }
+}

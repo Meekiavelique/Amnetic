@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.light.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import java.util.ArrayList;
 import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.light.LightType;
@@ -86,7 +87,7 @@ public final class LightVolumePass {
             float inside = pad + NEAR_MARGIN;
             boolean cameraInside = d < inside * inside;
             GL11.glCullFace(cameraInside ? GL11.GL_FRONT : GL11.GL_BACK);
-            GlStateManager._depthFunc(cameraInside ? GL11.GL_GEQUAL : GL11.GL_LEQUAL);
+            GlStateManager._depthFunc(cameraInside ? VanillaCompat.depthFartherOrEqual() : VanillaCompat.depthNearerOrEqual());
 
             program.setInt("LightIndex", i);
             program.setVec3("LightPos", px, py, pz);
@@ -96,7 +97,7 @@ public final class LightVolumePass {
         GL30.glBindVertexArray(0);
 
         GL11.glCullFace(GL11.GL_BACK);
-        GlStateManager._depthFunc(GL11.GL_LEQUAL);
+        GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
         GlStateManager._depthMask(true);
         GL11.glDepthMask(true);
     }

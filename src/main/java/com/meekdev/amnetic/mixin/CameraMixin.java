@@ -159,6 +159,10 @@ public abstract class CameraMixin {
 
     private boolean amnetic$isMainCamera() {
         var gr = Minecraft.getInstance().gameRenderer;
+        //? if >=26.2 {
+        /*return gr != null && (Camera) (Object) this == gr.mainCamera();
+        *///?} else {
         return gr != null && (Camera) (Object) this == gr.getMainCamera();
+        //?}
     }
 }

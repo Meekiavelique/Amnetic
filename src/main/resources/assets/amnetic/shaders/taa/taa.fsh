@@ -1,4 +1,5 @@
 #version 410 core
+#include "amnetic:shaders/common/depth.glsl"
 
 in vec2 vUV;
 out vec4 FragColor;
@@ -86,12 +87,12 @@ void main() {
     vec4 hi = textureGather(DepthSampler, vUV + 0.5 * texel);
     vec2 nearest = vec2(0.0);
     float depth = texelFetch(DepthSampler, ip, 0).r;
-    if (lo.x < depth) { depth = lo.x; nearest = vec2(-1.0, 0.0); }
-    if (lo.z < depth) { depth = lo.z; nearest = vec2(0.0, -1.0); }
-    if (lo.w < depth) { depth = lo.w; nearest = vec2(-1.0, -1.0); }
-    if (hi.x < depth) { depth = hi.x; nearest = vec2(0.0, 1.0); }
-    if (hi.y < depth) { depth = hi.y; nearest = vec2(1.0, 1.0); }
-    if (hi.z < depth) { depth = hi.z; nearest = vec2(1.0, 0.0); }
+    if (DEPTH_NEARER(lo.x, depth)) { depth = lo.x; nearest = vec2(-1.0, 0.0); }
+    if (DEPTH_NEARER(lo.z, depth)) { depth = lo.z; nearest = vec2(0.0, -1.0); }
+    if (DEPTH_NEARER(lo.w, depth)) { depth = lo.w; nearest = vec2(-1.0, -1.0); }
+    if (DEPTH_NEARER(hi.x, depth)) { depth = hi.x; nearest = vec2(0.0, 1.0); }
+    if (DEPTH_NEARER(hi.y, depth)) { depth = hi.y; nearest = vec2(1.0, 1.0); }
+    if (DEPTH_NEARER(hi.z, depth)) { depth = hi.z; nearest = vec2(1.0, 0.0); }
     vec2 nuv = vUV + nearest * texel;
     vec3 P = reconstruct(nuv, depth);
     if (HasVelocity == 1) P -= texelFetch(Velocity, clamp(ip + ivec2(nearest), ivec2(0), maxIp), 0).xyz;

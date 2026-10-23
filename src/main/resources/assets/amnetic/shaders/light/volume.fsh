@@ -10,7 +10,7 @@ uniform vec2 ScreenSize;
 void main() {
     vec2 uv = gl_FragCoord.xy / ScreenSize;
     float depth = texture(DepthSampler, uv).r;
-    if (depth >= 1.0) discard;
+    if (IS_SKY(depth)) discard;
 
     vec3 fragPos = reconstruct(uv, depth);
 

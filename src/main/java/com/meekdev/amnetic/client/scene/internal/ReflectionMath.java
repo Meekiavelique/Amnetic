@@ -30,6 +30,18 @@ public final class ReflectionMath {
 
     public static void obliqueProjection(Matrix4f out, Matrix4fc base, Matrix4fc viewRotation, Vec3 eye,
                                          float nx, float ny, float nz, float dw) {
+        // the clip plane math assumes forward depth, so work on the forward form and flip back after
+        if (VanillaCompat.reversedDepth()) {
+            Matrix4f forward = VanillaCompat.matchDepth(new Matrix4f(base));
+            obliqueForward(out, forward, viewRotation, eye, nx, ny, nz, dw);
+            VanillaCompat.matchDepth(out);
+            return;
+        }
+        obliqueForward(out, base, viewRotation, eye, nx, ny, nz, dw);
+    }
+
+    private static void obliqueForward(Matrix4f out, Matrix4fc base, Matrix4fc viewRotation, Vec3 eye,
+                                       float nx, float ny, float nz, float dw) {
         out.set(base);
 
         Matrix4f viewFull = new Matrix4f(viewRotation)

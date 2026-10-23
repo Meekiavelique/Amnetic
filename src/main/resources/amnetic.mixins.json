@@ -21,6 +21,7 @@
     "EntityRendererMixin",
     "LivingEntityRendererMixin",
     "accessor.CameraInvoker",
+    "accessor.GameRendererAccessor",
     "accessor.LevelRendererAccessor",
     "accessor.LightTextureAccessor",
     "FrustumMixin"

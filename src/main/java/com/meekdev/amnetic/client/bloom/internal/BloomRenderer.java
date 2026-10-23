@@ -105,7 +105,7 @@ public final class BloomRenderer {
         if (instEmissive || hookEmissive) {
             if (s.isOcclude()) {
                 emissiveBuf.blitDepthFromMain();
-                GL11.glDepthFunc(GL11.GL_LEQUAL); // visible surfaces (equal depth) bloom
+                GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual()); // visible surfaces (equal depth) bloom
             }
             if (instEmissive) {
                 for (InstancePhase phase : PHASES) {
@@ -166,7 +166,7 @@ public final class BloomRenderer {
             if (occlude) {
                 GlStateManager._enableDepthTest();
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
-                GL11.glDepthFunc(GL11.GL_LEQUAL);
+                GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
                 // emissive block quads are coplanar with the world geometry already in this
                 // depth buffer, so exact-equality LEQUAL fails at grazing angles and drops
                 // every face except the one squarely facing the camera. bias them nearer.
