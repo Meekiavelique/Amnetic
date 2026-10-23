@@ -31,6 +31,13 @@ public final class FilmLook {
     float wetRoughness = 0.06f;
     float dryRoughness = 0.85f;
     float reflectance = 0.02f;
+    // screen space reflections of the scene in the wet top, strength and ray length
+    float screenReflect = 1f;
+    float screenReflectDistance = 24f;
+    // rain rings on the liquid
+    float rain;
+    float rainScale = 2.4f;
+    float rainStrength = 0.35f;
     // pixel art mode
     boolean pixelArt;
     float texelsPerUnit = 16f;
@@ -66,6 +73,12 @@ public final class FilmLook {
     public FilmLook roughness(float wet, float dry) { wetRoughness = clamp01(wet); dryRoughness = clamp01(dry); return this; }
     // normal incidence reflectance of the wet surface, water is about 0.02
     public FilmLook reflectance(float v) { reflectance = clamp01(v); return this; }
+    // how much the wet top mirrors the actual scene (0 keeps only the sky gradient) and how far its rays go
+    public FilmLook screenReflections(float strength, float distance) { screenReflect = clamp01(strength); screenReflectDistance = Math.max(1f, distance); return this; }
+    // rain hitting the liquid, 0..1, drives how many drops ring out. set it every tick from your weather
+    public FilmLook rain(float v) { rain = clamp01(v); return this; }
+    // ripple cells per world unit and how hard they bend the surface
+    public FilmLook rainRipples(float scale, float strength) { rainScale = Math.max(0.1f, scale); rainStrength = Math.max(0f, strength); return this; }
 
     // pixel art instead of the smooth liquid: the film snaps to a world grid of texels (16 per block matches
     // minecraft's textures), shades with the palette below in posterised steps and gets crisp outlines
@@ -104,6 +117,8 @@ public final class FilmLook {
         c.edgeNoise = edgeNoise; c.edgeNoiseScale = edgeNoiseScale; c.stainThreshold = stainThreshold; c.ring = ring;
         c.normalStrength = normalStrength; c.rim = rim; c.flowSpeed = flowSpeed; c.rippleStrength = rippleStrength;
         c.parallax = parallax; c.specular = specular; c.wetRoughness = wetRoughness; c.dryRoughness = dryRoughness; c.reflectance = reflectance;
+        c.screenReflect = screenReflect; c.screenReflectDistance = screenReflectDistance;
+        c.rain = rain; c.rainScale = rainScale; c.rainStrength = rainStrength;
         c.pixelArt = pixelArt; c.texelsPerUnit = texelsPerUnit;
         c.jitter = jitter; c.outline = outline; c.core = core; c.highlights = highlights;
         c.patternWet = patternWet; c.patternDry = patternDry;
@@ -133,6 +148,11 @@ public final class FilmLook {
     public float wetRoughness() { return wetRoughness; }
     public float dryRoughness() { return dryRoughness; }
     public float reflectance() { return reflectance; }
+    public float screenReflect() { return screenReflect; }
+    public float screenReflectDistance() { return screenReflectDistance; }
+    public float rain() { return rain; }
+    public float rainScale() { return rainScale; }
+    public float rainStrength() { return rainStrength; }
     public boolean pixelArt() { return pixelArt; }
     public float texelsPerUnit() { return texelsPerUnit; }
 }

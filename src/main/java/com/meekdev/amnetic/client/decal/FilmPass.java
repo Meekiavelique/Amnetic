@@ -90,6 +90,13 @@ final class FilmPass extends ScreenPass {
         for (FilmDecal f : films) upload(f);
 
         depthCapture.blitDepthFromMain();
+        // the scene colour only gets copied when a film actually mirrors it
+        for (FilmDecal f : films) {
+            if (!f.isEmpty() && !f.look.pixelArt && f.look.screenReflect > 0f) {
+                depthCapture.blitColorFromMain();
+                break;
+            }
+        }
         lastPixels = 0;
         lastDrawn = 0;
 
@@ -169,7 +176,10 @@ final class FilmPass extends ScreenPass {
         p.setSampler("FieldB", 2);
         p.setSampler("PatternWet", 3);
         p.setSampler("PatternDry", 4);
+        p.setSampler("SceneColor", 5);
         p.setMatrix4("InvViewProj", cam.invViewProj);
+        p.setMatrix4("ViewProj", cam.viewProj);
+        p.setMatrix4("View", cam.view);
         p.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
         p.setFloat("Time", time);
         p.setVec3("SunDir", env[0], env[1], env[2]);
@@ -177,6 +187,7 @@ final class FilmPass extends ScreenPass {
         p.setVec3("SkyColor", env[6], env[7], env[8]);
         p.setVec3("BlockColor", env[9], env[10], env[11]);
         GlState.bindTexture(0, depthCapture.depthTextureGlId());
+        GlState.bindTexture(5, depthCapture.colorTextureGlId(0));
     }
 
     private void bind(ShaderProgram p, FilmDecal f, Vec3 eye) {
@@ -202,6 +213,8 @@ final class FilmPass extends ScreenPass {
         p.setFloat("Specular", l.specular);
         p.setVec2("Rough", l.wetRoughness, l.dryRoughness);
         p.setFloat("Reflectance", l.reflectance);
+        p.setVec2("ScreenReflect", l.screenReflect, l.screenReflectDistance);
+        p.setVec3("RainRipples", l.rain, l.rainScale, l.rainStrength);
         p.setInt("PixelArt", l.pixelArt ? 1 : 0);
         p.setFloat("TexelsPerUnit", l.texelsPerUnit);
         if (l.pixelArt) {
