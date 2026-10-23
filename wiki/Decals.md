@@ -112,6 +112,109 @@ The rules of the relightable path:
 
 ---
 
+## Multiply decals
+
+`multiply(true)` switches a decal from alpha blending to multiplying the surface: the shader outputs `mix(1, texture * tint, alpha)` and the pass blends with `DST_COLOR, ZERO`. The surface keeps its own lighting, so a stain in an unlit cave stays dark instead of glowing at full texture brightness. It works with the relightable path too, which is how a wet splat can multiply in its colour and still give the surface a glossy roughness.
+
+```java
+Decals.box(splat, hit, wallNormal, 0.3f, 0.3f, 0.25f)
+     .multiply(true) // darken the wall by the texture, don't paint over it
+     .roughness(0.08f); // and make it glossy while it's wet
+```
+
+---
+
+## Film decals
+
+A film decal covers a box of floor with a grid of texels that you write from the CPU every tick. Each texel describes a thin layer of liquid and what it leaves behind, and the shader turns that into a surface: soft, noisy outlines; Beer-Lambert tint, so thin films show the floor through and deep pools go nearly opaque; Fresnel reflections; a GGX sun glint; height-field normals with a rounded rim; ripples while it flows; parallax depth; and dried residue with a darker coffee ring. Blood, oil, mud, spilled paint and puddles all fit.
+
+```java
+FilmLook blood = new FilmLook()
+        .absorption(480f, 1600f, 1400f) // per world unit of thickness
+        .agedAbsorption(800f, 1300f, 1600f) // blended in by the age channel
+        .stainTint(0.45f, 0.22f, 0.17f) // what dried residue multiplies the surface by
+        .maxThickness(0.03f) // the 8-bit field's range, sqrt encoded
+        .edge(0.0011f, 0.00045f) // thickness where the outline sits, softness
+        .roughness(0.05f, 0.8f); // wet, dry
+
+// one film per 16x16 block area and floor level, 8 texels per block
+FilmDecal film = Decals.film(x, y - 0.06, z, 16f, 1.04f, 16f, 128, 128, blood);
+
+// every tick, for the texels that changed
+film.texel(tx, tz, floorY, thickness, wetness, stain, age, flow);
+film.light(tx, tz, skyLight / 15f, blockLight / 15f);
+
+// what wet films reflect, update it with the time of day
+Decals.filmEnvironment(sunX, sunY, sunZ, sunR, sunG, sunB, skyR, skyG, skyB, torchR, torchG, torchB);
+```
+
+### The field
+
+Each texel carries two RGBA8 values, uploaded row-range by row-range only where they changed:
+
+- **A**: thickness (sqrt-encoded against `maxThickness`), wetness, stain, flow.
+- **B**: floor height inside the box, age, sky light, block light.
+
+A is bilinear filtered. The shader builds outlines from a 2x2 tent of half-texel taps, so a field written per cell still gives round contours instead of stair steps. B is filtered for age and light, but the floor height is read exact with `texelFetch` from the four nearest texels; 0 means unset. A pixel only receives the film when its depth-reconstructed height matches one of those floors within a few centimetres and its surface faces up. Steps, walls, table tops and the feet of whoever is standing in the pool stay clean, and the film never z-fights because it isn't geometry.
+
+Texels under a wall next to a wet texel should copy the wet value. The floor mask keeps the copy off the wall, and without it the filtering thins the pool exactly where it meets the wall and leaves a dry sliver.
+
+### Lighting
+
+The colour pass uses dual-source blending: `result = added + destination * transmittance`, per channel. Transmittance is `exp(-absorption * thickness)` mixed by coverage, times the stain tint, minus what the wet surface reflects. Added light is the in-scatter colour, plus the environment reflection weighted by Fresnel, plus the sun glint, all scaled by the texel's light levels so pools in the dark stay dark.
+
+A second pass writes the gbuffer normal and roughness where the film is wet, weighted by wet coverage. Deferred lights then glint on it (a torch, a camera flash) and SSR reflects the room in it. Dry residue doesn't touch the gbuffer, so it keeps the surface's own material.
+
+### Cost
+
+Each film is one scissored fullscreen triangle for colour and one for the gbuffer, and the scissor is the screen rect of its box. Films off screen or empty are skipped. Per pixel it's about 25 texture fetches and a small fbm, cheap next to SSR. A 16x16 film at 128x128 is 128 KB of CPU memory and two small textures.
+
+### Pixel art mode
+
+`FilmLook.pixelArt(true)` swaps the smooth liquid for pixel art that sits inside a blocky texture world:
+
+- **Snapped to the world.** The film is evaluated once per world texel (`texelsPerUnit`, 16 matches Minecraft's block textures). The grid is anchored to the film's origin, so its pixels line up with the block pixels underneath and never swim when the camera moves.
+- **No sim grid in the shapes.** The cell field is rebuilt as a smooth Catmull-Rom surface from a 6x6 cell window and only then cut at texel centres. One cleanup pass follows: a texel with fewer than 2 straight neighbours goes, a gap with 3 or more fills. Edges come out as even stair steps. This needs `texelsPerUnit` to be at least twice the field's cells per unit.
+- **`pixelStyle(jitter, outline, core, highlights)`:**
+  - `jitter` (0..1) is a fixed, world-stable per-texel shade noise between close shades, like vanilla textures.
+  - `outline` is 0 for none, 1 for a darker edge on the shadow side only, 2 for an outline all around.
+  - `core` darkens the thick parts.
+  - `highlights` (0..1) puts sparse lit texels just inside the lit edge, but only where the sun, block light or one of the 4 nearest Amnetic lights (a camera flash counts) reaches.
+- **`palette(...)`**, 8 colours as 0xRRGGBB:
+  - 0: highlight
+  - 1: light body
+  - 2: body
+  - 3: dark body
+  - 4: edge
+  - 5: aged body
+  - 6: aged dark and dried edge
+  - 7: dried stain
+- **`pattern(wet, dry)`:** two tiling textures, painted one texel per world texel, with the texture wrapping in world space. When set, they replace the palette shades: wet for fresh liquid, dry for aged liquid and stains. The pool shape cuts them, the shadow-side edge uses palette colour 4 (6 for stains), and the thinnest film drops texels so the floor shows through. Resource packs can replace the textures.
+- **Vanilla-style light.** Sky and block light on whole levels through vanilla's curve, with no Fresnel, no SSR and no gbuffer write.
+
+### API
+
+```java
+static FilmDecal film(double x, double minY, double z, float sizeX, float sizeY, float sizeZ, int resX, int resZ, FilmLook look);
+static List<FilmDecal> films();
+static void filmEnvironment(float sunX, float sunY, float sunZ, float sunR, float sunG, float sunB,
+                            float skyR, float skyG, float skyB, float blockR, float blockG, float blockB);
+static void clearFilms(); // also runs on disconnect
+
+FilmDecal texel(int x, int z, float floorY, float thickness, float wetness, float stain, float age, float flow);
+FilmDecal light(int x, int z, float sky, float block);
+FilmDecal clearTexel(int x, int z);
+FilmDecal clearAll();
+FilmDecal look(FilmLook look); // thickness encoding follows look.maxThickness, rewrite texels after changing it
+FilmDecal opacity(float v);
+boolean isEmpty();
+void remove(); // gl side freed on the render thread
+```
+
+`FilmLook` setters: `absorption`, `agedAbsorption`, `stainTint`, `scatter`, `maxThickness`, `edge(thickness, softness)`, `edgeNoise(amount, scale)`, `stainThreshold`, `ring`, `normals(strength, rim)`, `flow(speed, ripple)`, `parallax`, `specular`, `roughness(wet, dry)`, `reflectance`, `pixelArt(boolean)`, `texelsPerUnit(float)`, `pixelStyle(jitter, outline, core, highlights)`, `pattern(wet, dry)`, `palette(int...)`, `copy()`.
+
+---
+
 ## Ordering and blending
 
 Decals run in the `GEOMETRY` stage of Amnetic's [render pipeline](Render-Pipeline) at order 50, after the gbuffer normal fill, instanced meshes, and models, and before the shadow and deferred lighting passes. That placement is what makes decals participate in lighting: their color lands in the frame before the light pass captures it, and their gbuffer writes land before lighting reads normals and materials.
@@ -125,12 +228,12 @@ Within the pass, decals draw in creation order with standard alpha blending (`SR
 ## Where it sits in the frame
 
 ```
-GEOMETRY   gbuffer fill -> instanced meshes -> models -> decals   <- here
+GEOMETRY   gbuffer fill -> instanced meshes -> models -> decals (50) -> film decals (52)   <- here
 LIGHTING   shadow map -> deferred lighting
 SCREEN_SPACE, AFTER_WATER, ATMOSPHERE, POST ...
 ```
 
-The pass early-outs when there are no decals, so an empty list costs nothing. Depth is copied from the main target once per frame that decals render, and each decal is one fullscreen draw (two for relightable decals), so cost scales with decal count times screen resolution regardless of how small the decal looks on screen.
+The pass early-outs when there are no decals, so an empty list costs nothing. Depth is copied from the main target once per frame that decals render. Each decal is one fullscreen triangle (two for relightable decals), scissored to the screen rect of its projection box, and decals whose box is entirely outside the view frustum are skipped. Cost therefore scales with the screen area each decal actually covers, plus a small per-decal overhead. When the camera is inside a box, the scissor falls back to the full screen.
 
 ---
 
@@ -144,7 +247,7 @@ The viewport draws a wireframe gizmo box around every decal showing its exact pr
 
 ## Limitations
 
-* Every decal is a fullscreen pass, even a tiny one in the distance. Cost is per decal times screen pixels; a few dozen are fine, hundreds are not. There is no frustum culling or screen-rect scissoring.
+* Every decal still costs a draw call and a state change, so hundreds of decals cost more than their pixels alone. A camera inside a decal box shades the full screen for that decal.
 * Decals only appear on geometry that wrote depth into the main target before the `GEOMETRY` stage: terrain, entities, and vanilla-rendered content. Amnetic instanced meshes and models drawn in the same stage are covered too, but anything drawn after the decal pass (translucents, `AFTER_WATER` geometry) is not.
 * Surface normals come from depth reconstruction, so the angle fade uses geometric normals only; it doesn't know about normal-mapped surface detail underneath.
 * No rotation control in the decal plane. The texture's orientation is fixed by the derived right/up basis; for a floor decal, rotating the artwork means rotating the texture itself.
@@ -178,6 +281,9 @@ Decal depth(float v); // projection thickness along the normal, >= 0
 Decal opacity(float v); // alpha multiplier, clamped 0..1. default 1
 Decal angleFade(float v); // alignment cutoff, clamped 0..1. default 0.3
 Decal tint(float r, float g, float b); // multiplied into texture RGB. default 1,1,1
+Decal multiply(boolean v); // multiply onto the surface instead of alpha blending. default false
+Decal flipV(boolean v); // image top row at the top of the box, wall sprites need it. default false
+Decal texture(Identifier id); // swap the texture, e.g. for animation frames
 
 // relightable (gbuffer) path
 Decal normalMap(Identifier id); // tangent-space normal map; null clears it

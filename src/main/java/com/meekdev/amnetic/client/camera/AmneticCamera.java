@@ -297,7 +297,11 @@ public final class AmneticCamera {
 
     private static Camera mcCamera() {
         Minecraft mc = Minecraft.getInstance();
+        //? if >=26.2 {
+        /*return mc.gameRenderer != null ? mc.gameRenderer.mainCamera() : null;
+        *///?} else {
         return mc.gameRenderer != null ? mc.gameRenderer.getMainCamera() : null;
+        //?}
     }
 
     private static Frustum frustum() {

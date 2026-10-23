@@ -52,6 +52,10 @@ public abstract class SurfaceKeyboardMixin {
 
     private static boolean amnetic$eligible() {
         Minecraft minecraft = Minecraft.getInstance();
+        //? if >=26.2 {
+        /*return minecraft.gui.screen() == null && minecraft.gui.overlay() == null;
+        *///?} else {
         return minecraft.screen == null && minecraft.getOverlay() == null;
+        //?}
     }
 }

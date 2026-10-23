@@ -33,7 +33,11 @@ public final class CameraSnapshot {
     public static CameraSnapshot current() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.getMainRenderTarget() == null) return null;
-        //? if >=26.1 {
+        //? if >=26.2 {
+        /*var grs = mc.gameRenderer.gameRenderState();
+        if (grs == null || grs.levelRenderState == null) return null;
+        LevelCamera crs = LevelCamera.of(grs.levelRenderState.cameraRenderState);
+        *///?} else if >=26.1 {
         var grs = mc.gameRenderer.getGameRenderState();
         if (grs == null || grs.levelRenderState == null) return null;
         LevelCamera crs = LevelCamera.of(grs.levelRenderState.cameraRenderState);

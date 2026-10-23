@@ -47,7 +47,25 @@ import net.minecraft.client.DeltaTracker;
 @Mixin(LevelRenderer.class)
 public abstract class CameraStateMixin {
 
-    //? if >=26.1 {
+    //? if >=26.2 {
+    /*@Inject(method = "render", at = @At("HEAD"))
+    private void amnetic$captureCameraState(GraphicsResourceAllocator allocator, DeltaTracker deltaTracker,
+                                            boolean renderBlockOutline, CameraRenderState camera,
+                                            Matrix4fc viewRotation, GpuBufferSlice fog,
+                                            Vector4f fogColor, boolean sky, CallbackInfo ci) {
+        Vec3 pos = camera.pos;
+        CameraState.update(camera.projectionMatrix, camera.viewRotationMatrix, pos.x, pos.y, pos.z, camera.depthFar);
+
+        if (!CaptureManager.INSTANCE.isCapturing()) {
+            FrameView.INSTANCE.set(viewRotation);
+        }
+    }
+
+    @Inject(method = "render", at = @At("TAIL"))
+    private void amnetic$renderPost(CallbackInfo ci) {
+        AmneticClient.renderPost();
+    }
+    *///?} else if >=26.1 {
     @Inject(method = "renderLevel", at = @At("HEAD"))
     private void amnetic$captureCameraState(GraphicsResourceAllocator allocator, DeltaTracker deltaTracker,
                                             boolean renderBlockOutline, CameraRenderState camera,

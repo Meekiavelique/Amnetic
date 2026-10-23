@@ -129,6 +129,7 @@ if (sc.current.parsed < '1.21.5') absentClasses.addAll(['mixin/GlCommandEncoderM
         'client/entityfx/internal/EntityEffectPipeline', 'client/framebuffer/internal/WrappedGlTexture',
         'mixin/accessor/RenderTypeInvoker'])
 if (sc.current.parsed >= '1.21.5') absentClasses.add('mixin/accessor/LightTextureAccessor')
+if (sc.current.parsed < '26.2') absentClasses.add('mixin/accessor/GameRendererAccessor')
 
 tasks.withType(JavaCompile).configureEach {
     absentClasses.each { path -> exclude("com/meekdev/amnetic/${path}.java") }

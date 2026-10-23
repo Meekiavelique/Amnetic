@@ -1,0 +1,248 @@
+package com.meekdev.amnetic.client.render;
+
+import com.mojang.blaze3d.platform.GlStateManager;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.FloatBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
+import org.joml.Matrix4f;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL30;
+
+public final class ShaderProgram implements AutoCloseable {
+
+    private static final Map<ResourceLocation, Supplier<String>> VIRTUAL_SOURCES = new ConcurrentHashMap<>();
+
+    public static void registerVirtualSource(ResourceLocation id, Supplier<String> source) {
+        VIRTUAL_SOURCES.put(id, source);
+    }
+
+    private final ResourceLocation vshId;
+    private final ResourceLocation fshId;
+    private int program;
+    private int vao;
+
+    private final Map<String, Integer> uniformLocations = new HashMap<>();
+    private final float[] mat4Scratch = new float[16];
+    private FloatBuffer matArrayScratch;
+
+    private int loc(String name) {
+        Integer cached = uniformLocations.get(name);
+        if (cached != null) {
+            return cached;
+        }
+        int l = GlStateManager._glGetUniformLocation(program, name);
+        uniformLocations.put(name, l);
+        return l;
+    }
+
+    private static final Map<ShaderProgram, Boolean> LIVE =
+            Collections.synchronizedMap(new WeakHashMap<>());
+
+    public static void invalidateAll() {
+        synchronized (LIVE) {
+            for (ShaderProgram sp : LIVE.keySet()) sp.invalidate();
+        }
+    }
+
+    public ShaderProgram(ResourceLocation vshId, ResourceLocation fshId) {
+        this.vshId = vshId;
+        this.fshId = fshId;
+        LIVE.put(this, Boolean.TRUE);
+    }
+
+    public void invalidate() {
+        if (program != 0) {
+            GlStateManager.glDeleteProgram(program);
+            program = 0;
+        }
+        if (vao != 0) {
+            GL30.glDeleteVertexArrays(vao);
+            vao = 0;
+        }
+        uniformLocations.clear();
+    }
+
+    private void ensure() {
+        if (program != 0) return;
+        int vs = compile(GL20.GL_VERTEX_SHADER, loadWithIncludes(vshId), vshId);
+        int fs = compile(GL20.GL_FRAGMENT_SHADER, loadWithIncludes(fshId), fshId);
+        int prog = GlStateManager.glCreateProgram();
+        GlStateManager.glAttachShader(prog, vs);
+        GlStateManager.glAttachShader(prog, fs);
+        GlStateManager.glLinkProgram(prog);
+        GlStateManager.glDeleteShader(vs);
+        GlStateManager.glDeleteShader(fs);
+        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
+            String log = GlStateManager.glGetProgramInfoLog(prog, 512);
+            GlStateManager.glDeleteProgram(prog);
+            throw new RuntimeException("Failed to link shader (" + vshId + "/" + fshId + "): " + log);
+        }
+        program = prog;
+        vao = GlStateManager._glGenVertexArrays();
+    }
+
+    public void begin() {
+        ensure();
+        GlStateManager._glUseProgram(program);
+        GlStateManager._glBindVertexArray(vao);
+    }
+
+    public void draw() {
+        GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3);
+    }
+
+    public void setSampler(String name, int unit) {
+        int loc = loc(name);
+        if (loc != -1) GL20.glUniform1i(loc, unit);
+    }
+
+    public void setFloat(String name, float value) {
+        int loc = loc(name);
+        if (loc != -1) GL20.glUniform1f(loc, value);
+    }
+
+    public void setVec2(String name, float x, float y) {
+        int loc = loc(name);
+        if (loc != -1) GL20.glUniform2f(loc, x, y);
+    }
+
+    public void setVec3(String name, float x, float y, float z) {
+        int loc = loc(name);
+        if (loc != -1) GL20.glUniform3f(loc, x, y, z);
+    }
+
+    public void setVec4(String name, float x, float y, float z, float w) {
+        int loc = loc(name);
+        if (loc != -1) GL20.glUniform4f(loc, x, y, z, w);
+    }
+
+    public void setInt(String name, int value) {
+        int loc = loc(name);
+        if (loc != -1) GL20.glUniform1i(loc, value);
+    }
+
+    public void setMatrix4Array(String name, float[] data, int count) {
+        int loc = loc(name);
+        if (loc == -1) loc = loc(name + "[0]");
+        if (loc == -1 || count <= 0) return;
+        int floats = Math.min(data.length, count * 16);
+        if (matArrayScratch == null || matArrayScratch.capacity() < floats) {
+            matArrayScratch = BufferUtils.createFloatBuffer(floats);
+        }
+        matArrayScratch.clear();
+        matArrayScratch.put(data, 0, floats).flip();
+        GL20.glUniformMatrix4fv(loc, false, matArrayScratch);
+    }
+
+    public void setMatrix4(String name, Matrix4f matrix) {
+        int loc = loc(name);
+        if (loc == -1) return;
+        matrix.get(mat4Scratch);
+        GL20.glUniformMatrix4fv(loc, false, mat4Scratch);
+    }
+
+    @Override
+    public void close() {
+        if (program != 0) {
+            GlStateManager.glDeleteProgram(program);
+            program = 0;
+        }
+        if (vao != 0) {
+            GL30.glDeleteVertexArrays(vao);
+            vao = 0;
+        }
+        uniformLocations.clear();
+    }
+
+    private static int compile(int type, String src, ResourceLocation id) {
+        int shader = GlStateManager.glCreateShader(type);
+        GlStateManager.glShaderSource(shader, java.util.List.of(src));
+        GlStateManager.glCompileShader(shader);
+        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
+            int len = Math.max(GlStateManager.glGetShaderi(shader, GL20.GL_INFO_LOG_LENGTH), 512);
+            String log = GlStateManager.glGetShaderInfoLog(shader, len);
+            GlStateManager.glDeleteShader(shader);
+            String dump = dumpSource(id, src, log);
+            throw new RuntimeException("Failed to compile shader " + id + ": " + log
+                    + (dump == null ? "" : "\nfull source written to " + dump));
+        }
+        return shader;
+    }
+
+    private static String dumpSource(ResourceLocation id, String src, String log) {
+        try {
+            Path dir = Path.of("amnetic-shader-dumps");
+            Files.createDirectories(dir);
+            Path out = dir.resolve(id.toString().replaceAll("[^A-Za-z0-9._-]", "_") + ".glsl");
+            StringBuilder sb = new StringBuilder();
+            sb.append("// ").append(id).append('\n');
+            for (String line : log.split("\n")) sb.append("// ").append(line).append('\n');
+            sb.append('\n');
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                sb.append(String.format("%5d| %s%n", i + 1, lines[i]));
+            }
+            Files.writeString(out, sb.toString());
+            return out.toAbsolutePath().toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String loadWithIncludes(ResourceLocation id) {
+        StringBuilder out = new StringBuilder();
+        resolve(id, out, new LinkedHashSet<>());
+        return out.toString();
+    }
+
+    private static void resolve(ResourceLocation id, StringBuilder out, Set<ResourceLocation> seen) {
+        if (!seen.add(id)) return;
+        for (String line : loadRaw(id).split("\n", -1)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#include")) {
+                int a = trimmed.indexOf('"');
+                int b = trimmed.lastIndexOf('"');
+                if (a >= 0 && b > a) {
+                    resolve(ResourceLocation.tryParse(trimmed.substring(a + 1, b)), out, seen);
+                    continue;
+                }
+            }
+            out.append(line).append('\n');
+        }
+    }
+
+    public static String readSource(ResourceLocation id) {
+        return loadWithIncludes(id);
+    }
+
+    private static String loadRaw(ResourceLocation id) {
+        Supplier<String> virtual = VIRTUAL_SOURCES.get(id);
+        if (virtual != null) return virtual.get();
+        Optional<Resource> opt = Minecraft.getInstance().getResourceManager().getResource(id);
+        if (opt.isEmpty()) {
+            throw new RuntimeException("Shader not found: " + id);
+        }
+        try (InputStream is = opt.get().open()) {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read shader " + id, e);
+        }
+    }
+}

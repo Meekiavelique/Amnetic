@@ -3,6 +3,7 @@ package com.meekdev.amnetic.client.gbuffer.internal;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import it.unimi.dsi.fastutil.ints.Int2BooleanOpenHashMap;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -21,6 +22,8 @@ public final class GBufferTargets {
     private int materialTex;
     private int emissiveTex;
     private int albedoTex;
+    private int velocityTex;
+    private int shadeTex;
     private int width;
     private int height;
     private int cachedColor = -1;
@@ -29,6 +32,12 @@ public final class GBufferTargets {
     private int cachedMaterial = -1;
     private int cachedEmissive = -1;
     private int cachedAlbedo = -1;
+    private int cachedVelocity = -1;
+    private int cachedShade = -1;
+    private final Int2BooleanOpenHashMap shades = new Int2BooleanOpenHashMap();
+    private final Int2BooleanOpenHashMap moves = new Int2BooleanOpenHashMap();
+    private long frame;
+    private boolean bound;
     private final int[] savedViewport = new int[4];
     // Capture once per frame, then reuse it for every object in that frame.
     private int outerFbo;
@@ -46,6 +55,9 @@ public final class GBufferTargets {
     public int materialGlId() { return materialTex; }
     public int emissiveGlId() { return emissiveTex; }
     public int albedoGlId() { return albedoTex; }
+    public int velocityGlId() { return velocityTex; }
+    public int shadeGlId() { return shadeTex; }
+    public long frame() { return frame; }
     public int depthGlId() { return cachedDepth; }
 
     public int bind() {
@@ -69,29 +81,47 @@ public final class GBufferTargets {
         // captureOuterState() clears attachedThisFrame each frame, so re-attaching once per frame keeps the
         // resize safety while cutting per-model churn
         if (!attachedThisFrame || colorId != cachedColor || depthId != cachedDepth
-                || normalTex != cachedNormal || materialTex != cachedMaterial || emissiveTex != cachedEmissive || albedoTex != cachedAlbedo) {
+                || normalTex != cachedNormal || materialTex != cachedMaterial || emissiveTex != cachedEmissive || albedoTex != cachedAlbedo
+                || velocityTex != cachedVelocity || shadeTex != cachedShade) {
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorId, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT1, GL11.GL_TEXTURE_2D, normalTex, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT2, GL11.GL_TEXTURE_2D, materialTex, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT3, GL11.GL_TEXTURE_2D, emissiveTex, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT4, GL11.GL_TEXTURE_2D, albedoTex, 0);
+            GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT5, GL11.GL_TEXTURE_2D, velocityTex, 0);
+            GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT6, GL11.GL_TEXTURE_2D, shadeTex, 0);
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, depthId, 0);
-            try (MemoryStack s = MemoryStack.stackPush()) {
-                IntBuffer bufs = s.ints(GL30.GL_COLOR_ATTACHMENT0, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2,
-                        GL30.GL_COLOR_ATTACHMENT3, GL30.GL_COLOR_ATTACHMENT4);
-                GL30.glDrawBuffers(bufs);
-            }
+            drawAll();
             cachedColor = colorId;
             cachedDepth = depthId;
             cachedNormal = normalTex;
             cachedMaterial = materialTex;
             cachedEmissive = emissiveTex;
             cachedAlbedo = albedoTex;
+            cachedVelocity = velocityTex;
+            cachedShade = shadeTex;
             attachedThisFrame = true;
         }
 
         GlStateManager._viewport(0, 0, main.width, main.height);
+        bound = true;
         return prevFbo;
+    }
+
+    public static void drawAll() {
+        try (MemoryStack s = MemoryStack.stackPush()) {
+            GL30.glDrawBuffers(s.ints(GL30.GL_COLOR_ATTACHMENT0, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2,
+                    GL30.GL_COLOR_ATTACHMENT3, GL30.GL_COLOR_ATTACHMENT4, GL30.GL_COLOR_ATTACHMENT5,
+                    GL30.GL_COLOR_ATTACHMENT6));
+        }
+    }
+
+    public void program(int program) {
+        if (!bound) return;
+        boolean writes = moves.computeIfAbsent(program, p -> GL30.glGetFragDataLocation(p, "GVelocity") == 5);
+        GL30.glColorMaski(5, writes, writes, writes, writes);
+        boolean shaded = shades.computeIfAbsent(program, p -> GL30.glGetFragDataLocation(p, "GShade") == 6);
+        GL30.glColorMaski(6, shaded, shaded, shaded, shaded);
     }
 
     public void clearSideTargets() {
@@ -101,11 +131,18 @@ public final class GBufferTargets {
             GL30.glClearBufferfv(GL11.GL_COLOR, 2, zero);
             GL30.glClearBufferfv(GL11.GL_COLOR, 3, zero);
             GL30.glClearBufferfv(GL11.GL_COLOR, 4, zero);
+            GL30.glClearBufferfv(GL11.GL_COLOR, 5, zero);
+            GL30.glClearBufferfv(GL11.GL_COLOR, 6, zero);
         }
     }
 
     public void restore(int prevFbo) {
         if (prevFbo < 0) return;
+        if (bound) {
+            GL30.glColorMaski(5, true, true, true, true);
+            GL30.glColorMaski(6, true, true, true, true);
+        }
+        bound = false;
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prevFbo);
         GlStateManager._viewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
     }
@@ -130,6 +167,7 @@ public final class GBufferTargets {
     }
 
     public void beginFrame() {
+        frame++;
         captureOuterState();
         int prev = bind();
         if (prev == -1) { populated = false; return; }
@@ -145,8 +183,12 @@ public final class GBufferTargets {
         if (materialTex != 0) { GlStateManager._deleteTexture(materialTex); materialTex = 0; }
         if (emissiveTex != 0) { GlStateManager._deleteTexture(emissiveTex); emissiveTex = 0; }
         if (albedoTex != 0) { GlStateManager._deleteTexture(albedoTex); albedoTex = 0; }
+        if (velocityTex != 0) { GlStateManager._deleteTexture(velocityTex); velocityTex = 0; }
+        if (shadeTex != 0) { GlStateManager._deleteTexture(shadeTex); shadeTex = 0; }
         width = height = 0;
-        cachedColor = cachedDepth = cachedNormal = cachedMaterial = cachedEmissive = -1;
+        cachedColor = cachedDepth = cachedNormal = cachedMaterial = cachedEmissive = cachedAlbedo = cachedVelocity = cachedShade = -1;
+        moves.clear();
+        shades.clear();
         populated = false;
     }
 
@@ -158,12 +200,16 @@ public final class GBufferTargets {
         if (materialTex == 0) materialTex = GlStateManager._genTexture();
         if (emissiveTex == 0) emissiveTex = GlStateManager._genTexture();
         if (albedoTex == 0) albedoTex = GlStateManager._genTexture();
+        if (velocityTex == 0) velocityTex = GlStateManager._genTexture();
+        if (shadeTex == 0) shadeTex = GlStateManager._genTexture();
 
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         allocTexture(normalTex, GL30.GL_RGBA16F, GL11.GL_RGBA, GL11.GL_FLOAT, w, h);
         allocTexture(materialTex, GL11.GL_RGBA8, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, w, h);
         allocTexture(emissiveTex, GL30.GL_RGBA16F, GL11.GL_RGBA, GL11.GL_FLOAT, w, h);
         allocTexture(albedoTex, GL11.GL_RGBA8, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, w, h);
+        allocTexture(velocityTex, GL30.GL_RGBA16F, GL11.GL_RGBA, GL11.GL_FLOAT, w, h);
+        allocTexture(shadeTex, GL11.GL_RGBA8, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, w, h);
         GlStateManager._bindTexture(0);
     }
 

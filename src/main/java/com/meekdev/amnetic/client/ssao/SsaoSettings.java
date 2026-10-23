@@ -3,7 +3,7 @@ package com.meekdev.amnetic.client.ssao;
 public final class SsaoSettings {
 
     private boolean enabled;
-    private float radius = 0.8f;
+    private float radius = 0.5f;
     private float intensity = 1.2f;
     private float bias = 0.025f;
     private float power = 1.5f;

@@ -20,7 +20,7 @@ uniform float Feedback;
 void main() {
     vec4 cur = texture(Raw, vUV);
     float depth = texture(DepthSampler, vUV).r;
-    if (depth >= 1.0) { FragColor = cur; return; }
+    if (IS_SKY(depth)) { FragColor = cur; return; }
 
     vec3 P = reconstruct(vUV, depth);
     vec4 pc = PrevViewProj * vec4(P + EyeDelta, 1.0);

@@ -262,6 +262,8 @@ public final class ModelRegistry {
         prog.uploadProjView(projView);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0 + 5);
         GL11.glBindTexture(GL13.GL_TEXTURE_CUBE_MAP, EnvProbe.INSTANCE.glId());
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0 + ModelShader.LIGHTMAP_UNIT);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, VanillaCompat.levelLightmapGlId());
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         prog.uploadEnv(EnvProbe.INSTANCE.isReady(), EnvProbe.INSTANCE.maxLod());
         prog.uploadLighting(ModelLighting.INSTANCE);
@@ -297,9 +299,10 @@ public final class ModelRegistry {
         boolean useGBuffer = !capture && GBuffer.isEnabled() && config.writeGBuffer();
         GBufferTargets gbuffer = GBufferTargets.INSTANCE;
         int prevFbo = useGBuffer ? gbuffer.bind() : MainTargetFramebuffer.bind();
+        if (useGBuffer) gbuffer.program(prog.programId());
         RenderState state = config.renderState() == null ? RenderState.DEFAULT : config.renderState();
         state.apply();
-        GlStateManager._depthFunc(GL11.GL_LEQUAL);
+        GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
         try {
             float defaultEmissive = config.isEmissive() ? config.emissiveStrength() : 1f;
             emissiveGroups.clear();
@@ -393,7 +396,7 @@ public final class ModelRegistry {
                     if (state != null) state.restore();
                     state = wanted;
                     state.apply();
-                    GlStateManager._depthFunc(GL11.GL_LEQUAL);
+                    GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
                 }
                 if (item.prog != current) {
                     prepareProgram(item.prog, projView, time);
@@ -416,7 +419,7 @@ public final class ModelRegistry {
     }
 
     private static void colorMasks(boolean write) {
-        for (int buffer : new int[] {1, 2, 4}) {
+        for (int buffer : new int[] {1, 2, 4, 5, 6}) {
             GL30.glColorMaski(buffer, write, write, write, write);
         }
     }
@@ -481,9 +484,49 @@ public final class ModelRegistry {
             if (!Float.isNaN(draw.skyLight())) {
                 sky = draw.skyLight();
             }
-            pooled(mainPool, n++).set(camRel, draw.pose(), block, sky, draw.inputs(), draw.look());
+            GpuModel.DrawInstance instance = pooled(mainPool, n++);
+            instance.set(camRel, draw.pose(), block, sky, draw.inputs(), draw.look());
+            if (draw.key() != null) moved(model.internalMoved(draw.key()), draw, camPos, instance);
         }
         return mainPool.subList(0, n);
+    }
+
+    private final Matrix4f lastScratch = new Matrix4f();
+
+    private void moved(Model.Moved m, Model.Draw draw, Vec3 camPos, GpuModel.DrawInstance instance) {
+        long frame = GBuffer.frame();
+        if (m.frame != frame) {
+            if (m.frame == frame - 1) {
+                m.lastWorld.set(m.world);
+                Matrix4f[] spare = m.lastPose;
+                m.lastPose = m.pose;
+                m.pose = spare;
+            } else {
+                m.lastWorld.set(draw.world());
+                m.lastPose = copy(draw.pose(), m.lastPose);
+            }
+            m.frame = frame;
+        }
+        m.world.set(draw.world());
+        m.pose = copy(draw.pose(), m.pose);
+        Matrix4f last = lastScratch.set(m.lastWorld);
+        last.m30(m.lastWorld.m30() - (float) camPos.x);
+        last.m31(m.lastWorld.m31() - (float) camPos.y);
+        last.m32(m.lastWorld.m32() - (float) camPos.z);
+        instance.moved(last, draw.pose() == null ? null : m.lastPose);
+    }
+
+    private static Matrix4f[] copy(Matrix4f[] from, Matrix4f[] into) {
+        if (from == null) return into;
+        if (into == null || into.length != from.length) {
+            into = new Matrix4f[from.length];
+            for (int i = 0; i < into.length; i++) into[i] = new Matrix4f();
+        }
+        for (int i = 0; i < from.length; i++) {
+            if (from[i] == null) into[i].identity();
+            else into[i].set(from[i]);
+        }
+        return into;
     }
 
     private void posedBounds(Matrix4f[] pose, Vector3f restMin, Vector3f restMax,

@@ -1,0 +1,29 @@
+{
+  "targets": {
+    "chroma": {},
+    "sharp": {}
+  },
+  "passes": [
+    {
+      "vertex_shader": "minecraft:core/screenquad",
+      "fragment_shader": "example:post/vhs_chroma",
+      "inputs": [{"sampler_name": "Diffuse", "target": "minecraft:main"}],
+      "output": "chroma"
+    },
+    {
+      "vertex_shader": "minecraft:core/screenquad",
+      "fragment_shader": "example:post/vhs_sharpen",
+      "inputs": [{"sampler_name": "Diffuse", "target": "chroma"}],
+      "output": "sharp"
+    },
+    {
+      "vertex_shader": "minecraft:core/screenquad",
+      "fragment_shader": "example:post/vhs_glitch",
+      "inputs": [{"sampler_name": "Diffuse", "target": "sharp"}],
+      "uniforms": {
+        "AmneticParams": [{"name": "Params", "type": "vec4", "value": [0.0, 0.0, 0.0, 0.0]}]
+      },
+      "output": "minecraft:main"
+    }
+  ]
+}

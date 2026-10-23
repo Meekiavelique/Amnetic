@@ -56,7 +56,7 @@ Cutout blocks like glass panes, iron bars, and leaves bake their textured models
 
 Translucent blocks like stained glass use the same alpha testing but also record their color. This produces colored shadows for spot lights. Point shadows remain strictly grayscale.
 
-Entities cast shadows based on their posed model geometry. You can flip `entityModels(false)` to force them to cast standard bounding boxes instead. Entity occluders rebake every single frame at their interpolated render positions.
+Entities cast shadows based on their posed model geometry. You can flip `entityModels(false)` to force them to cast standard bounding boxes instead. Entity occluders are built at their interpolated render positions, and the mesh is only rebuilt when one of them moved.
 
 ## Sun cascaded shadows
 
@@ -68,7 +68,7 @@ Lights.directional(new Vector3f(-0.5f, -0.8f, -0.32f), 1f, 0.96f, 0.9f, 2.5f)
       .castsShadow(true);
 ```
 
-The engine splits the view distance into up to four cascades, tightest first. Fragments near the camera sample a high detail map and distant fragments fall through to progressively looser ones. Each cascade fits an orthographic projection to its slice of the camera frustum and snaps its center to shadow texels, so edges stay stable instead of shimmering as the camera moves. Nearby blocks, entities, custom models, and instanced meshes all render into the cascade array. Sun maps rebake every frame because terrain streams along with the camera, so there is no stable state to cache on.
+The engine splits the view distance into up to four cascades, tightest first. Fragments near the camera sample a high detail map and distant fragments fall through to progressively looser ones. Each cascade fits an orthographic projection to its slice of the camera frustum and snaps its center to shadow texels, so edges stay stable instead of shimmering as the camera moves. Nearby blocks, entities, custom models, and instanced meshes all render into the cascade array. The tightest cascade redraws every frame. The looser ones take turns, one per frame in the order 1, 2, 1, 3, and the rest keep last frame's map, sampled with the matrix it was drawn with. A cascade redraws at once when its centre has drifted more than 5 percent of its radius or the sun has turned more than about a degree, so a fast camera or a moving sun never samples a stale map.
 
 The sun behaves differently from every other shadow caster. Vanilla already lights the scene with full daylight before Amnetic runs, so adding sun radiance on top would double-light everything. Instead the sun only carves shadows out of that existing daylight. The light's intensity controls how deep the shadow darkens the surface, not how bright the scene gets. The per-light `shadowStrength(...)` fade works the same way it does for spot and point lights.
 
@@ -85,17 +85,17 @@ The sun has its own group of settings on `ShadowSettings.defaults()`.
 | `sunCasterExtension(blocks)` | `64` | >= 0 | Extra reach toward the sun so tall geometry outside a slice still casts into it |
 | `sunBlockOccluderRadius(blocks)` | `48` | 0 to 96 | Radius around the camera where blocks cast, 0 disables block occluders |
 
-The shared `bias`, `normalBias`, `softness`, `entityShadows`, and `entityModels` settings apply to the sun as well. Sampling uses the same rotated Poisson PCF as the other lights, but PCSS stays spot only, so the sun keeps a fixed penumbra. The default configuration costs 64 MB of VRAM for the cascade array. The editor exposes everything under Renderer then Shadows then Sun cascades.
+The shared `bias`, `normalBias`, `softness`, `entityShadows`, and `entityModels` settings apply to the sun as well. The cascade array is sampled with hardware depth comparison and linear filtering: one filtered read when `softness` is below 1, and 8 rotated reads above that. PCSS stays spot only, so the sun keeps a fixed penumbra. The default configuration costs 64 MB of VRAM for the cascade array. The editor exposes everything under Renderer then Shadows then Sun cascades.
 
 ## Soft shadows
 
-Shadow edges use a rotated 16-tap Poisson PCF. Enabling PCSS forces the penumbra to harden at the contact point and soften as distance increases. The point light path wraps this exact same Poisson kernel around the cube sample direction.
+Spot and point shadow edges use a rotated 16-tap Poisson PCF. Enabling PCSS forces the penumbra to harden at the contact point and soften as distance increases. The point light path wraps this exact same Poisson kernel around the cube sample direction.
 
 Shadows fade out over the outer portion of a light's range based on the `fadeStart` setting. They die out with the light falloff instead of hitting a hard spherical wall. Because of this falloff, an omnidirectional point light in fog looks like a glowing sphere. If you want hard beam shafts, use a spot light.
 
 ## Performance
 
-The system caches depth maps aggressively. A map only rebakes if its occluders move, the light pose changes, or dynamic entities walk into range. A static light with no moving entities nearby costs almost nothing per frame. You can track this overhead in the editor stats under bake time.
+The system caches depth maps aggressively. A map only rebakes if its occluders move, the light pose changes, or dynamic entities walk into range. A static light with no moving entities nearby costs almost nothing per frame. Block occluder meshes leave out the faces between two full blocks and skip chunk sections that are all air, so a solid hillside costs its surface, not its volume. Spot and point maps only draw the instanced meshes whose bounds reach the light, so thousands of parts elsewhere in the world cost a light nothing. You can track this overhead in the editor stats under bake time.
 
 The `bakeBudget` limits how many dirty casters can rebake in a single frame. This prevents massive lag spikes by spreading the updates across multiple frames.
 

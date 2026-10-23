@@ -10,6 +10,11 @@ import com.mojang.blaze3d.platform.CompareOp;
 /*import com.mojang.blaze3d.platform.DepthTestFunction;
 *///?}
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+//? if >=26.2 {
+/*import com.mojang.blaze3d.PrimitiveTopology;
+import com.mojang.blaze3d.pipeline.BindGroupLayout;
+import net.minecraft.client.renderer.BindGroupLayouts;
+*///?}
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -24,6 +29,11 @@ public final class MeshPipeline {
 
     private static final Map<Identifier, RenderPipeline> PIPELINES = new HashMap<>();
     private static final Map<String, RenderType> RENDER_TYPES = new HashMap<>();
+
+    //? if >=26.2 {
+    /*private static final BindGroupLayout SAMPLERS = BindGroupLayout.builder()
+            .withSampler("Sampler0").withSampler("Sampler1").withSampler("DepthSampler").build();
+    *///?}
 
     private MeshPipeline() {}
 
@@ -65,6 +75,13 @@ public final class MeshPipeline {
                 .withLocation(location)
                 .withVertexShader(vertexShader)
                 .withFragmentShader(fragmentShader)
+                //? if >=26.2 {
+                /*.withBindGroupLayout(SAMPLERS)
+                .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+                .withBindGroupLayout(BindGroupLayouts.GLOBALS)
+                .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL)
+                .withPrimitiveTopology(PrimitiveTopology.QUADS)
+                *///?} else {
                 .withSampler("Sampler0")
                 .withSampler("Sampler1")
                 .withSampler("DepthSampler")
@@ -72,7 +89,11 @@ public final class MeshPipeline {
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Globals", UniformType.UNIFORM_BUFFER)
                 .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.QUADS)
-                //? if >=26.1 {
+                //?}
+                //? if >=26.2 {
+                /*.withColorTargetState(ColorTargetState.DEFAULT)
+                .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
+                *///?} else if >=26.1 {
                 .withColorTargetState(ColorTargetState.DEFAULT)
                 .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
                 //?} else {
@@ -89,6 +110,13 @@ public final class MeshPipeline {
                 .withLocation(fragmentShader)
                 .withVertexShader(vertexShader)
                 .withFragmentShader(fragmentShader)
+                //? if >=26.2 {
+                /*.withBindGroupLayout(SAMPLERS)
+                .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+                .withBindGroupLayout(BindGroupLayouts.GLOBALS)
+                .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL)
+                .withPrimitiveTopology(PrimitiveTopology.QUADS)
+                *///?} else {
                 .withSampler("Sampler0")
                 .withSampler("Sampler1")
                 .withSampler("DepthSampler")
@@ -96,7 +124,11 @@ public final class MeshPipeline {
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Globals", UniformType.UNIFORM_BUFFER)
                 .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.QUADS)
-                //? if >=26.1 {
+                //?}
+                //? if >=26.2 {
+                /*.withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+                .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false))
+                *///?} else if >=26.1 {
                 .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
                 .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
                 //?} else {

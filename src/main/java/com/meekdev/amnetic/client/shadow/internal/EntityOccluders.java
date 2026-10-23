@@ -20,13 +20,22 @@ public final class EntityOccluders {
     private float[] tri = new float[8192]; // growable triangle vertices (xyz)
     private int triFloats;
     private int vao, vbo, vertexCount, entityCount;
+    private long builtSig;
     private final List<Entity> found = new ArrayList<>();
     private FloatBuffer upload;
 
     public boolean build(Level level, double lx, double ly, double lz, float range,
                          int anchorX, int anchorY, int anchorZ, boolean models, float partialTick) {
-        return gather(level, lx, ly, lz, range, partialTick) != 0L
-                && build(anchorX, anchorY, anchorZ, models, partialTick);
+        long sig = gather(level, lx, ly, lz, range, partialTick);
+        if (sig == 0L) return false;
+        sig = mix(mix(mix(mix(sig, anchorX), anchorY), anchorZ), models ? 1 : 0);
+        if (sig == builtSig && vertexCount > 0) {
+            entityCount = found.size();
+            return true;
+        }
+        boolean built = build(anchorX, anchorY, anchorZ, models, partialTick);
+        builtSig = built ? sig : 0L;
+        return built;
     }
 
     public long gather(Level level, double lx, double ly, double lz, float range, float partialTick) {
@@ -61,6 +70,7 @@ public final class EntityOccluders {
     }
 
     public boolean build(int anchorX, int anchorY, int anchorZ, boolean models, float partialTick) {
+        builtSig = 0L;
         vertexCount = 0;
         entityCount = 0;
         triFloats = 0;
@@ -124,6 +134,7 @@ public final class EntityOccluders {
         if (upload != null) { MemoryUtil.memFree(upload); upload = null; }
         found.clear();
         vertexCount = 0;
+        builtSig = 0L;
     }
 
     private static long mix(long h, long v) {

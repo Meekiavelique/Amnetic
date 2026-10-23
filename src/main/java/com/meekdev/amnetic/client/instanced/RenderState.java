@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.instanced;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import org.lwjgl.opengl.GL11;
 
@@ -45,7 +46,7 @@ public final class RenderState {
     public void apply() {
         if (depthTest) {
             GlStateManager._enableDepthTest();
-            GlStateManager._depthFunc(GL11.GL_LEQUAL);
+            GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
         } else {
             GlStateManager._disableDepthTest();
         }

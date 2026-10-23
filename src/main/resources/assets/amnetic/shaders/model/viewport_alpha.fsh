@@ -1,4 +1,5 @@
 #version 330 core
+#include "amnetic:shaders/common/depth.glsl"
 
 in vec2 vUV;
 
@@ -8,6 +9,6 @@ out vec4 FragColor;
 
 void main() {
     float d = texture(DepthSampler, vUV).r;
-    if (d >= 1.0) discard;
+    if (IS_SKY(d)) discard;
     FragColor = vec4(0.0, 0.0, 0.0, 1.0);
 }

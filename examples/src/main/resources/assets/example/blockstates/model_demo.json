@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "example:block/model_demo" }
+  }
+}

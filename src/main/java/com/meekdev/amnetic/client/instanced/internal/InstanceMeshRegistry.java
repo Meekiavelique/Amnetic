@@ -213,8 +213,12 @@ public final class InstanceMeshRegistry {
     // view-proj. must run after renderAll for the geometry phases so each entry's instance buffer reflects
     // the current frame
     public void renderShadow(Matrix4f lightViewProj) {
+        renderShadow(lightViewProj, 0.0, 0.0, 0.0, Float.POSITIVE_INFINITY);
+    }
+
+    public void renderShadow(Matrix4f lightViewProj, double x, double y, double z, float range) {
         for (InstanceMeshEntry<?> entry : entries) {
-            if (!entry.castsShadow()) continue;
+            if (!entry.castsShadow() || !entry.reaches(x, y, z, range)) continue;
             try {
                 entry.renderShadow(lightViewProj);
             } catch (Exception e) {

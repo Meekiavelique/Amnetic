@@ -241,7 +241,7 @@ public final class WorldSurfaceRenderer {
             GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         } else {
             GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
-            GL11.glDepthFunc(GL11.GL_LEQUAL);
+            GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
         }
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
 
@@ -286,7 +286,7 @@ public final class WorldSurfaceRenderer {
             GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         } else {
             GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
-            GL11.glDepthFunc(GL11.GL_LEQUAL);
+            GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
             // a surface lying on a face would otherwise fight the face for the same depth
             GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
             GL11.glPolygonOffset(-1f, -2f);
@@ -309,7 +309,11 @@ public final class WorldSurfaceRenderer {
 
     public void tick(Minecraft mc) {
         pointerOverSurface = false;
+        //? if >=26.2 {
+        /*if (mc.player == null || mc.gui.screen() != null || surfaces.isEmpty()) return;
+        *///?} else {
         if (mc.player == null || mc.screen != null || surfaces.isEmpty()) return;
+        //?}
         Vec3 eye = mc.player.getEyePosition();
         Vec3 look = mc.player.getLookAngle();
         CameraSnapshot camera = CameraSnapshot.current();

@@ -2,6 +2,7 @@ package com.meekdev.amnetic.client.model.internal;
 
 import java.util.List;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.instanced.RenderState;
 import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.model.ModelLook;
@@ -50,7 +51,7 @@ public final class OffscreenModelRenderer implements AutoCloseable {
         GlStateManager._activeTexture(GL13.GL_TEXTURE1);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         RenderState.DEFAULT.apply();
-        GL11.glDepthFunc(GL11.GL_LEQUAL);
+        GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
         shader.bind();
         try {
             // this program is separate from ModelRegistry's so it never gets the per-frame lighting upload,
@@ -58,6 +59,9 @@ public final class OffscreenModelRenderer implements AutoCloseable {
             shader.uploadLighting(ModelLighting.INSTANCE);
             shader.uploadProjView(projView);
             shader.uploadEmissiveStrength(emissiveStrength);
+            GlStateManager._activeTexture(GL13.GL_TEXTURE0 + ModelShader.LIGHTMAP_UNIT);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, VanillaCompat.levelLightmapGlId());
+            GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             GpuModel.DrawInstance instance = new GpuModel.DrawInstance(world, pose, block, sky, look);
             gpu.draw(shader, List.of(instance));
             return true;

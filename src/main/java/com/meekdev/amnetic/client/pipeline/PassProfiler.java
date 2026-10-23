@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL33;
+
 // timing per registered pass, keyed by stage + label: CPU wall-clock around pass.render (submit time)
 // and actual GPU execution time via a timer query. these can diverge a lot - GL calls queue async, so a
 // GPU-bound pass looks nearly free on the CPU timeline while it's the real bottleneck.
@@ -70,6 +73,48 @@ public final class PassProfiler {
 
     Entry entry(RenderStage stage, String label) {
         return entries.computeIfAbsent(stage + "/" + label, k -> new Entry(stage, label));
+    }
+
+    // timestamp based timing for work outside the pipeline, safe to nest inside a timed pass
+    private static final class Stamp {
+        final int[] queries = new int[8];
+        final boolean[] pending = new boolean[4];
+        int write, read;
+        long cpuStart;
+        boolean open;
+
+        Stamp() {
+            GL15.glGenQueries(queries);
+        }
+    }
+
+    private final Map<String, Stamp> stamps = new ConcurrentHashMap<>();
+
+    public void begin(String label) {
+        if (!active()) return;
+        Stamp s = stamps.computeIfAbsent(label, k -> new Stamp());
+        Entry e = entries.computeIfAbsent(label, k -> new Entry(null, label));
+        while (s.pending[s.read] && GL15.glGetQueryObjecti(s.queries[s.read * 2 + 1], GL15.GL_QUERY_RESULT_AVAILABLE) != 0) {
+            long a = GL33.glGetQueryObjecti64(s.queries[s.read * 2], GL15.GL_QUERY_RESULT);
+            long b = GL33.glGetQueryObjecti64(s.queries[s.read * 2 + 1], GL15.GL_QUERY_RESULT);
+            e.gpu((b - a) / 1_000_000f);
+            s.pending[s.read] = false;
+            s.read = (s.read + 1) % 4;
+        }
+        s.open = !s.pending[s.write];
+        if (!s.open) return;
+        GL33.glQueryCounter(s.queries[s.write * 2], GL33.GL_TIMESTAMP);
+        s.cpuStart = System.nanoTime();
+    }
+
+    public void end(String label) {
+        Stamp s = stamps.get(label);
+        if (s == null || !s.open) return;
+        GL33.glQueryCounter(s.queries[s.write * 2 + 1], GL33.GL_TIMESTAMP);
+        s.pending[s.write] = true;
+        s.write = (s.write + 1) % 4;
+        s.open = false;
+        entries.get(label).cpu(System.nanoTime() - s.cpuStart);
     }
 
     // time something that is not a pass, like script work, so it lists next to the passes

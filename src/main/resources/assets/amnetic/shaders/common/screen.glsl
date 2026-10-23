@@ -1,3 +1,4 @@
+#include "amnetic:shaders/common/depth.glsl"
 vec3 reconstruct(vec2 uv, float depth) {
     float z = (ZeroToOne == 1) ? depth : depth * 2.0 - 1.0;
     vec4 clip = vec4(uv * 2.0 - 1.0, z, 1.0);
@@ -10,7 +11,7 @@ vec3 reconstruct(vec2 uv, float depth) {
 // sides and either derivative would extrapolate across it, so return zero and let betterNormal
 // fall back
 vec3 betterAxis(vec2 uv, vec3 P, vec2 offset, float dNeg, float dPos, float c) {
-    float threshold = max(c * 0.01, 1e-5);
+    float threshold = max(FORWARD_DEPTH(c) * 0.01, 1e-5);
     bool negBad = abs(dNeg - c) > threshold;
     bool posBad = abs(dPos - c) > threshold;
     if (negBad && posBad) return vec3(0.0);

@@ -33,7 +33,12 @@ dependencies {
     val mc = sc.current.version
     val lwjgl: String = sc.properties["deps.lwjgl"]
     val fabricApi: String = sc.properties["deps.fabric_api"]
-    val imguimc = "foundry.imguimc:imguimc-fabric-${if (sc.current.parsed >= "26.1") "26.1" else mc}:${property("deps.imguimc")}"
+    val imguimcMc = when {
+        sc.current.parsed >= "26.2" -> "26.2"
+        sc.current.parsed >= "26.1" -> "26.1"
+        else -> mc
+    }
+    val imguimc = "foundry.imguimc:imguimc-fabric-$imguimcMc:${property("deps.imguimc")}"
 
     minecraft("com.mojang:minecraft:$mc")
     loomx.applyMojangMappings()
@@ -86,7 +91,8 @@ val absentClasses: List<String> = buildList {
     if (sc.current.parsed < "1.21.5") addAll(listOf("mixin/GlCommandEncoderMixin", "client/render/MeshPipeline",
             "client/entityfx/internal/EntityEffectPipeline", "client/framebuffer/internal/WrappedGlTexture",
             "mixin/accessor/RenderTypeInvoker"))
-    if (sc.current.parsed >= "1.21.5") add("mixin/accessor/LightTextureAccessor")
+    if (sc.current.parsed >= "1.21.5") addAll(listOf("mixin/accessor/LightTextureAccessor", "mixin/BufferUploaderMixin"))
+    if (sc.current.parsed < "26.2") add("mixin/accessor/GameRendererAccessor")
 }
 
 tasks {

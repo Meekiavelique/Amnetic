@@ -10,9 +10,23 @@ public abstract class ScreenPass {
     private final FailureGuard guard;
     private ShaderProgram program;
 
+    private static final java.util.Set<ScreenPass> ALL = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
     protected ScreenPass(String name) {
         this.log = LoggerFactory.getLogger("Amnetic/" + name);
         this.guard = new FailureGuard(name, 60);
+        ALL.add(this);
+    }
+
+    // builds the program objects of every pass made so far, the actual links happen in ShaderProgram.warmOne
+    public static void prepareAll() {
+        for (ScreenPass pass : new java.util.ArrayList<>(ALL)) {
+            if (pass.program != null) continue;
+            try {
+                pass.program = pass.createProgram();
+            } catch (RuntimeException ignored) {
+            }
+        }
     }
 
     protected abstract ShaderProgram createProgram();
