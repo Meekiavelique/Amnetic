@@ -48,6 +48,8 @@ uniform vec4 LightPos[4];
 uniform vec4 LightCol[4];
 uniform vec4 LightDir[4];
 uniform int LightCount;
+// rain falling on the liquid: amount 0..1, ripple cells per world unit, ripple slope
+uniform vec3 RainRipples;
 
 #include "amnetic:shaders/common/screen.glsl"
 
@@ -74,6 +76,37 @@ float filmThickness(vec2 st) {
     return e * e * MaxThickness;
 }
 
+// expanding rings from drops hitting the liquid, 3 offset layers of random cells, one drop per cell
+// gives the slope to bend the normal with, z is a tiny splash flash right where a drop just landed
+vec3 filmRain(vec2 w, float amount) {
+    vec3 acc = vec3(0.0);
+    for (int l = 0; l < 3; l++) {
+        float fl = float(l);
+        vec2 p = w * RainRipples.y * (1.0 + fl * 0.37) + vec2(fl * 17.3, fl * 31.7);
+        vec2 id = floor(p);
+        vec2 f = fract(p);
+        float h0 = filmHash(id + fl * 3.1);
+        // more cells get a drop the harder it rains
+        if (h0 > amount * 0.85 + 0.05) continue;
+        float h1 = filmHash(id + vec2(5.2, 1.3) + fl);
+        float h2 = filmHash(id + vec2(2.7, 8.9) + fl);
+        // the ring stays inside its cell so neighbours never need checking
+        vec2 c = vec2(0.3) + 0.4 * vec2(h1, h2);
+        float life = fract(Time * (0.9 + 0.35 * fl + 0.3 * h1) + h0 * 7.0);
+        vec2 d = f - c;
+        float r = length(d);
+        float radius = life * 0.3;
+        float band = (r - radius) / 0.07;
+        if (abs(band) < 1.0) {
+            float fade = (1.0 - life) * (1.0 - life);
+            float g = sin(band * 6.2832) * (1.0 - abs(band)) * fade;
+            acc.xy += d / max(r, 1e-4) * g;
+        }
+        if (life < 0.1) acc.z += (1.0 - life * 10.0) * (1.0 - smoothstep(0.0, 0.05, r));
+    }
+    return acc;
+}
+
 struct FilmSample {
     vec3 P;
     vec3 N;
@@ -87,6 +120,8 @@ struct FilmSample {
     float sky;
     float block;
     float mask; // on the right floor and facing up
+    float splash; // drop impacts, 0..1
+    float dist; // distance from the camera
 };
 
 bool filmSample(out FilmSample s) {
@@ -164,6 +199,15 @@ bool filmSample(out FilmSample s) {
         float r2 = filmNoise(rp + vec2(1.7, 4.2) - vec2(tm * 0.6, tm));
         grad += (vec2(r1, r2) - 0.5) * Flow.y * a.a;
     }
+    // rain rings, faded out with distance before they turn to aliasing noise
+    float splash = 0.0;
+    // only under open sky, sky light drops off as soon as something covers the spot
+    float rainFade = RainRipples.x * (1.0 - smoothstep(16.0, 36.0, dist)) * smoothstep(0.86, 0.97, b.b);
+    if (rainFade > 0.001 && cov > 0.01) {
+        vec3 rr = filmRain(w, RainRipples.x);
+        grad += rr.xy * RainRipples.z * rainFade;
+        splash = clamp(rr.z, 0.0, 1.0) * rainFade;
+    }
     vec3 N = normalize(Ng + vec3(-grad.x, 0.0, -grad.y) * cov);
 
     s.P = P;
@@ -178,5 +222,7 @@ bool filmSample(out FilmSample s) {
     s.sky = b.b;
     s.block = b.a;
     s.mask = mask;
+    s.splash = splash * cov;
+    s.dist = dist;
     return true;
 }
