@@ -19,6 +19,7 @@ public final class ModelIR {
     private final List<Node> nodes = new ArrayList<>();
     private final List<Animation> animations = new ArrayList<>();
     private String name = "model";
+    private java.nio.file.Path textures;
 
     public List<Part> parts() {
         return parts;
@@ -38,6 +39,15 @@ public final class ModelIR {
 
     public String name() {
         return name;
+    }
+
+    // where the processed textures this model names by key live, null when it names none
+    public java.nio.file.Path textures() {
+        return textures;
+    }
+
+    public void setTextures(java.nio.file.Path textures) {
+        this.textures = textures;
     }
 
     public void setName(String name) {
@@ -84,6 +94,9 @@ public final class ModelIR {
         public final Matrix4f transform;
         public final String name;
 
+        // rgba per vertex from COLOR_0, multiplied into the base colour, null when the file has none
+        public float[] colors;
+
         public float[] jointIndices;
         public float[] jointWeights;
         public int[] jointNodes;
@@ -93,6 +106,8 @@ public final class ModelIR {
         // null until ModelLod finishes on a background thread, volatile for that cross-thread publish
         // skinned parts are not simplified
         public volatile int[][] lods;
+        // how far each level's surface strays from the full one at worst, in the part's own units
+        public volatile float[] lodErrors;
 
         public Part(float[] vertices, float[] tangents, int[] indices, int materialIndex,
                     int nodeIndex, Matrix4fc transform, String name) {
@@ -111,6 +126,10 @@ public final class ModelIR {
 
         public boolean hasIndices() {
             return indices != null && indices.length > 0;
+        }
+
+        public boolean hasColors() {
+            return colors != null && colors.length >= vertexCount() * 4;
         }
 
         public boolean hasTangents() {
@@ -146,6 +165,8 @@ public final class ModelIR {
         public int shadingModelId = 0; // 0 = built-in default PBR, else ShadingModelRegistry id
         public boolean blend = false;
         public boolean doubleSided = false;
+        // KHR_materials_unlit, drawn as its base colour with no light
+        public boolean unlit = false;
 
         public byte[] baseColorImageBytes;
         public Identifier baseColorTexture;
@@ -155,6 +176,12 @@ public final class ModelIR {
         public Identifier ormTexture;
         public byte[] emissiveImageBytes;
         public Identifier emissiveTexture;
+
+        // processed textures in ModelIR.textures() by key, see TextureCache
+        public String baseColorImageKey;
+        public String normalImageKey;
+        public String ormImageKey;
+        public String emissiveImageKey;
     }
 
     public static final class Node {
@@ -187,7 +214,9 @@ public final class ModelIR {
     public enum Interp {
         STEP,
         LINEAR,
-        CATMULLROM
+        CATMULLROM,
+        // gltf cubic spline, each key holds in tangent, value, out tangent
+        CUBICSPLINE
     }
 
     public static final class Channel {

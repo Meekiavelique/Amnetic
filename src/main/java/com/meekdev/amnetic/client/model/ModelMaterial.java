@@ -89,18 +89,21 @@ public final class ModelMaterial {
     public ModelMaterial setBaseColorTexture(Identifier texture) {
         mat.baseColorTexture = texture;
         mat.baseColorImageBytes = null;
+        mat.baseColorImageKey = null;
         return this;
     }
 
     public ModelMaterial setNormalTexture(Identifier texture) {
         mat.normalTexture = texture;
         mat.normalImageBytes = null;
+        mat.normalImageKey = null;
         return this;
     }
 
     public ModelMaterial setMetallicRoughnessTexture(Identifier texture) {
         mat.ormTexture = texture;
         mat.ormImageBytes = null;
+        mat.ormImageKey = null;
         return this;
     }
 
@@ -120,23 +123,26 @@ public final class ModelMaterial {
         mat.emissiveGlId = glId;
         mat.emissiveTexture = null;
         mat.emissiveImageBytes = null;
+        mat.emissiveImageKey = null;
         return this;
     }
 
     public ModelMaterial setEmissiveTexture(Identifier texture) {
         mat.emissiveTexture = texture;
         mat.emissiveImageBytes = null;
+        mat.emissiveImageKey = null;
         return this;
     }
 
     public ModelMaterial clearBaseColorTexture() {
         mat.baseColorTexture = null;
         mat.baseColorImageBytes = null;
+        mat.baseColorImageKey = null;
         return this;
     }
 
     public boolean hasBaseColorTexture() {
-        return mat.baseColorTexture != null || mat.baseColorImageBytes != null;
+        return mat.baseColorTexture != null || mat.baseColorImageBytes != null || mat.baseColorImageKey != null;
     }
 
     public float baseR() {

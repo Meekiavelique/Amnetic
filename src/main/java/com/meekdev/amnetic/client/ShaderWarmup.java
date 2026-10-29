@@ -7,10 +7,11 @@ import com.meekdev.amnetic.client.grade.internal.ColorGradePass;
 import com.meekdev.amnetic.client.light.internal.DeferredLightingPass;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
 import com.meekdev.amnetic.client.render.ScreenPass;
+import com.meekdev.amnetic.client.render.ProgramLink;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 
-// compiles shaders a little at a time from the first ticks on, so nothing links mid game.
-// a first link can take seconds on some drivers, which shows up as a freeze the first time an effect appears
+// starts every shader the engine knows about from the first ticks on and takes them in as the driver finishes,
+// so nothing links mid game. a first link can take seconds without a driver cache, which used to show up as a freeze
 public final class ShaderWarmup {
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Amnetic/ShaderWarmup");
     private static int ticks, warmed;
@@ -36,17 +37,17 @@ public final class ShaderWarmup {
         if (ticks++ % 40 == 0) ScreenPass.prepareAll();
         boolean worked;
         try {
-            worked = PostEffectRegistry.INSTANCE.warmOne();
+            worked = PostEffectRegistry.INSTANCE.warm();
         } catch (RuntimeException ignored) {
             worked = true;
         }
-        if (!worked) worked = ShaderProgram.warmOne();
+        if (ShaderProgram.warm()) worked = true;
         if (worked) {
             warmed++;
             announced = false;
         } else if (!announced && warmed > 0) {
             announced = true;
-            LOG.info("warmed {} shader programs ahead of use", warmed);
+            LOG.info("linked shader programs ahead of use: {}", ProgramLink.stats());
         }
     }
 }

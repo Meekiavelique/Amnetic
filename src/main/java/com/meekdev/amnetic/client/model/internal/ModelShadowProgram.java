@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.render.ProgramLink;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import java.nio.FloatBuffer;
 
@@ -8,7 +9,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
 
@@ -18,14 +18,21 @@ final class ModelShadowProgram implements AutoCloseable {
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/shadow.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/shadow.fsh");
 
-    private final int program;
-    private final int projViewLoc;
-    private final int skinnedLoc;
-    private final int jointMatricesLoc;
-    private final int alphaCutoffLoc;
-    private final int hasAlbedoLoc;
+    private int program;
+    private int projViewLoc;
+    private int skinnedLoc;
+    private int jointMatricesLoc;
+    private int alphaCutoffLoc;
+    private int hasAlbedoLoc;
 
-    private ModelShadowProgram(int program) {
+    private ProgramLink link;
+    private boolean failed;
+
+    private ModelShadowProgram(ProgramLink link) {
+        this.link = link;
+    }
+
+    private void linked(int program) {
         this.program = program;
         this.projViewLoc = uniform("ProjViewMatrix");
         this.skinnedLoc = uniform("Skinned");
@@ -35,22 +42,27 @@ final class ModelShadowProgram implements AutoCloseable {
         bindSamplerUnits();
     }
 
+    // starts compiling, it bakes once ready() says so
     static ModelShadowProgram load() {
-        int vs = compile(GL20.GL_VERTEX_SHADER, loadSource(VSH), VSH);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, loadSource(FSH), FSH);
-        int prog = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(prog, vs);
-        GlStateManager.glAttachShader(prog, fs);
-        GlStateManager.glLinkProgram(prog);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            int length = GlStateManager.glGetProgrami(prog, GL20.GL_INFO_LOG_LENGTH);
-            String log = GlStateManager.glGetProgramInfoLog(prog, Math.max(length, 512));
-            GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("Failed to link model shadow shader: " + log);
+        return new ModelShadowProgram(ProgramLink.builder("model shadow shader")
+                .vertex(loadSource(VSH), VSH)
+                .fragment(loadSource(FSH), FSH)
+                .start());
+    }
+
+    // true once it can draw, false while the driver is still on it or when it did not build
+    boolean ready() {
+        if (program != 0) return true;
+        if (failed || link == null || !link.ready()) return false;
+        ProgramLink done = link;
+        link = null;
+        if (done.failed()) {
+            failed = true;
+            org.slf4j.LoggerFactory.getLogger("Amnetic/Model").error("model shadow shader does not build: {}", done.problem());
+            return false;
         }
-        return new ModelShadowProgram(prog);
+        linked(done.program());
+        return true;
     }
 
     void bind() {
@@ -110,27 +122,17 @@ final class ModelShadowProgram implements AutoCloseable {
         return GlStateManager._glGetUniformLocation(program, name);
     }
 
-    private static int compile(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            int length = GlStateManager.glGetShaderi(shader, GL20.GL_INFO_LOG_LENGTH);
-            String log = GlStateManager.glGetShaderInfoLog(shader, Math.max(length, 512));
-            GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("Failed to compile model shadow shader " + id + ": " + log);
-        }
-        return shader;
-    }
-
     private static String loadSource(Identifier id) {
         return ShaderProgram.readSource(id);
     }
 
     @Override
     public void close() {
+        if (link != null) link.delete();
+        link = null;
         if (program != 0) {
             GlStateManager.glDeleteProgram(program);
+            program = 0;
         }
     }
 }

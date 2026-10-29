@@ -1,6 +1,9 @@
 package com.meekdev.amnetic.client.model.internal.ammesh;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -78,11 +81,19 @@ public final class AmmeshScanner {
 
     private static void convertOne(Identifier source) {
         try {
-            byte[] sourceBytes = AmmeshCache.readResourceBytes(source);
+            byte[] sourceBytes = readResourceBytes(source);
             if (AmmeshCache.INSTANCE.getCached(source, sourceBytes).isPresent()) return;
             AmmeshCache.INSTANCE.convertAndStore(source, sourceBytes);
         } catch (Throwable e) {
             LOG.error("Amnetic: failed to convert model {} to .ammesh", source, e);
+        }
+    }
+
+    static byte[] readResourceBytes(Identifier source) throws IOException {
+        Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(source);
+        if (res.isEmpty()) throw new IOException("Model resource not found: " + source);
+        try (InputStream is = res.get().open()) {
+            return is.readAllBytes();
         }
     }
 }

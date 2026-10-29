@@ -24,6 +24,7 @@ public final class WorldSurface {
     private int resolution = 256;
     private float maxDistance = 8f;
     private boolean alwaysOnTop;
+    private boolean view;
     private boolean visible = true;
     private boolean removed;
     private Consumer<Framebuffer> filter;
@@ -80,6 +81,10 @@ public final class WorldSurface {
     public WorldSurface resolution(int pxPerMeter) { resolution = Math.max(16, pxPerMeter); return this; }
     public WorldSurface maxDistance(float meters) { maxDistance = meters; return this; }
     public WorldSurface alwaysOnTop(boolean top) { alwaysOnTop = top; return this; }
+
+    // placed relative to the eye instead of the world and drawn only by renderView, for first person panels
+    public WorldSurface view(boolean v) { view = v; return this; }
+    public boolean viewValue() { return view; }
 
     public WorldSurface setVisible(boolean v) { visible = v; return this; }
     public boolean isVisible() { return visible && !removed; }

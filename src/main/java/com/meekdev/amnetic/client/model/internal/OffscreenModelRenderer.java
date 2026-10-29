@@ -39,6 +39,11 @@ public final class OffscreenModelRenderer implements AutoCloseable {
                 return false;
             }
         }
+        // nothing draws until the driver is done with the shader
+        if (!shader.ready()) {
+            if (shader.failed()) failed = true;
+            return false;
+        }
 
         // the GUI phase drives GL through RenderPass encoders that bypass GlStateManager's caches, so its
         // cached depth/cull/blend/activeTexture flags can be stale here and apply() would silently no-op,

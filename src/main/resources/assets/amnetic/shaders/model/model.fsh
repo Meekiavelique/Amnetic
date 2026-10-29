@@ -7,6 +7,8 @@ in vec2 vUV;
 in vec4 vLight;
 in vec3 vWorldPos;
 in vec3 vMotion;
+in vec4 vColor;
+noperspective in vec2 vUVFlat;
 
 layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 GNormal;
@@ -44,6 +46,8 @@ uniform float EmissiveStrength;
 uniform float Transmission;
 uniform vec4 UvTransform; // xy repeat, zw offset
 uniform int DoubleSided;
+uniform float TextureWarp; // 0 perspective correct uvs, 1 affine like a psx
+uniform int Unlit; // base colour as is, no light
 uniform int AlbedoEncoded; // the base colour map is plain rgb8, not srgb
 
 uniform samplerCube EnvCube; // prefiltered sky/env probe
@@ -105,8 +109,8 @@ vec3 computeNormal() {
 void main() {
     GVelocity = vec4(vMotion, 1.0);
     GShade = vec4(0.0);
-    materialUv = vUV * UvTransform.xy + UvTransform.zw;
-    vec4 albedo = BaseColor;
+    materialUv = mix(vUV, vUVFlat, TextureWarp) * UvTransform.xy + UvTransform.zw;
+    vec4 albedo = BaseColor * vColor;
     if (HasAlbedo == 1) {
         vec4 sampled = texture(AlbedoSampler, materialUv);
         if (AlbedoEncoded == 1) sampled.rgb = pow(sampled.rgb, vec3(2.2));
@@ -192,6 +196,16 @@ void main() {
     float lightmapEncoded = (blockIdx * 16.0 + skyIdx) / 255.0;
     GNormal = vec4(N, 1.0);
     GAlbedo = vec4(albedo.rgb, 1.0);
+
+    if (Unlit == 1) {
+        // black published albedo keeps local lights off it, no shares keeps shadows and ao off
+        FragColor = vec4(pow(max(albedo.rgb + emissive, 0.0), vec3(1.0 / 2.2)), albedo.a);
+        GAlbedo = vec4(0.0, 0.0, 0.0, 1.0);
+        GMaterial = vec4(1.0, 0.0, materialIdNorm, lightmapEncoded);
+        GEmissive = vec4(0.0);
+        GShade = vec4(0.0, 0.0, 1.0, 1.0);
+        return;
+    }
 
     if (MaterialId >= FLAT_SHADED_BASE) {
         vec3 n = normalize(N);

@@ -18,9 +18,9 @@ import com.meekdev.amnetic.client.taa.internal.TaaJitter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.joml.Matrix4f;
-//? if >=26.2 {
-/*import net.minecraft.client.renderer.Projection;
-*///?}
+//? if >=26.1 {
+import net.minecraft.client.renderer.Projection;
+//?}
 //? if >=26.1 {
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
@@ -64,9 +64,9 @@ public abstract class GameRendererMixin {
     @Unique private static int amnetic$handVertexArray;
     //?}
 
-    //? if >=26.2 {
-    /*@Shadow @Final private Projection hudProjection;
-    *///?}
+    //? if >=26.1 {
+    @Shadow @Final private Projection hudProjection;
+    //?}
     //? if >=26.1 {
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void amnetic$skipHandInCapture(CameraRenderState cam, float partialTick, Matrix4fc handMatrix, CallbackInfo ci) {
@@ -74,12 +74,8 @@ public abstract class GameRendererMixin {
             ci.cancel();
             return;
         }
-        //? if >=26.2 {
-        /*// 26.2 passes the camera model view here, the hand projection lives in hudProjection
+        // 26.1 and later pass the camera model view here, the hand projection lives in hudProjection
         Matrix4fc handProjection = hudProjection.getMatrix(new Matrix4f());
-        *///?} else {
-        Matrix4fc handProjection = handMatrix;
-        //?}
     //?} else if >=1.21.5 {
     /*@Shadow @Final private Camera mainCamera;
     @Shadow @Final private Minecraft minecraft;

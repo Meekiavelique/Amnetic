@@ -107,34 +107,11 @@ public final class Geometry {
         if (program != 0) {
             return;
         }
-        int vs = compile(GL20.GL_VERTEX_SHADER, load(VSH), VSH);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, load(FSH), FSH);
-        program = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(program, vs);
-        GlStateManager.glAttachShader(program, fs);
-        GlStateManager.glLinkProgram(program);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(program, 1024);
-            GlStateManager.glDeleteProgram(program);
-            program = 0;
-            throw new RuntimeException("Failed to link flat geometry shader: " + log);
-        }
+        ProgramLink link = ProgramLink.builder("flat geometry shader").vertex(load(VSH), VSH).fragment(load(FSH), FSH).start();
+        if (link.failed()) throw new RuntimeException("Failed to build flat geometry shader: " + link.problem());
+        program = link.program();
         mvpLoc = GlStateManager._glGetUniformLocation(program, "Mvp");
         colorLoc = GlStateManager._glGetUniformLocation(program, "Color");
-    }
-
-    private static int compile(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 1024);
-            GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("Failed to compile " + id + ": " + log);
-        }
-        return shader;
     }
 
     private static String load(Identifier id) {

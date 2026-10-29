@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.model;
 
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
+import com.meekdev.amnetic.client.model.internal.DrawCounts;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import com.meekdev.amnetic.client.model.internal.ModelRegistry;
 import com.meekdev.amnetic.client.model.internal.ammesh.AmmeshCache;
@@ -74,6 +75,11 @@ public final class Models {
 
     public static void onFrame(Consumer<InstanceRenderContext> callback) {
         ModelRegistry.INSTANCE.onFrame(callback);
+    }
+
+    // what the model pass drew in the last frame
+    public static ModelStats stats() {
+        return DrawCounts.last();
     }
 
     private static ModelIR parse(byte[] bytes, ModelFormat format, Identifier source) {

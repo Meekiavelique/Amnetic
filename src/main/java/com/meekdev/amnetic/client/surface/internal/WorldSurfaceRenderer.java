@@ -21,7 +21,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
+import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.BufferUtils;
@@ -51,6 +53,8 @@ public final class WorldSurfaceRenderer {
     private final Map<WorldSurface, float[]> pickTris = new HashMap<>();
 
     private boolean attackWasDown;
+    private final Matrix4f viewProj = new Matrix4f();
+    private long viewDrawnAt;
     private boolean pointerOverSurface;
 
     private WorldSurfaceRenderer() {}
@@ -113,12 +117,12 @@ public final class WorldSurfaceRenderer {
         Vec3 eye = fc.camera().eye;
 
         for (WorldSurface s : surfaces) {
-            if (!s.isVisible()) continue;
+            if (!s.isVisible() || s.viewValue()) continue;
             double dist = eye.distanceTo(new Vec3(s.xPos(), s.yPos(), s.zPos()));
             if (dist > s.maxDistanceValue() + 16) continue;
             try {
                 if (!direct(s)) renderCanvas(s);
-                drawInWorld(s, fc);
+                drawInWorld(s, eye, fc.camera().viewProj);
             } catch (Exception e) {
                 LOG.warn("world surface draw failed, hiding it", e);
                 s.setVisible(false);
@@ -161,9 +165,44 @@ public final class WorldSurfaceRenderer {
         if (s.filterValue() != null) s.filterValue().accept(fb);
     }
 
-    private void drawInWorld(WorldSurface s, FrameContext fc) {
+    // surfaces marked view, placed relative to the eye with the world axes, drawn into the main target
+    // with projView taking those eye relative points to the screen. called by the first person pass
+    public void renderView(Matrix4fc projView) {
+        viewProj.set(projView);
+        viewDrawnAt = System.nanoTime();
+        boolean any = false;
+        for (WorldSurface s : surfaces) {
+            if (!s.isVisible() || !s.viewValue()) continue;
+            any = true;
+            if (!direct(s)) {
+                try {
+                    renderCanvas(s);
+                } catch (Exception e) {
+                    LOG.warn("view surface canvas failed, hiding it", e);
+                    s.setVisible(false);
+                }
+            }
+        }
+        if (!any) return;
+        int previous = MainTargetFramebuffer.bind();
+        if (previous == -1) return;
+        try {
+            for (WorldSurface s : surfaces) {
+                if (!s.isVisible() || !s.viewValue()) continue;
+                try {
+                    drawInWorld(s, Vec3.ZERO, viewProj);
+                } catch (Exception e) {
+                    LOG.warn("view surface draw failed, hiding it", e);
+                    s.setVisible(false);
+                }
+            }
+        } finally {
+            MainTargetFramebuffer.restore(previous);
+        }
+    }
+
+    private void drawInWorld(WorldSurface s, Vec3 eye, Matrix4fc viewProjection) {
         ensureGl();
-        Vec3 eye = fc.camera().eye;
 
         Vector3f n;
         Vector3f right;
@@ -220,7 +259,7 @@ public final class WorldSurfaceRenderer {
         grid.flip();
 
         if (direct(s)) {
-            drawDirect(s, fc, right, up, n);
+            drawDirect(s, eye, viewProjection, right, up, n);
             return;
         }
 
@@ -228,7 +267,7 @@ public final class WorldSurfaceRenderer {
         if (fb == null) return;
 
         program.begin();
-        program.setMatrix4("ViewProj", fc.camera().viewProj);
+        program.setMatrix4("ViewProj", new Matrix4f(viewProjection));
         program.setSampler("Canvas", 0);
         program.setFloat("Opacity", 1f);
         GlState.bindTexture(0, fb.colorTextureGlId(0));
@@ -262,8 +301,7 @@ public final class WorldSurfaceRenderer {
 
     // the widgets go through the ui batch with a matrix that takes canvas pixels onto the plane, so
     // the distance field text and the rounded edges are resolved on screen rather than in a texture
-    private void drawDirect(WorldSurface s, FrameContext fc, Vector3f right, Vector3f up, Vector3f n) {
-        Vec3 eye = fc.camera().eye;
+    private void drawDirect(WorldSurface s, Vec3 eye, Matrix4fc viewProjection, Vector3f right, Vector3f up, Vector3f n) {
         float w = s.canvasW(), h = s.canvasH();
         float wM = s.widthM(), hM = s.heightM();
         float sx = wM / w, sy = hM / h;
@@ -276,7 +314,7 @@ public final class WorldSurfaceRenderer {
                 -up.x * sy, -up.y * sy, -up.z * sy, 0,
                 n.x, n.y, n.z, 0,
                 ox, oy, oz, 1);
-        Matrix4f projection = new Matrix4f(fc.camera().viewProj).mul(plane);
+        Matrix4f projection = new Matrix4f(viewProjection).mul(plane);
 
         GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
@@ -326,14 +364,25 @@ public final class WorldSurfaceRenderer {
         float bestT = Float.MAX_VALUE;
         float bestU = 0, bestV = 0;
 
+        // a view surface sits in front of everything, so the cursor ray in its own space wins when it hits.
+        // with the mouse grabbed it is a hud and must not eat clicks, so it is not aimed at
+        boolean free = !mc.mouseHandler.isMouseGrabbed();
+        Vec3 viewLook = free && System.nanoTime() - viewDrawnAt < VIEW_STALE ? viewAim(mc, camera) : null;
+        boolean viewHit = false;
         for (WorldSurface s : surfaces) {
             if (!s.isVisible()) continue;
+            if (s.viewValue() && viewLook == null) continue;
+            if (viewHit && !s.viewValue()) continue;
             float[] tris = pickTris.get(s);
             if (tris == null) continue;
             int segs = tris.length / 18;
+            Vec3 from = s.viewValue() ? Vec3.ZERO : eye;
+            Vec3 toward = s.viewValue() ? viewLook : look;
             for (int i = 0; i < segs * 2; i++) {
-                float[] hit = rayTriangle(eye, look, tris, i * 9);
-                if (hit != null && hit[0] < bestT && hit[0] <= s.maxDistanceValue()) {
+                float[] hit = rayTriangle(from, toward, tris, i * 9);
+                boolean nearer = s.viewValue() && !viewHit || hit != null && hit[0] < bestT;
+                if (hit != null && nearer && hit[0] <= s.maxDistanceValue()) {
+                    viewHit |= s.viewValue();
                     bestT = hit[0];
                     int seg = i / 2;
                     boolean second = (i & 1) == 1;
@@ -362,6 +411,20 @@ public final class WorldSurfaceRenderer {
             if (!attack && attackWasDown) best.internalInput().mouseUp(mx, my, 0);
         }
         attackWasDown = attack;
+    }
+
+    private static final long VIEW_STALE = 250_000_000L;
+
+    private Vec3 viewAim(Minecraft mc, CameraSnapshot camera) {
+        float x = (float) (mc.mouseHandler.xpos() / Math.max(1, mc.getWindow().getScreenWidth()) * 2 - 1);
+        float y = (float) (1 - mc.mouseHandler.ypos() / Math.max(1, mc.getWindow().getScreenHeight()) * 2);
+        Matrix4f inverse = new Matrix4f(viewProj).invert();
+        float near = camera != null && camera.zeroToOne ? 0 : -1;
+        Vector4f from = inverse.transform(new Vector4f(x, y, near, 1));
+        Vector4f to = inverse.transform(new Vector4f(x, y, 1, 1));
+        from.div(from.w);
+        to.div(to.w);
+        return new Vec3(to.x - from.x, to.y - from.y, to.z - from.z).normalize();
     }
 
     private static Vec3 aim(Minecraft mc, CameraSnapshot camera) {

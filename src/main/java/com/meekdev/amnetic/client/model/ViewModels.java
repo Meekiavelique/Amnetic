@@ -60,6 +60,16 @@ public final class ViewModels {
         capturedProjection.set(projection);
     }
 
+    // the hand projection with its field of view swapped, 0 or less keeps the hand's own
+    public static Matrix4f projection(float fovDegrees) {
+        Matrix4f out = new Matrix4f(capturedProjection);
+        if (fovDegrees <= 0 || out.m11() == 0) return out;
+        float focal = 1f / (float) Math.tan(Math.toRadians(Math.min(fovDegrees, 179f)) * 0.5);
+        float ratio = focal / out.m11();
+        // scaling the two focal terms keeps the depth half of the matrix, whatever depth convention it uses
+        return out.m00(out.m00() * ratio).m11(focal);
+    }
+
     // draws every visible handle, invoked from the GameRenderer mixin right after the vanilla hand
     public static void render() {
         if (handles.isEmpty()) {

@@ -17,6 +17,7 @@ layout(location = 11) in vec4 InstLast0;
 layout(location = 12) in vec4 InstLast1;
 layout(location = 13) in vec4 InstLast2;
 layout(location = 14) in vec4 InstLast3;
+layout(location = 15) in vec4 Color;
 
 uniform mat4 ProjViewMatrix;
 uniform int Skinned;
@@ -29,6 +30,7 @@ uniform int JointCount;
 uniform int PrevJointBase;
 uniform int MaterialId;
 uniform float Time;
+uniform int VertexColors;
 
 out vec3 vNormal;
 out vec3 vTangent;
@@ -37,6 +39,9 @@ out vec2 vUV;
 out vec4 vLight;
 out vec3 vWorldPos;
 out vec3 vMotion;
+out vec4 vColor;
+// the same uv without perspective correction, mixed in by TextureWarp
+noperspective out vec2 vUVFlat;
 
 #include "amnetic:shaders/material/custom_vertex_ladder.glsl"
 
@@ -123,6 +128,8 @@ void main() {
     vTangent = dot(localTangent, localTangent) > 1e-8 ? worldTangent : vec3(0.0);
     vBitangent = cross(vNormal, vTangent) * Tangent.w;
     vUV = UV;
+    vUVFlat = UV;
+    vColor = VertexColors == 1 ? Color : vec4(1.0);
     vLight = InstLight;
     vWorldPos = worldPos.xyz;
     vMotion = (model * localPos).xyz - (last * lastLocal).xyz;

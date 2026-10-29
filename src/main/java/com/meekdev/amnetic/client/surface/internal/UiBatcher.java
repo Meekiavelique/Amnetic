@@ -378,6 +378,18 @@ public final class UiBatcher {
         vert(x1, y1, u1, v1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
+    // one textured triangle with its own uv per corner, for shapes a quad can not make like a pie slice
+    public void imageTriangle(int texture, float x0, float y0, float u0, float v0, float x1, float y1, float u1, float v1,
+                              float x2, float y2, float u2, float v2, int argb, boolean nearest) {
+        segment(texture, nearest);
+        grow(3 * FLOATS);
+        float r = ((argb >> 16) & 0xFF) / 255f, g = ((argb >> 8) & 0xFF) / 255f;
+        float b = (argb & 0xFF) / 255f, a = ((argb >>> 24) & 0xFF) / 255f;
+        vert(x0, y0, u0, v0, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+        vert(x1, y1, u1, v1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+        vert(x2, y2, u2, v2, r, g, b, a, 2f, 0, 0, 0, 0, 0);
+    }
+
     // part of a texture on any four corners, top left, top right, bottom right, bottom left, which is
     // what slanted or turning text needs
     public void imageQuad(int texture, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,

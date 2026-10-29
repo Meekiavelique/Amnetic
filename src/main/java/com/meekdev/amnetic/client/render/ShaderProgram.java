@@ -36,20 +36,28 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     private boolean closed, warmFailed;
+    private ProgramLink link;
 
-    // links one program that has not been used yet, so the link stall lands at load time
-    // instead of mid game the first time an effect shows up. false once everything is linked
-    public static boolean warmOne() {
+    // starts every program nobody used yet and takes in the ones the driver finished, so the first use
+    // does not wait on a link mid game. false once everything is linked
+    public static boolean warm() {
+        boolean worked = false;
+        int starts = ProgramLink.parallel() ? Integer.MAX_VALUE : 1;
         for (ShaderProgram p : new ArrayList<>(LIVE.keySet())) {
             if (p == null || p.closed || p.program != 0 || p.warmFailed) continue;
+            worked = true;
             try {
-                p.ensure();
+                if (p.link == null) {
+                    if (starts-- > 0) p.start();
+                } else if (p.link.ready()) {
+                    p.ensure();
+                }
             } catch (RuntimeException e) {
                 p.warmFailed = true;
+                p.link = null;
             }
-            return true;
         }
-        return false;
+        return worked;
     }
 
     private final Identifier vshId;
@@ -87,6 +95,11 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     public void invalidate() {
+        if (link != null) {
+            link.delete();
+            link = null;
+        }
+        warmFailed = false;
         if (program != 0) {
             GlStateManager.glDeleteProgram(program);
             program = 0;
@@ -98,22 +111,27 @@ public final class ShaderProgram implements AutoCloseable {
         uniformLocations.clear();
     }
 
+    private void start() {
+        link = ProgramLink.builder(vshId + "/" + fshId)
+                .vertex(loadWithIncludes(vshId), vshId)
+                .fragment(loadWithIncludes(fshId), fshId)
+                .soon()
+                .start();
+    }
+
     private void ensure() {
         if (program != 0) return;
-        int vs = compile(GL20.GL_VERTEX_SHADER, loadWithIncludes(vshId), vshId);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, loadWithIncludes(fshId), fshId);
-        int prog = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(prog, vs);
-        GlStateManager.glAttachShader(prog, fs);
-        GlStateManager.glLinkProgram(prog);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(prog, 512);
-            GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("Failed to link shader (" + vshId + "/" + fshId + "): " + log);
+        if (link == null) start();
+        ProgramLink linking = link;
+        link = null;
+        if (linking.failed()) {
+            int stage = linking.failedStage();
+            Identifier id = stage == 0 ? vshId : fshId;
+            String dump = stage < 0 ? null : dumpSource(id, loadWithIncludes(id), linking.problem());
+            throw new RuntimeException("Failed to " + (stage < 0 ? "link" : "compile") + " shader (" + vshId + "/" + fshId + "): "
+                    + linking.problem() + (dump == null ? "" : "\nfull source written to " + dump));
         }
-        program = prog;
+        program = linking.program();
         vao = GlStateManager._glGenVertexArrays();
     }
 
@@ -201,6 +219,10 @@ public final class ShaderProgram implements AutoCloseable {
     @Override
     public void close() {
         closed = true;
+        if (link != null) {
+            link.delete();
+            link = null;
+        }
         if (program != 0) {
             GlStateManager.glDeleteProgram(program);
             program = 0;
@@ -210,21 +232,6 @@ public final class ShaderProgram implements AutoCloseable {
             vao = 0;
         }
         uniformLocations.clear();
-    }
-
-    private static int compile(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            int len = Math.max(GlStateManager.glGetShaderi(shader, GL20.GL_INFO_LOG_LENGTH), 512);
-            String log = GlStateManager.glGetShaderInfoLog(shader, len);
-            GlStateManager.glDeleteShader(shader);
-            String dump = dumpSource(id, src, log);
-            throw new RuntimeException("Failed to compile shader " + id + ": " + log
-                    + (dump == null ? "" : "\nfull source written to " + dump));
-        }
-        return shader;
     }
 
     private static String dumpSource(Identifier id, String src, String log) {

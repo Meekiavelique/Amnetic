@@ -210,13 +210,13 @@ public final class PostEffectEntry {
         }
     }
 
-    // compiles one program of this effect ahead of time, true when it did some work
+    // links the programs of this effect ahead of time, true while some are left
     public boolean warm() {
         if (pipelineFailed) return false;
         PostPipeline p = resolvePipeline();
         if (p == null) return false;
         try {
-            return p.warmOne();
+            return p.warm();
         } catch (RuntimeException e) {
             LOGGER.error("Failed to warm post effect {}: {}", pipelineResourcePath, e.getMessage());
             pipelineFailed = true;

@@ -47,6 +47,36 @@ public final class ModelLook {
         return false;
     }
 
+    // whether a draw with this look and one with other come out the same, the same piece and the same changes
+    // a material named on one side only counts as the same when it changes nothing
+    public boolean sameAs(ModelLook other) {
+        if (other == this) return true;
+        if (other == null || piece != other.piece || !all.sameAs(other.all)) return false;
+        return namedSame(named, other.named) && namedSame(other.named, named);
+    }
+
+    private static boolean namedSame(Map<String, MaterialLook> mine, Map<String, MaterialLook> theirs) {
+        for (Map.Entry<String, MaterialLook> entry : mine.entrySet()) {
+            MaterialLook other = theirs.get(entry.getKey());
+            if (!entry.getValue().sameAs(other == null ? PLAIN : other)) return false;
+        }
+        return true;
+    }
+
+    private static final MaterialLook PLAIN = new MaterialLook();
+
+    // equal for looks that are sameAs each other
+    public int contentHash() {
+        int h = System.identityHashCode(piece) * 31 + all.contentHash();
+        for (Map.Entry<String, MaterialLook> entry : named.entrySet()) {
+            int own = entry.getValue().contentHash();
+            if (own != PLAIN_HASH) h += entry.getKey().hashCode() ^ own;
+        }
+        return h;
+    }
+
+    private static final int PLAIN_HASH = PLAIN.contentHash();
+
     /** the changes that land on the material called name, all-material ones first */
     public MaterialLook resolve(String name) {
         merged.reset();

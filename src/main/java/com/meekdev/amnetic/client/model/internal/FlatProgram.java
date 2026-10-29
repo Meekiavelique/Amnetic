@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.render.ProgramLink;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
@@ -9,8 +10,8 @@ import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
+import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
 
@@ -22,6 +23,8 @@ public final class FlatProgram implements AutoCloseable {
     private int program;
     private int mvpLoc;
     private int colorLoc;
+    private int skinnedLoc;
+    private int jointsLoc;
 
     public void bind() {
         ensure();
@@ -44,38 +47,36 @@ public final class FlatProgram implements AutoCloseable {
         }
     }
 
+    void setSkinned(boolean skinned) {
+        if (skinnedLoc != -1) {
+            GL20.glUniform1i(skinnedLoc, skinned ? 1 : 0);
+        }
+    }
+
+    void uploadJointMatrices(Matrix4f[] palette, int count) {
+        if (jointsLoc == -1 || count <= 0) {
+            return;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            FloatBuffer buf = stack.mallocFloat(count * 16);
+            for (int i = 0; i < count; i++) {
+                palette[i].get(i * 16, buf);
+            }
+            GL20.glUniformMatrix4fv(jointsLoc, false, buf);
+        }
+    }
+
     private void ensure() {
         if (program != 0) {
             return;
         }
-        int vs = compile(GL20.GL_VERTEX_SHADER, load(VSH), VSH);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, load(FSH), FSH);
-        program = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(program, vs);
-        GlStateManager.glAttachShader(program, fs);
-        GlStateManager.glLinkProgram(program);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(program, 1024);
-            GlStateManager.glDeleteProgram(program);
-            program = 0;
-            throw new RuntimeException("Failed to link flat model shader: " + log);
-        }
+        ProgramLink link = ProgramLink.builder("flat model shader").vertex(load(VSH), VSH).fragment(load(FSH), FSH).start();
+        if (link.failed()) throw new RuntimeException("Failed to build flat model shader: " + link.problem());
+        program = link.program();
         mvpLoc = GlStateManager._glGetUniformLocation(program, "Mvp");
         colorLoc = GlStateManager._glGetUniformLocation(program, "Color");
-    }
-
-    private static int compile(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 1024);
-            GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("Failed to compile " + id + ": " + log);
-        }
-        return shader;
+        skinnedLoc = GlStateManager._glGetUniformLocation(program, "Skinned");
+        jointsLoc = GlStateManager._glGetUniformLocation(program, "JointMatrices");
     }
 
     private static String load(Identifier id) {

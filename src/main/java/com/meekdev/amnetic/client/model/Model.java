@@ -17,6 +17,7 @@ import com.meekdev.amnetic.client.model.internal.GpuModel;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import com.meekdev.amnetic.client.model.internal.ModelLod;
 import com.meekdev.amnetic.client.model.internal.ModelRegistry;
+import com.meekdev.amnetic.client.model.internal.Skinning;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -26,15 +27,18 @@ import org.joml.Vector3f;
 
 public final class Model {
 
+    /** lodPixels is how far on screen, in pixels, a coarser level may stray from the full model; 0 always draws
+     *  the full one, NaN leaves it to {@link ModelConfig#lod} */
     public record Draw(Matrix4f world, Matrix4f[] pose,
-                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look, Object key) {
+                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look, Object key,
+                       float lodPixels) {
 
         public Draw(Matrix4f world, Matrix4f[] pose) {
-            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null, null);
+            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null, null, Float.NaN);
         }
 
         public Draw(Matrix4f world, Matrix4f[] pose, float blockLight, float skyLight, float emissive) {
-            this(world, pose, blockLight, skyLight, emissive, null, null, null);
+            this(world, pose, blockLight, skyLight, emissive, null, null, null, Float.NaN);
         }
     }
 
@@ -44,6 +48,8 @@ public final class Model {
         public Matrix4f[] pose;
         public Matrix4f[] lastPose;
         public long frame = Long.MIN_VALUE;
+        // the level of detail it was drawn at, so it only goes coarser once it is well inside the next level
+        public int lod = -1;
     }
 
     /**
@@ -128,6 +134,10 @@ public final class Model {
             return;
         }
         lodDone = true;
+        for (ModelIR.Part part : local.parts()) {
+            // a processed model came with its levels
+            if (part.lods != null) return;
+        }
         ModelLod.generate(local);
     }
 
@@ -163,6 +173,25 @@ public final class Model {
 
     public boolean hasBones() {
         return ir != null && ir.nodes().size() > 1;
+    }
+
+    // true when some part bends with a skin instead of following one node
+    public boolean isSkinned() {
+        if (ir == null) {
+            return false;
+        }
+        for (ModelIR.Part part : ir.parts()) {
+            if (part.hasSkin()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // seconds a clip lasts, 0 when there is no such clip
+    public float clipLength(String clip) {
+        ModelIR.Animation anim = ir == null || clip == null ? null : ir.animation(clip);
+        return anim == null ? 0f : anim.duration;
     }
 
     public List<String> boneNames() {
@@ -262,10 +291,74 @@ public final class Model {
 
     /** draws it as the thing key stands for, so the frame can tell how far that thing moved since the last one */
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look, Object key) {
+        return render(worldTransform, pose, inputs, look, key, Float.NaN);
+    }
+
+    /** draws it at the coarsest level of detail that strays at most lodPixels from the full model on screen,
+     *  see {@link Draw}. a skinned part always draws in full */
+    public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look, Object key, float lodPixels) {
         if (!disposed) {
-            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look, key));
+            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look, key, lodPixels));
         }
         return this;
+    }
+
+    private float[] lodErrors;
+    private int lodParts = -1;
+
+    // the worst error of each level, null when it only has the full one
+    public float[] internalLodErrors() {
+        return lodErrors();
+    }
+
+    // how many levels of detail it has, 1 when it only has the full one
+    public int lodLevels() {
+        float[] errors = lodErrors();
+        return errors == null ? 1 : errors.length;
+    }
+
+    // how far level strays from the full model at worst, in the model's own units
+    public float lodError(int level) {
+        float[] errors = lodErrors();
+        return errors == null || level <= 0 ? 0f : errors[Math.min(level, errors.length - 1)];
+    }
+
+    // triangles drawn at level, for one copy
+    public int lodTriangles(int level) {
+        ModelIR source = ir;
+        if (source == null) return 0;
+        int total = 0;
+        for (ModelIR.Part part : source.parts()) {
+            int[][] lods = part.lods;
+            if (lods != null && level > 0) total += lods[Math.min(level, lods.length - 1)].length / 3;
+            else total += part.hasIndices() ? part.indices.length / 3 : part.vertexCount() / 3;
+        }
+        return total;
+    }
+
+    // the worst error of each level over every part, made again when a part gains its levels later
+    private float[] lodErrors() {
+        ModelIR source = ir;
+        if (source == null) return null;
+        int parts = 0;
+        for (ModelIR.Part part : source.parts()) {
+            if (part.lods != null && part.lodErrors != null) parts++;
+        }
+        if (parts == lodParts) return lodErrors;
+        float[] errors = null;
+        if (parts > 0) {
+            errors = new float[ModelLod.LEVELS];
+            for (ModelIR.Part part : source.parts()) {
+                float[] own = part.lodErrors;
+                if (part.lods == null || own == null) continue;
+                Vector3f axes = part.transform.getScale(new Vector3f());
+                float scale = Math.max(axes.x, Math.max(axes.y, axes.z));
+                for (int n = 1; n < errors.length; n++) errors[n] = Math.max(errors[n], own[Math.min(n, own.length - 1)] * scale);
+            }
+        }
+        lodErrors = errors;
+        lodParts = parts;
+        return errors;
     }
 
     private final Map<Object, Moved> moved = new WeakHashMap<>();
@@ -598,7 +691,18 @@ public final class Model {
         float maxZ = -Float.MAX_VALUE;
         Vector3f v = new Vector3f();
         int stride = ModelIR.VERTEX_STRIDE_FLOATS;
+        Matrix4f[] rest = null;
         for (ModelIR.Part part : ir.parts()) {
+            if (part.hasSkin()) {
+                // a skinned part is where its joints put it at rest, not where its node sits
+                if (rest == null) rest = Skinning.restPose(ir);
+                Vector3f lo = new Vector3f(minX, minY, minZ);
+                Vector3f hi = new Vector3f(maxX, maxY, maxZ);
+                Skinning.bounds(part, rest, lo, hi);
+                minX = lo.x; minY = lo.y; minZ = lo.z;
+                maxX = hi.x; maxY = hi.y; maxZ = hi.z;
+                continue;
+            }
             float[] verts = part.vertices;
             for (int i = 0; i < verts.length; i += stride) {
                 v.set(verts[i], verts[i + 1], verts[i + 2]);
@@ -644,7 +748,19 @@ public final class Model {
     }
 
     public boolean internalHasPending() {
-        return !pending.isEmpty();
+        return !pending.isEmpty() || kept != null && kept.size() > 0;
+    }
+
+    private KeptDraws kept;
+
+    /** draws of this model that stay where they are, drawn every frame until cleared, see {@link KeptDraws} */
+    public KeptDraws kept() {
+        if (kept == null) kept = new KeptDraws(this);
+        return kept;
+    }
+
+    public KeptDraws internalKept() {
+        return kept;
     }
 
     public List<Draw> internalPending() {
@@ -666,6 +782,7 @@ public final class Model {
         }
         disposed = true;
         pending.clear();
+        if (kept != null) kept.clear();
         gpu.close();
     }
 }

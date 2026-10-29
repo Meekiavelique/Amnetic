@@ -41,6 +41,9 @@ public final class GpuModel implements AutoCloseable {
         float skyLight;
         SurfaceInputs inputs;
         ModelLook look;
+        // the level of detail it is drawn at, and a hash of what decides whether it can share a draw
+        int lod;
+        int batch;
 
         public DrawInstance() {}
 
@@ -61,11 +64,15 @@ public final class GpuModel implements AutoCloseable {
             this.skyLight = skyLight;
             this.inputs = inputs;
             this.look = look;
+            this.lod = 0;
+            this.batch = 0;
         }
 
         void set(DrawInstance other) {
             set(other.world, other.pose, other.blockLight, other.skyLight, other.inputs, other.look);
             moved(other.lastWorld, other.lastPose);
+            lod = other.lod;
+            batch = other.batch;
         }
 
         void moved(Matrix4fc lastWorld, Matrix4f[] lastPose) {
@@ -96,6 +103,7 @@ public final class GpuModel implements AutoCloseable {
     private int jointTbo;
     private int jointTboTex;
     private final Matrix4f skinTmp = new Matrix4f();
+    private Matrix4f[] rest;
 
     public GpuModel(ModelIR ir) {
         this.ir = ir;
@@ -143,6 +151,10 @@ public final class GpuModel implements AutoCloseable {
             Vector3f v = new Vector3f();
             int stride = ModelIR.VERTEX_STRIDE_FLOATS;
             for (ModelIR.Part p : ir.parts()) {
+                if (p.hasSkin()) {
+                    Skinning.bounds(p, rest(), mn, mx);
+                    continue;
+                }
                 float[] vert = p.vertices;
                 for (int i = 0; i + 2 < vert.length; i += stride) {
                     v.set(vert[i], vert[i + 1], vert[i + 2]);
@@ -157,6 +169,14 @@ public final class GpuModel implements AutoCloseable {
         }
         outMin.set(tightMin);
         outMax.set(tightMax);
+    }
+
+    // a skinned part drawn with no pose stands in the rest pose
+    private Matrix4f[] rest() {
+        if (rest == null) {
+            rest = Skinning.restPose(ir);
+        }
+        return rest;
     }
 
     private void ensureUploaded() {
@@ -207,7 +227,7 @@ public final class GpuModel implements AutoCloseable {
         if (part == null) {
             return;
         }
-        if (!part.skinned) part.selectLod(0);
+        if (!part.skinned) part.selectLod(instance.lod);
         List<DrawInstance> one = List.of(instance);
         drawRun(shader, part, effective(part.materialIndex, instance.look), one);
         GlStateManager._glBindVertexArray(0);
@@ -233,16 +253,16 @@ public final class GpuModel implements AutoCloseable {
             if (part == null) {
                 continue;
             }
-            if (!part.skinned) part.selectLod(lod);
-            // draws with their own surface inputs or look cannot share one instanced call, so the
-            // list is cut wherever those change
+            // draws that look different or want another level cannot share one instanced call, so the list,
+            // sorted so those that can are together, is cut wherever that changes
             int start = 0;
             while (start < instances.size()) {
                 DrawInstance first = instances.get(start);
                 int end = start + 1;
-                while (end < instances.size() && instances.get(end).inputs == first.inputs && instances.get(end).look == first.look) end++;
+                while (end < instances.size() && together(first, instances.get(end))) end++;
                 List<DrawInstance> run = start == 0 && end == instances.size() ? instances : instances.subList(start, end);
                 start = end;
+                if (!part.skinned) part.selectLod(first.lod < 0 ? lod : first.lod);
                 Model.Piece piece = first.look == null ? null : first.look.piece();
                 if (piece != null && !piece.shows(part.nodeIndex)) {
                     continue;
@@ -259,6 +279,13 @@ public final class GpuModel implements AutoCloseable {
         }
     }
 
+    // whether two draws come out the same but for where they stand, so one instanced call can draw both
+    private static boolean together(DrawInstance a, DrawInstance b) {
+        if (a.lod != b.lod || a.batch != b.batch) return false;
+        if (a.look != b.look && (a.look == null || !a.look.sameAs(b.look))) return false;
+        return a.inputs == b.inputs || a.inputs != null && a.inputs.sameAs(b.inputs);
+    }
+
     private void drawRun(ModelShader shader, GpuPart part, ModelIR.Material mat, List<DrawInstance> run) {
         DrawInstance first = run.get(0);
         MaterialLook look = first.look == null ? null : first.look.resolve(materialFor(part.materialIndex).name);
@@ -269,6 +296,8 @@ public final class GpuModel implements AutoCloseable {
         }
         if (look == null) shader.uploadUv(1f, 1f, 0f, 0f);
         else shader.uploadUv(look.repeatU(), look.repeatV(), look.offsetU(), look.offsetV());
+        shader.uploadWarp(look == null ? 0f : look.warp());
+        shader.uploadVertexColors(part.colored);
         applyMaterialState(mat);
         shader.uploadSurface(first.inputs);
         if (part.skinned) drawSkinned(shader, part, run);
@@ -302,6 +331,7 @@ public final class GpuModel implements AutoCloseable {
         out.shadingModelId = base.shadingModelId;
         out.blend = !look.dithered() && (base.blend || out.baseA < 0.999f);
         out.doubleSided = base.doubleSided || look.doubleSided();
+        out.unlit = base.unlit;
         out.baseColorFilter = look.filter() == null ? base.baseColorFilter : look.filter();
         return out;
     }
@@ -337,7 +367,16 @@ public final class GpuModel implements AutoCloseable {
             if (part.skinned) {
                 drawShadowSkinned(shadow, part, casting);
             } else {
-                drawShadowBatched(part, casting);
+                // casters come sorted by level, each level is one draw
+                int start = 0;
+                while (start < casting.size()) {
+                    int level = casting.get(start).lod;
+                    int end = start + 1;
+                    while (end < casting.size() && casting.get(end).lod == level) end++;
+                    part.selectLod(level);
+                    drawShadowBatched(part, start == 0 && end == casting.size() ? casting : casting.subList(start, end));
+                    start = end;
+                }
             }
             if (mat.doubleSided) {
                 GlStateManager._enableCull();
@@ -377,8 +416,11 @@ public final class GpuModel implements AutoCloseable {
         uploadInstances(part);
 
         GlStateManager._glBindVertexArray(part.vao);
+        DrawCounts.shadow();
         if (part.indexed) {
-            GL31.glDrawElementsInstanced(GL11.GL_TRIANGLES, part.indexCount, GL11.GL_UNSIGNED_INT, 0L, count);
+            if (part.drawIbo != part.ibo) GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, part.drawIbo);
+            GL31.glDrawElementsInstanced(GL11.GL_TRIANGLES, part.drawCount, GL11.GL_UNSIGNED_INT, 0L, count);
+            if (part.drawIbo != part.ibo) GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, part.ibo);
         } else {
             GL31.glDrawArraysInstanced(GL11.GL_TRIANGLES, 0, part.vertexCount, count);
         }
@@ -392,6 +434,7 @@ public final class GpuModel implements AutoCloseable {
 
             packSingle(placed(inst, skinTmp), inst.blockLight(), inst.skyLight());
             uploadInstances(part);
+            DrawCounts.shadow();
 
             if (part.indexed) {
                 GL31.glDrawElementsInstanced(GL11.GL_TRIANGLES, part.indexCount, GL11.GL_UNSIGNED_INT, 0L, 1);
@@ -415,6 +458,12 @@ public final class GpuModel implements AutoCloseable {
             }
             Matrix4f nodeTransform = pose != null && part.nodeIndex >= 0 && part.nodeIndex < pose.length
                     ? pose[part.nodeIndex] : part.transform;
+            flat.setSkinned(part.skinned);
+            if (part.skinned) {
+                buildPalette(part, pose);
+                flat.uploadJointMatrices(palette, Math.min(part.jointNodes.length, MAX_JOINTS));
+                nodeTransform = skinTmp.identity();
+            }
             placed.mul(nodeTransform, model);
             projView.mul(model, mvp);
             flat.setMvp(mvp);
@@ -435,6 +484,7 @@ public final class GpuModel implements AutoCloseable {
         uploadInstances(part);
 
         GlStateManager._glBindVertexArray(part.vao);
+        DrawCounts.draw(count, part.indexed ? part.drawCount : part.vertexCount, part.drawLevel);
         if (part.indexed) {
             if (part.drawIbo != part.ibo) {
                 GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, part.drawIbo);
@@ -475,6 +525,7 @@ public final class GpuModel implements AutoCloseable {
         uploadInstances(part);
 
         GlStateManager._glBindVertexArray(part.vao);
+        DrawCounts.draw(count, part.indexed ? part.indexCount : part.vertexCount, 0);
         if (part.indexed) {
             GL31.glDrawElementsInstanced(GL11.GL_TRIANGLES, part.indexCount, GL11.GL_UNSIGNED_INT, 0L, count);
         } else {
@@ -483,9 +534,10 @@ public final class GpuModel implements AutoCloseable {
     }
 
     private void joints(GpuPart part, Matrix4f[] pose, int base, int jointCount) {
+        if (pose == null) pose = rest();
         for (int j = 0; j < jointCount; j++) {
             int node = part.jointNodes[j];
-            if (pose != null && node >= 0 && node < pose.length) {
+            if (node >= 0 && node < pose.length) {
                 pose[node].mul(part.inverseBind[j], skinTmp);
             } else {
                 skinTmp.identity();
@@ -529,9 +581,10 @@ public final class GpuModel implements AutoCloseable {
     private void buildPalette(GpuPart part, Matrix4f[] pose) {
         int count = Math.min(part.jointNodes.length, MAX_JOINTS);
         ensurePalette(count);
+        if (pose == null) pose = rest();
         for (int j = 0; j < count; j++) {
             int node = part.jointNodes[j];
-            if (pose != null && node >= 0 && node < pose.length) {
+            if (node >= 0 && node < pose.length) {
                 pose[node].mul(part.inverseBind[j], palette[j]);
             } else {
                 palette[j].identity();
@@ -788,17 +841,20 @@ public final class GpuModel implements AutoCloseable {
         closeSlot(emissive, materialIndex);
         baseColor[materialIndex] = mat.baseColorGlId != 0
                 ? ModelTexture.external(mat.baseColorGlId)
-                : resolve(mat.baseColorImageBytes, mat.baseColorTexture, true);
-        normal[materialIndex] = resolve(mat.normalImageBytes, mat.normalTexture, false);
-        orm[materialIndex] = resolve(mat.ormImageBytes, mat.ormTexture, false);
+                : resolve(mat.baseColorImageBytes, mat.baseColorImageKey, mat.baseColorTexture, true, mat.baseColorFilter);
+        normal[materialIndex] = resolve(mat.normalImageBytes, mat.normalImageKey, mat.normalTexture, false, TextureFilter.LINEAR);
+        orm[materialIndex] = resolve(mat.ormImageBytes, mat.ormImageKey, mat.ormTexture, false, TextureFilter.LINEAR);
         emissive[materialIndex] = mat.emissiveGlId != 0
                 ? ModelTexture.external(mat.emissiveGlId)
-                : resolve(mat.emissiveImageBytes, mat.emissiveTexture, true);
+                : resolve(mat.emissiveImageBytes, mat.emissiveImageKey, mat.emissiveTexture, true, TextureFilter.LINEAR);
     }
 
-    private static ModelTexture resolve(byte[] bytes, Identifier id, boolean srgb) {
+    private ModelTexture resolve(byte[] bytes, String key, Identifier id, boolean srgb, TextureFilter filter) {
         if (bytes != null) {
             return ModelTexture.fromBytes(bytes, srgb);
+        }
+        if (key != null && ir.textures() != null) {
+            return ModelTexture.fromStore(ir.textures(), key, srgb, filter);
         }
         if (id != null) {
             return ModelTexture.fromIdentifier(id, srgb);
@@ -811,11 +867,13 @@ public final class GpuModel implements AutoCloseable {
                 mat.baseColorGlId != 0 ? mat.baseColorGlId : mat.baseColorTexture,
                 mat.normalImageBytes, mat.normalTexture,
                 mat.ormImageBytes, mat.ormTexture,
-                mat.emissiveImageBytes, mat.emissiveGlId != 0 ? mat.emissiveGlId : mat.emissiveTexture);
+                mat.emissiveImageBytes, mat.emissiveGlId != 0 ? mat.emissiveGlId : mat.emissiveTexture,
+                mat.baseColorImageKey, mat.normalImageKey, mat.ormImageKey, mat.emissiveImageKey);
     }
 
     private record TextureKey(byte[] baseBytes, Object baseId, byte[] normalBytes, Object normalId,
-                              byte[] ormBytes, Object ormId, byte[] emissiveBytes, Object emissiveId) {
+                              byte[] ormBytes, Object ormId, byte[] emissiveBytes, Object emissiveId,
+                              String baseKey, String normalKey, String ormKey, String emissiveKey) {
     }
 
     private static void closeSlot(ModelTexture[] set, int index) {
@@ -882,6 +940,8 @@ public final class GpuModel implements AutoCloseable {
         int tangentVbo;
         int jointVbo;
         int weightVbo;
+        int colorVbo;
+        boolean colored;
         int instanceVbo;
         int vertexCount;
         int indexCount;
@@ -898,6 +958,7 @@ public final class GpuModel implements AutoCloseable {
         ModelIR.Part src;
         int drawIbo;
         int drawCount;
+        int drawLevel;
         int[] lodIbo;
         int[] lodCount;
 
@@ -921,6 +982,7 @@ public final class GpuModel implements AutoCloseable {
         }
 
         void selectLod(int lod) {
+            drawLevel = 0;
             if (lod <= 0 || !indexed || src == null) {
                 drawIbo = ibo;
                 drawCount = indexCount;
@@ -941,8 +1003,11 @@ public final class GpuModel implements AutoCloseable {
                 lodIbo[0] = ibo;
                 lodCount[0] = indexCount;
             }
-            if (lodIbo[lod] == 0) {
-                int[] idx = lods[lod];
+            // a level the same as the one below it shares its buffer
+            int base = lod;
+            while (base > 0 && lods[base] == lods[base - 1]) base--;
+            if (lodIbo[base] == 0) {
+                int[] idx = lods[base];
                 GlStateManager._glBindVertexArray(0);
                 int b = GlStateManager._glGenBuffers();
                 GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, b);
@@ -951,11 +1016,12 @@ public final class GpuModel implements AutoCloseable {
                 GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, buf, GL15.GL_STATIC_DRAW);
                 MemoryUtil.memFree(buf);
                 GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
-                lodIbo[lod] = b;
-                lodCount[lod] = idx.length;
+                lodIbo[base] = b;
+                lodCount[base] = idx.length;
             }
-            drawIbo = lodIbo[lod];
-            drawCount = lodCount[lod];
+            drawIbo = lodIbo[base];
+            drawCount = lodCount[base];
+            drawLevel = base;
         }
 
         static GpuPart upload(ModelIR.Part part) {
@@ -967,6 +1033,7 @@ public final class GpuModel implements AutoCloseable {
             p.indexed = part.hasIndices();
             p.indexCount = part.hasIndices() ? part.indices.length : 0;
             p.skinned = part.hasSkin();
+            p.colored = part.hasColors();
             if (p.skinned) {
                 p.jointNodes = part.jointNodes;
                 p.inverseBind = part.inverseBind;
@@ -1020,6 +1087,17 @@ public final class GpuModel implements AutoCloseable {
                 GlStateManager._enableVertexAttribArray(10);
             }
 
+            if (p.colored) {
+                p.colorVbo = GlStateManager._glGenBuffers();
+                GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, p.colorVbo);
+                ByteBuffer cb = MemoryUtil.memAlloc(part.colors.length * Float.BYTES);
+                cb.asFloatBuffer().put(part.colors);
+                GL15.glBufferData(GL15.GL_ARRAY_BUFFER, cb, GL15.GL_STATIC_DRAW);
+                MemoryUtil.memFree(cb);
+                GlStateManager._vertexAttribPointer(15, 4, GL11.GL_FLOAT, false, 4 * Float.BYTES, 0L);
+                GlStateManager._enableVertexAttribArray(15);
+            }
+
             if (p.indexed) {
                 p.ibo = GlStateManager._glGenBuffers();
                 GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, p.ibo);
@@ -1054,6 +1132,11 @@ public final class GpuModel implements AutoCloseable {
         }
 
         void deleteNow() {
+            if (lodIbo != null) {
+                for (int n = 1; n < lodIbo.length; n++) {
+                    if (lodIbo[n] != 0 && lodIbo[n] != ibo) GlStateManager._glDeleteBuffers(lodIbo[n]);
+                }
+            }
             if (ibo != 0) {
                 GlStateManager._glDeleteBuffers(ibo);
             }
@@ -1068,6 +1151,9 @@ public final class GpuModel implements AutoCloseable {
             }
             if (weightVbo != 0) {
                 GlStateManager._glDeleteBuffers(weightVbo);
+            }
+            if (colorVbo != 0) {
+                GlStateManager._glDeleteBuffers(colorVbo);
             }
             if (instanceVbo != 0) {
                 GlStateManager._glDeleteBuffers(instanceVbo);

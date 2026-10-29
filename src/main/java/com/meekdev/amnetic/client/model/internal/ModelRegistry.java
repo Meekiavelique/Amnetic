@@ -17,6 +17,7 @@ import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.RenderState;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
+import com.meekdev.amnetic.client.model.KeptDraws;
 import com.meekdev.amnetic.client.model.Model;
 import com.meekdev.amnetic.client.model.ModelConfig;
 import com.meekdev.amnetic.client.ibl.internal.EnvProbe;
@@ -63,7 +64,7 @@ public final class ModelRegistry {
     private ModelShader shader;
     private final Map<String, ModelShader> customShaders = new ConcurrentHashMap<>();
     private ModelShadowProgram shadowProgram;
-    private static final int UPLOADS_PER_FRAME = 1;
+    private static final int UPLOADS_PER_FRAME = 4;
     private int frameUploadBudget;
 
     private ModelRegistry() {
@@ -141,7 +142,12 @@ public final class ModelRegistry {
 
     public void flush(LevelCamera cam) {
         GlReaper.drain();
-        render(cam, false);
+        DrawCounts.begin();
+        try {
+            render(cam, false);
+        } finally {
+            DrawCounts.end();
+        }
     }
 
     public void flushCapture(LevelCamera cam) {
@@ -202,6 +208,11 @@ public final class ModelRegistry {
                 return;
             }
         }
+        // models show up once the driver is done with the shader, no frame waits on it
+        if (!shader.ready()) {
+            clearAllPending();
+            return;
+        }
 
         EnvProbe.INSTANCE.update(level != null ? (float) ((level.getGameTime() % 24000L) / 24000.0) : 0.25f);
 
@@ -212,6 +223,8 @@ public final class ModelRegistry {
         }
 
         frustum.set(projView);
+        lodCamera = camPos;
+        lodScale = projection.m11() * Minecraft.getInstance().getWindow().getHeight() / 2f;
         frameUploadBudget = UPLOADS_PER_FRAME;
         ModelShader current = null;
         blendedCount = 0;
@@ -254,7 +267,8 @@ public final class ModelRegistry {
             }
             customShaders.put(key, prog);
         }
-        return prog;
+        // the default one draws while the custom one compiles, or when it does not build
+        return prog.ready() ? prog : shader;
     }
 
     private void prepareProgram(ModelShader prog, Matrix4f projView, float time) {
@@ -288,11 +302,10 @@ public final class ModelRegistry {
 
     private void renderModel(Model model, ModelShader prog, Vec3 camPos, ClientLevel level, boolean capture) {
         model.internalEnsureLod();
-        if (!model.internalGpu().isUploaded()) {
-            if (frameUploadBudget <= 0) {
-                return;
-            }
-            frameUploadBudget--;
+        // the budget is spent only by a model that is really drawn, one culled every frame would starve the rest
+        boolean upload = !model.internalGpu().isUploaded();
+        if (upload && frameUploadBudget <= 0) {
+            return;
         }
 
         ModelConfig config = model.internalConfig();
@@ -312,6 +325,12 @@ public final class ModelRegistry {
                     emissiveGroups.add(value);
                 }
             }
+            KeptDraws kept = model.internalKept();
+            if (kept != null && kept.size() > 0) {
+                // kept draws never carry their own emissive strength
+                if (!emissiveGroups.contains(defaultEmissive)) emissiveGroups.add(defaultEmissive);
+                kept.internalNextFrame();
+            }
             if (emissiveGroups.isEmpty()) {
                 emissiveGroups.add(defaultEmissive);
             }
@@ -321,13 +340,24 @@ public final class ModelRegistry {
                 List<GpuModel.DrawInstance> instances =
                         toInstances(model, camPos, level, value, defaultEmissive);
                 if (!instances.isEmpty()) {
-                    model.internalGpu().drawSolid(prog, instances, lodFor(instances),
+                    if (upload) {
+                        frameUploadBudget--;
+                        upload = false;
+                    }
+                    // draws that leave the level to the model share the one its nearest copy wants
+                    int fallback = config.isLod() ? lodFor(instances) : 0;
+                    for (GpuModel.DrawInstance instance : instances) {
+                        if (instance.lod < 0) instance.lod = fallback;
+                    }
+                    group(instances);
+                    model.internalGpu().drawSolid(prog, instances, fallback,
                             (part, instance) -> later(model, prog, part, instance, value));
                 }
             }
             if (useGBuffer) {
                 gbuffer.setPopulated(true);
-                if (config.isEmissive() || model.internalGpu().mayEmit(model.internalPending())) gbuffer.markEmissive();
+                if (config.isEmissive() || model.internalGpu().mayEmit(model.internalPending())
+                        || kept != null && model.internalGpu().mayEmit(kept.internalDraws())) gbuffer.markEmissive();
             }
         } catch (Exception e) {
             LOG.error("Amnetic: error rendering model {}", model.name(), e);
@@ -439,10 +469,17 @@ public final class ModelRegistry {
     private List<GpuModel.DrawInstance> toInstances(Model model, Vec3 camPos, ClientLevel level,
                                                     float wantEmissive, float defaultEmissive) {
         List<Model.Draw> pending = model.internalPending();
+        KeptDraws kept = model.internalKept();
+        int fresh = pending.size();
+        int total = fresh + (kept == null ? 0 : kept.size());
+        float[] boxes = kept == null ? null : kept.internalBoxes();
         model.internalGpu().localBounds(boundsMin, boundsMax);
         boolean cull = model.internalConfig().frustumCull();
         int n = 0;
-        for (Model.Draw draw : pending) {
+        // the draws handed in this frame, then the kept ones, whose box and light are known already
+        for (int index = 0; index < total; index++) {
+            int keptAt = index - fresh;
+            Model.Draw draw = keptAt < 0 ? pending.get(index) : kept.internalDraw(keptAt);
             if (!Float.isNaN(wantEmissive)) {
                 float value = Float.isNaN(draw.emissive()) ? defaultEmissive : draw.emissive();
                 if (Float.compare(value, wantEmissive) != 0) {
@@ -456,7 +493,11 @@ public final class ModelRegistry {
             camRel.m32(world.m32() - (float) camPos.z);
             if (cull) {
                 Model.Piece piece = draw.look() == null ? null : draw.look().piece();
-                if (piece != null) {
+                if (keptAt >= 0) {
+                    int at = keptAt * 6;
+                    cullMin.set(boxes[at] - (float) camPos.x, boxes[at + 1] - (float) camPos.y, boxes[at + 2] - (float) camPos.z);
+                    cullMax.set(boxes[at + 3] - (float) camPos.x, boxes[at + 4] - (float) camPos.y, boxes[at + 5] - (float) camPos.z);
+                } else if (piece != null) {
                     camRel.transformAab(piece.min(), piece.max(), cullMin, cullMax);
                 } else if (draw.pose() != null) {
                     // a posed model can reach well outside its rest bounds - an arm swung out, a bone
@@ -473,7 +514,16 @@ public final class ModelRegistry {
             }
             float block = 1f;
             float sky = 0f;
-            if (level != null) {
+            if (keptAt >= 0 && level != null) {
+                float[] light = kept.internalLight();
+                if (kept.internalRelight(keptAt)) {
+                    lightSamplePos.set(world.m30(), world.m31(), world.m32());
+                    light[keptAt * 2] = level.getBrightness(LightLayer.BLOCK, lightSamplePos);
+                    light[keptAt * 2 + 1] = level.getBrightness(LightLayer.SKY, lightSamplePos);
+                }
+                block = light[keptAt * 2] / 15f;
+                sky = Math.max(0, light[keptAt * 2 + 1] - level.getSkyDarken()) / 15f;
+            } else if (level != null) {
                 lightSamplePos.set(world.m30(), world.m31(), world.m32());
                 block = level.getBrightness(LightLayer.BLOCK, lightSamplePos) / 15f;
                 sky = Math.max(0, level.getBrightness(LightLayer.SKY, lightSamplePos) - level.getSkyDarken()) / 15f;
@@ -486,9 +536,58 @@ public final class ModelRegistry {
             }
             GpuModel.DrawInstance instance = pooled(mainPool, n++);
             instance.set(camRel, draw.pose(), block, sky, draw.inputs(), draw.look());
-            if (draw.key() != null) moved(model.internalMoved(draw.key()), draw, camPos, instance);
+            if (keptAt >= 0) {
+                // a kept draw stands still, so it was where it is last frame too
+                int[] levels = kept.internalLevels();
+                instance.lod = levels[keptAt] = level(model, draw, camRel, levels[keptAt]);
+                continue;
+            }
+            Model.Moved moved = draw.key() == null ? null : model.internalMoved(draw.key());
+            if (moved != null) moved(moved, draw, camPos, instance);
+            instance.lod = level(model, draw, camRel, moved == null ? -1 : moved.lod);
+            if (moved != null) moved.lod = instance.lod;
         }
         return mainPool.subList(0, n);
+    }
+
+    private Vec3 lodCamera = Vec3.ZERO;
+    private float lodScale = 1000f;
+    private final Vector3f lodCentre = new Vector3f();
+    private final Vector3f lodAxes = new Vector3f();
+
+    // the level of detail a draw is drawn at, the coarsest that strays at most its lodPixels on screen, current is
+    // the one it had last frame. -1 leaves it to the model, see Model.Draw
+    private int level(Model model, Model.Draw draw, Matrix4f camRel, int current) {
+        float pixels = draw.lodPixels();
+        if (Float.isNaN(pixels)) return -1;
+        float[] errors = model.internalLodErrors();
+        if (pixels <= 0 || errors == null) return 0;
+        camRel.getScale(lodAxes);
+        float scale = Math.max(lodAxes.x, Math.max(lodAxes.y, lodAxes.z));
+        camRel.transformPosition(model.center(), lodCentre);
+        // measured from the nearest the model can reach, so a big model up close stays whole
+        float near = lodCentre.length() - model.radius() * scale;
+        if (near <= 0.05f) return 0;
+        return ModelLod.pick(errors, lodScale * scale / near, pixels, current);
+    }
+
+    // puts draws that can share one instanced draw next to each other: same look, same inputs, same level
+    private static void group(List<GpuModel.DrawInstance> instances) {
+        if (instances.size() < 2) return;
+        boolean sorted = true;
+        GpuModel.DrawInstance last = null;
+        for (GpuModel.DrawInstance instance : instances) {
+            instance.batch = (instance.look == null ? 0 : instance.look.contentHash()) * 31
+                    + (instance.inputs == null ? 0 : instance.inputs.contentHash());
+            if (last != null && order(last, instance) > 0) sorted = false;
+            last = instance;
+        }
+        if (!sorted) instances.sort(ModelRegistry::order);
+    }
+
+    private static int order(GpuModel.DrawInstance a, GpuModel.DrawInstance b) {
+        int c = Integer.compare(a.batch, b.batch);
+        return c != 0 ? c : Integer.compare(a.lod, b.lod);
     }
 
     private final Matrix4f lastScratch = new Matrix4f();
@@ -557,7 +656,8 @@ public final class ModelRegistry {
 
     public boolean hasShadowCasters() {
         for (Model m : models) {
-            if (m.isReady() && m.internalConfig().castsShadow() && !m.internalLastFrameDraws().isEmpty()) {
+            KeptDraws kept = m.internalKept();
+            if (m.isReady() && m.internalConfig().castsShadow() && (!m.internalLastFrameDraws().isEmpty() || kept != null && kept.size() > 0)) {
                 return true;
             }
         }
@@ -576,6 +676,7 @@ public final class ModelRegistry {
                 return;
             }
         }
+        if (!shadowProgram.ready()) return;
 
         shadowProgram.bind();
         shadowProgram.uploadProjView(lightViewProj);
@@ -586,10 +687,12 @@ public final class ModelRegistry {
                     continue;
                 }
                 List<Model.Draw> draws = model.internalLastFrameDraws();
-                if (draws.isEmpty()) {
+                KeptDraws kept = model.internalKept();
+                if (draws.isEmpty() && (kept == null || kept.size() == 0)) {
                     continue;
                 }
-                List<GpuModel.DrawInstance> instances = toShadowInstances(draws, lightX, lightY, lightZ, r2);
+                List<GpuModel.DrawInstance> instances = toShadowInstances(model, draws,
+                        kept == null ? List.of() : kept.internalDraws(), lightX, lightY, lightZ, r2);
                 if (instances.isEmpty()) {
                     continue;
                 }
@@ -605,9 +708,15 @@ public final class ModelRegistry {
         }
     }
 
-    private List<GpuModel.DrawInstance> toShadowInstances(List<Model.Draw> draws, double lx, double ly, double lz, float r2) {
+    private final Matrix4f shadowCamRel = new Matrix4f();
+
+    private List<GpuModel.DrawInstance> toShadowInstances(Model model, List<Model.Draw> draws, List<Model.Draw> kept,
+                                                          double lx, double ly, double lz, float r2) {
         int n = 0;
-        for (Model.Draw draw : draws) {
+        boolean levels = false;
+        int fresh = draws.size();
+        for (int index = 0; index < fresh + kept.size(); index++) {
+            Model.Draw draw = index < fresh ? draws.get(index) : kept.get(index - fresh);
             Matrix4f world = draw.world();
             double dx = world.m30() - lx, dy = world.m31() - ly, dz = world.m32() - lz;
             if (dx * dx + dy * dy + dz * dz > r2) {
@@ -617,9 +726,19 @@ public final class ModelRegistry {
             lightRel.m30((float) dx);
             lightRel.m31((float) dy);
             lightRel.m32((float) dz);
-            pooled(shadowPool, n++).set(lightRel, draw.pose(), 1f, 1f, null, draw.look());
+            GpuModel.DrawInstance instance = pooled(shadowPool, n++);
+            instance.set(lightRel, draw.pose(), 1f, 1f, null, draw.look());
+            // a shadow takes the level its caster has from the camera, worked out again for casters off screen
+            Matrix4f camRel = shadowCamRel.set(world);
+            camRel.m30((float) (world.m30() - lodCamera.x));
+            camRel.m31((float) (world.m31() - lodCamera.y));
+            camRel.m32((float) (world.m32() - lodCamera.z));
+            instance.lod = Math.max(0, level(model, draw, camRel, -1));
+            levels |= instance.lod > 0;
         }
-        return shadowPool.subList(0, n);
+        List<GpuModel.DrawInstance> out = shadowPool.subList(0, n);
+        if (levels) out.sort((a, b) -> Integer.compare(a.lod, b.lod));
+        return out;
     }
 
     private void clearAllPending() {

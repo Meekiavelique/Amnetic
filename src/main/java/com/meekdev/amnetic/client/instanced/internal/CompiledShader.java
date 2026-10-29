@@ -3,39 +3,48 @@ package com.meekdev.amnetic.client.instanced.internal;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
+import com.meekdev.amnetic.client.render.ProgramLink;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import org.joml.Matrix4fc;
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.util.HashMap;
 import java.util.Map;
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
-import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.Resource;
 
 final class CompiledShader implements AutoCloseable {
 
-    private final int program;
-    private final int projViewMatrixLoc;
-    private final int projectionMatrixLoc;
-    private final int viewMatrixLoc;
-    private final int textureSamplerLoc;
-    private final int timeLoc;
-    private final int sunDirLoc;
-    private final int cameraPosLoc;
-    private final int worldSpaceLoc;
-    private final int perInstanceCastLoc;
+    private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Instance");
+
+    private final Identifier vshId;
+    private final Identifier fshId;
+    private ProgramLink link;
+    private boolean failed;
+    private int program;
+    private int projViewMatrixLoc;
+    private int projectionMatrixLoc;
+    private int viewMatrixLoc;
+    private int textureSamplerLoc;
+    private int timeLoc;
+    private int sunDirLoc;
+    private int cameraPosLoc;
+    private int worldSpaceLoc;
+    private int perInstanceCastLoc;
     private final Map<String, Integer> customLocations = new HashMap<>();
 
-    private CompiledShader(int program) {
+    private CompiledShader(Identifier vshId, Identifier fshId, ProgramLink link) {
+        this.vshId = vshId;
+        this.fshId = fshId;
+        this.link = link;
+    }
+
+    // the program is in. moud hooks here to find the programs of the shaders it patches
+    private void linked(int program) {
         this.program = program;
         this.projViewMatrixLoc = GlStateManager._glGetUniformLocation(program, "ProjViewMatrix");
         this.projectionMatrixLoc = GlStateManager._glGetUniformLocation(program, "ProjectionMatrix");
@@ -48,6 +57,7 @@ final class CompiledShader implements AutoCloseable {
         this.perInstanceCastLoc = GlStateManager._glGetUniformLocation(program, "PerInstanceCast");
     }
 
+    // starts compiling the mesh's shader, it draws once ready() says so
     static CompiledShader load(InstancedMesh<?> mesh) {
         Identifier vshId, fshId;
         if (mesh.vertexShaderId() != null && mesh.fragmentShaderId() != null) {
@@ -67,43 +77,30 @@ final class CompiledShader implements AutoCloseable {
     }
 
     static CompiledShader load(Identifier vshId, Identifier fshId) {
-        String vshSrc = loadSource(vshId);
-        String fshSrc = loadSource(fshId);
+        ProgramLink link = ProgramLink.builder("instance shader " + vshId + "/" + fshId)
+                .vertex(loadSource(vshId), vshId)
+                .fragment(loadSource(fshId), fshId)
+                .start();
+        return new CompiledShader(vshId, fshId, link);
+    }
 
-        int vs = compileShader(GL20.GL_VERTEX_SHADER, vshSrc, vshId);
-        int fs = compileShader(GL20.GL_FRAGMENT_SHADER, fshSrc, fshId);
-
-        int prog = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(prog, vs);
-        GlStateManager.glAttachShader(prog, fs);
-        GlStateManager.glLinkProgram(prog);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-
-        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(prog, 512);
-            GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("Failed to link instance shader: " + log);
+    // true once it can draw. false while the driver is still on it, and for good when it did not build
+    boolean ready() {
+        if (program != 0) return true;
+        if (failed || link == null || !link.ready()) return false;
+        ProgramLink done = link;
+        link = null;
+        if (done.failed()) {
+            failed = true;
+            LOG.error("instance shader {}/{} does not build, its meshes stay hidden: {}", vshId, fshId, done.problem());
+            return false;
         }
-
-        CompiledShader s = new CompiledShader(prog);
-        return s;
+        linked(done.program());
+        return true;
     }
 
     private static Identifier toShaderPath(Identifier id, String ext) {
         return Identifier.fromNamespaceAndPath(id.getNamespace(), "shaders/" + id.getPath() + ext);
-    }
-
-    private static int compileShader(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 512);
-            GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("Failed to compile shader " + id + ": " + log);
-        }
-        return shader;
     }
 
     private static String loadSource(Identifier id) {
@@ -178,6 +175,9 @@ final class CompiledShader implements AutoCloseable {
 
     @Override
     public void close() {
+        if (link != null) link.delete();
+        link = null;
         if (program != 0) GlStateManager.glDeleteProgram(program);
+        program = 0;
     }
 }

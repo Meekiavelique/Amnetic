@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.compute;
 
+import com.meekdev.amnetic.client.render.ProgramLink;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
@@ -29,24 +30,11 @@ public final class ComputeShader implements AutoCloseable {
     public static ComputeShader load(Identifier sourceId) {
         String source = readSource(sourceId);
 
-        int shader = GL20.glCreateShader(GL43.GL_COMPUTE_SHADER);
-        GL20.glShaderSource(shader, source);
-        GL20.glCompileShader(shader);
-        if (GL20.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GL20.glGetShaderInfoLog(shader);
-            GL20.glDeleteShader(shader);
-            throw new RuntimeException("Compute shader compile failed (" + sourceId + "): " + log);
-        }
-
-        int program = GL20.glCreateProgram();
-        GL20.glAttachShader(program, shader);
-        GL20.glLinkProgram(program);
-        GL20.glDeleteShader(shader);
-        if (GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GL20.glGetProgramInfoLog(program);
-            GL20.glDeleteProgram(program);
-            throw new RuntimeException("Compute program link failed (" + sourceId + "): " + log);
-        }
+        ProgramLink link = ProgramLink.builder("compute shader " + sourceId)
+                .stage(GL43.GL_COMPUTE_SHADER, source, sourceId)
+                .start();
+        if (link.failed()) throw new RuntimeException("Compute shader failed (" + sourceId + "): " + link.problem());
+        int program = link.program();
         return new ComputeShader(program);
     }
 

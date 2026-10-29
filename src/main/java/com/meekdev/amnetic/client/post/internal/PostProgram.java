@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.post.internal;
 
 import com.meekdev.amnetic.client.post.UniformValue;
+import com.meekdev.amnetic.client.render.ProgramLink;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,29 +63,20 @@ final class PostProgram implements AutoCloseable {
     private final Map<String, Block> memberBlocks = new HashMap<>();
     private final Map<String, Integer> looseLocations = new HashMap<>();
 
-    PostProgram(Identifier vertexShader, Identifier fragmentShader) {
+    // starts compiling and linking the pass in the background
+    static ProgramLink start(Identifier vertexShader, Identifier fragmentShader) {
         String vsh = SCREENQUAD.equals(vertexShader) ? read(SCREENQUAD_FILE) : load(vertexShader, "vsh");
         String fsh = load(fragmentShader, "fsh");
-        int vs = compile(GL20.GL_VERTEX_SHADER, vsh, vertexShader);
-        int fs;
-        try {
-            fs = compile(GL20.GL_FRAGMENT_SHADER, fsh, fragmentShader);
-        } catch (RuntimeException e) {
-            GlStateManager.glDeleteShader(vs);
-            throw e;
-        }
-        int prog = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(prog, vs);
-        GlStateManager.glAttachShader(prog, fs);
-        GlStateManager.glLinkProgram(prog);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(prog, 4096);
-            GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("failed to link post program " + vertexShader + " / " + fragmentShader + ": " + log);
-        }
-        program = prog;
+        return ProgramLink.builder("post program " + vertexShader + " / " + fragmentShader)
+                .vertex(vsh, vertexShader)
+                .fragment(fsh, fragmentShader)
+                .soon()
+                .start();
+    }
+
+    PostProgram(ProgramLink link) {
+        if (link.failed()) throw new RuntimeException("failed to build a post program: " + link.problem());
+        program = link.program();
         vao = GL30.glGenVertexArrays();
         reflect();
     }
@@ -245,17 +237,5 @@ final class PostProgram implements AutoCloseable {
         } catch (IOException e) {
             throw new RuntimeException("failed to read shader " + file, e);
         }
-    }
-
-    private static int compile(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 4096);
-            GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("failed to compile post shader " + id + ": " + log);
-        }
-        return shader;
     }
 }

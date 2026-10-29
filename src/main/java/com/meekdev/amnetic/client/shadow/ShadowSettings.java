@@ -1,5 +1,8 @@
 package com.meekdev.amnetic.client.shadow;
 
+import java.util.function.Predicate;
+import net.minecraft.world.entity.Entity;
+
 public final class ShadowSettings {
 
     public static final int SPOT_GRID = 4;
@@ -19,6 +22,7 @@ public final class ShadowSettings {
     private float fadeStart = 0.8f;
     private boolean entityShadows = true;
     private boolean entityModels = true;
+    private Predicate<Entity> entityFilter = entity -> true;
     private boolean pcss = true;
     private float lightSize = 2.5f;
     private int bakeBudget = 0;
@@ -88,6 +92,12 @@ public final class ShadowSettings {
     public ShadowSettings entityShadows(boolean v) {
         boolean next = v;
         if (next != entityShadows) { entityShadows = next; version++; }
+        return this;
+    }
+
+    // which entities are drawn into shadow maps, for mods that hide some entities from the world
+    public ShadowSettings entityFilter(Predicate<Entity> filter) {
+        if (filter != entityFilter) { entityFilter = filter; version++; }
         return this;
     }
 
@@ -216,6 +226,10 @@ public final class ShadowSettings {
 
     public boolean entityShadows() {
         return entityShadows;
+    }
+
+    public boolean castsShadow(Entity entity) {
+        return entityFilter.test(entity);
     }
 
     public boolean entityModels() {

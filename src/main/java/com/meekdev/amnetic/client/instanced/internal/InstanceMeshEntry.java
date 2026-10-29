@@ -83,6 +83,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     public void render(InstanceRenderContext ctx) {
         ensureVao();
         ensureShader();
+        // nothing draws until the driver is done with the shader, no frame waits on it
+        if (!shader.ready()) return;
         syncGeometry();
         if (mesh.geometry().vertexCount() == 0) return;
 
@@ -189,10 +191,11 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     public int lastInstanceCount() { return lastInstanceCount; }
 
     public void renderShadow(Matrix4fc lightViewProj) {
-        if (lastInstanceCount == 0 || vao == 0 || shader == null) return;
+        if (lastInstanceCount == 0 || vao == 0 || shader == null || !shader.ready()) return;
         if (mesh.geometry().vertexCount() == 0) return;
 
         CompiledShader depthOnly = mesh.shadowDepthOnly() ? depthProgram() : null;
+        if (depthOnly != null && !depthOnly.ready()) return;
         CompiledShader bake = depthOnly != null ? depthOnly : shader;
         bake.bind();
         bake.uploadProjView(lightViewProj);

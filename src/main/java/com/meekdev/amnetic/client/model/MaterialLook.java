@@ -29,11 +29,12 @@ public final class MaterialLook {
     float repeatV = 1f;
     float offsetU;
     float offsetV;
+    float warp;
 
     public MaterialLook reset() {
         tintR = tintG = tintB = opacity = emissiveStrength = repeatU = repeatV = 1f;
         roughness = metallic = emR = Float.NaN;
-        emG = emB = offsetU = offsetV = 0f;
+        emG = emB = offsetU = offsetV = warp = 0f;
         doubleSided = dithered = false;
         filter = null;
         baseColorGlId = normalGlId = roughnessGlId = metallicGlId = occlusionGlId = emissiveGlId = 0;
@@ -128,6 +129,12 @@ public final class MaterialLook {
         return this;
     }
 
+    // leans the texture toward affine mapping, 0 perspective correct, 1 fully affine like a psx
+    public MaterialLook warp(float amount) {
+        warp = Math.clamp(amount, 0f, 1f);
+        return this;
+    }
+
     public boolean emits() {
         return !Float.isNaN(emR) && emissiveStrength > 0f && (emR > 0f || emG > 0f || emB > 0f);
     }
@@ -145,8 +152,53 @@ public final class MaterialLook {
         if (occlusionGlId != 0) into.occlusionGlId = occlusionGlId;
         if (emissiveGlId != 0) into.emissiveGlId = emissiveGlId;
         if (repeatU != 1f || repeatV != 1f || offsetU != 0f || offsetV != 0f) into.uv(repeatU, repeatV, offsetU, offsetV);
+        if (warp > 0f) into.warp = warp;
     }
 
+    // whether a draw with this look and one with other come out the same, so they can share one instanced draw
+    public boolean sameAs(MaterialLook other) {
+        return other == this || other != null
+                && Float.compare(tintR, other.tintR) == 0 && Float.compare(tintG, other.tintG) == 0
+                && Float.compare(tintB, other.tintB) == 0 && Float.compare(opacity, other.opacity) == 0
+                && Float.compare(roughness, other.roughness) == 0 && Float.compare(metallic, other.metallic) == 0
+                && Float.compare(emR, other.emR) == 0 && Float.compare(emG, other.emG) == 0
+                && Float.compare(emB, other.emB) == 0 && Float.compare(emissiveStrength, other.emissiveStrength) == 0
+                && doubleSided == other.doubleSided && dithered == other.dithered && filter == other.filter
+                && baseColorGlId == other.baseColorGlId && normalGlId == other.normalGlId
+                && roughnessGlId == other.roughnessGlId && metallicGlId == other.metallicGlId
+                && occlusionGlId == other.occlusionGlId && emissiveGlId == other.emissiveGlId
+                && Float.compare(repeatU, other.repeatU) == 0 && Float.compare(repeatV, other.repeatV) == 0
+                && Float.compare(offsetU, other.offsetU) == 0 && Float.compare(offsetV, other.offsetV) == 0
+                && Float.compare(warp, other.warp) == 0;
+    }
+
+    public int contentHash() {
+        int h = Float.floatToIntBits(tintR);
+        h = 31 * h + Float.floatToIntBits(tintG);
+        h = 31 * h + Float.floatToIntBits(tintB);
+        h = 31 * h + Float.floatToIntBits(opacity);
+        h = 31 * h + Float.floatToIntBits(roughness);
+        h = 31 * h + Float.floatToIntBits(metallic);
+        h = 31 * h + Float.floatToIntBits(emR);
+        h = 31 * h + Float.floatToIntBits(emG);
+        h = 31 * h + Float.floatToIntBits(emB);
+        h = 31 * h + Float.floatToIntBits(emissiveStrength);
+        h = 31 * h + (doubleSided ? 1 : 0) + (dithered ? 2 : 0);
+        h = 31 * h + (filter == null ? 0 : filter.ordinal() + 1);
+        h = 31 * h + baseColorGlId;
+        h = 31 * h + normalGlId;
+        h = 31 * h + roughnessGlId;
+        h = 31 * h + metallicGlId;
+        h = 31 * h + occlusionGlId;
+        h = 31 * h + emissiveGlId;
+        h = 31 * h + Float.floatToIntBits(repeatU);
+        h = 31 * h + Float.floatToIntBits(repeatV);
+        h = 31 * h + Float.floatToIntBits(offsetU);
+        h = 31 * h + Float.floatToIntBits(offsetV);
+        return 31 * h + Float.floatToIntBits(warp);
+    }
+
+    public float warp() { return warp; }
     public float repeatU() { return repeatU; }
     public float repeatV() { return repeatV; }
     public float offsetU() { return offsetU; }

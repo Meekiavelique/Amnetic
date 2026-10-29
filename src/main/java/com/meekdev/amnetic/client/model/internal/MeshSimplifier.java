@@ -1,231 +1,471 @@
 package com.meekdev.amnetic.client.model.internal;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
 import java.util.PriorityQueue;
-import java.util.Set;
 
-/**
- * quadric error metric mesh simplifier (Garland and Heckbert). iterative edge contraction with
- * per-vertex quadrics, using subset placement (contract to whichever endpoint has lower error) so
- * surviving vertices keep their original position and attributes. output is just a reduced index
- * list over the same vertex array.
- * geometry-only quadrics. meant to run once at model load off the render thread, not per frame.
- * robust rather than optimal, skips contractions that would fold a face over
- */
+// quadric edge collapse (garland and heckbert) over a part's triangles, giving coarser index lists over the same vertices
+// corners sharing a position are welded first, so a uv seam is one edge with two sides: a seam vertex only slides
+// along its seam with both sides moving together, and a vertex on an open edge never moves, which keeps material
+// boundaries and the outline of open meshes exactly where they were. corners apart only in their normal, a hard
+// edge, fold like any other, keeping one of their normals
+// error is how far the surface moved at worst, in the units of the vertices
 public final class MeshSimplifier {
 
-    private static final int STRIDE = ModelIR.VERTEX_STRIDE_FLOATS; // pos3, normal3, uv2
+    private static final int STRIDE = ModelIR.VERTEX_STRIDE_FLOATS;
+    private static final byte FREE = 0;
+    private static final byte SEAM = 1;
+    private static final byte LOCKED = 2;
+    // how much a seam resists bending away from its line, against the surface itself
+    private static final double SEAM_WEIGHT = 10;
+    private static final int MIN_TRIANGLES = 8;
+
+    // one level: its index list and the worst error it reached
+    public record Level(int[] indices, float error) {}
 
     private MeshSimplifier() {}
 
-    // new index array with about targetTriangles triangles over the same verts
-    // clone of indices if already at/under target or too small
+    // about targetTriangles triangles over the same vertices, the original when it can not get smaller
     public static int[] simplify(float[] verts, int[] indices, int targetTriangles) {
-        int triCount = indices.length / 3;
-        if (targetTriangles >= triCount || triCount < 8) {
-            return indices.clone();
+        return levels(verts, indices, new int[] {targetTriangles}, new float[] {Float.MAX_VALUE})[0].indices();
+    }
+
+    // one run that stops at each target in turn, or earlier once the next collapse would move the surface further than
+    // that level's most error, so every level is measured against the original surface and not the level before
+    public static Level[] levels(float[] verts, int[] indices, int[] targets, float[] maxErrors) {
+        Level[] out = new Level[targets.length];
+        if (indices.length / 3 < MIN_TRIANGLES) {
+            Arrays.fill(out, new Level(indices, 0f));
+            return out;
         }
-        int vertexCount = verts.length / STRIDE;
-
-        // homogeneous 4x4 quadric per vertex, stored as 10 unique coefficients (upper triangle)
-        double[][] q = new double[vertexCount][10];
-
-        int[] ta = new int[triCount], tb = new int[triCount], tc = new int[triCount];
-        boolean[] triAlive = new boolean[triCount];
-        @SuppressWarnings("unchecked")
-        List<Integer>[] inc = new List[vertexCount];
-        for (int i = 0; i < vertexCount; i++) {
-            inc[i] = new ArrayList<>(6);
-        }
-
-        for (int t = 0; t < triCount; t++) {
-            int a = indices[t * 3], b = indices[t * 3 + 1], c = indices[t * 3 + 2];
-            ta[t] = a; tb[t] = b; tc[t] = c; triAlive[t] = true;
-            double[] fq = faceQuadric(verts, a, b, c);
-            add(q[a], fq); add(q[b], fq); add(q[c], fq);
-            inc[a].add(t); inc[b].add(t); inc[c].add(t);
-        }
-
-        boolean[] vAlive = new boolean[vertexCount];
-        Arrays.fill(vAlive, true);
-        long[] version = new long[vertexCount];
-
-        PriorityQueue<Edge> heap = new PriorityQueue<>();
-        Set<Long> seen = new HashSet<>();
-        for (int t = 0; t < triCount; t++) {
-            pushEdgeIfNew(heap, seen, verts, q, version, ta[t], tb[t]);
-            pushEdgeIfNew(heap, seen, verts, q, version, tb[t], tc[t]);
-            pushEdgeIfNew(heap, seen, verts, q, version, tc[t], ta[t]);
-        }
-
-        int alive = triCount;
-        while (alive > targetTriangles && !heap.isEmpty()) {
-            Edge e = heap.poll();
-            int a = e.a, b = e.b;
-            if (!vAlive[a] || !vAlive[b] || version[a] != e.va || version[b] != e.vb) {
-                continue; // stale
-            }
-
-            // subset placement: keep the endpoint whose position has lower error under the summed quadric
-            double[] qs = new double[10];
-            add(qs, q[a]); add(qs, q[b]);
-            int keep, rem;
-            if (eval(qs, verts, a) <= eval(qs, verts, b)) { keep = a; rem = b; } else { keep = b; rem = a; }
-
-            if (wouldFlip(verts, inc, ta, tb, tc, triAlive, rem, keep)) {
-                continue; // contracting would fold a triangle
-            }
-
-            System.arraycopy(qs, 0, q[keep], 0, 10);
-            for (int t : inc[rem]) {
-                if (!triAlive[t]) {
-                    continue;
-                }
-                if (ta[t] == rem) ta[t] = keep;
-                if (tb[t] == rem) tb[t] = keep;
-                if (tc[t] == rem) tc[t] = keep;
-                if (ta[t] == tb[t] || tb[t] == tc[t] || tc[t] == ta[t]) {
-                    triAlive[t] = false; // degenerate
-                    alive--;
-                } else if (!inc[keep].contains(t)) {
-                    inc[keep].add(t);
-                }
-            }
-            inc[rem].clear();
-            vAlive[rem] = false;
-            version[keep]++;
-
-            seen.clear(); // seen only guards initial dedup, after contraction we push freely (version-guarded)
-            for (int t : inc[keep]) {
-                if (!triAlive[t]) {
-                    continue;
-                }
-                for (int other : new int[]{ta[t], tb[t], tc[t]}) {
-                    if (other != keep && vAlive[other]) {
-                        heap.add(makeEdge(verts, q, version, keep, other));
-                    }
-                }
-            }
-        }
-
-        int[] out = new int[alive * 3];
-        int w = 0;
-        for (int t = 0; t < triCount; t++) {
-            if (triAlive[t]) {
-                out[w++] = ta[t]; out[w++] = tb[t]; out[w++] = tc[t];
-            }
-        }
+        new Run(verts, indices).levels(targets, maxErrors, out);
         return out;
     }
 
-    // true if contracting rem->keep would flip the normal of any triangle around rem (fold-over guard)
-    private static boolean wouldFlip(float[] verts, List<Integer>[] inc, int[] ta, int[] tb, int[] tc,
-                                     boolean[] triAlive, int rem, int keep) {
-        double kx = verts[keep * STRIDE], ky = verts[keep * STRIDE + 1], kz = verts[keep * STRIDE + 2];
-        for (int t : inc[rem]) {
-            if (!triAlive[t]) {
-                continue;
+    private static final class Run {
+        final float[] verts;
+        final int triangles;
+        final int[] corner;
+        // the welded position of each vertex, and one vertex standing for each position
+        final int[] position;
+        // a vertex at the same spot with the same texture coordinates, so corners only apart in their normal
+        // (a hard edge) count as one and the surface can still fold across it
+        final int[] variant;
+        final int[] standIn;
+        final int positions;
+        final boolean[] alive;
+        final double[][] quadric;
+        final byte[] kind;
+        final int[] version;
+        final boolean[] gone;
+        // the triangles touching each position, grown as collapses hand them over
+        final int[][] around;
+        final int[] aroundCount;
+        int living;
+        double worst;
+
+        Run(float[] verts, int[] indices) {
+            this.verts = verts;
+            this.triangles = indices.length / 3;
+            this.corner = indices.clone();
+            this.position = weld(verts);
+            this.variant = twins(verts);
+            int most = 0;
+            for (int p : position) most = Math.max(most, p + 1);
+            this.positions = most;
+            this.standIn = new int[positions];
+            for (int v = position.length - 1; v >= 0; v--) standIn[position[v]] = v;
+            this.alive = new boolean[triangles];
+            this.quadric = new double[positions][10];
+            this.kind = new byte[positions];
+            this.version = new int[positions];
+            this.gone = new boolean[positions];
+            this.around = new int[positions][];
+            this.aroundCount = new int[positions];
+            build();
+        }
+
+        // gives vertices at the same spot one id
+        private static int[] weld(float[] verts) {
+            int count = verts.length / STRIDE;
+            Integer[] order = new Integer[count];
+            for (int i = 0; i < count; i++) order[i] = i;
+            Arrays.sort(order, (a, b) -> {
+                for (int axis = 0; axis < 3; axis++) {
+                    int c = Float.compare(verts[a * STRIDE + axis], verts[b * STRIDE + axis]);
+                    if (c != 0) return c;
+                }
+                return 0;
+            });
+            int[] out = new int[count];
+            int id = -1;
+            for (int i = 0; i < count; i++) {
+                int v = order[i];
+                if (i == 0 || !samePlace(verts, v, order[i - 1])) id++;
+                out[v] = id;
             }
-            int a = ta[t], b = tb[t], c = tc[t];
-            if ((a == keep || b == keep || c == keep)) {
-                continue; // this triangle collapses away
+            return out;
+        }
+
+        private static int[] twins(float[] verts) {
+            int count = verts.length / STRIDE;
+            Integer[] order = new Integer[count];
+            for (int i = 0; i < count; i++) order[i] = i;
+            int[] fields = {0, 1, 2, 6, 7};
+            java.util.Comparator<Integer> by = (a, b) -> {
+                for (int field : fields) {
+                    int c = Float.compare(verts[a * STRIDE + field], verts[b * STRIDE + field]);
+                    if (c != 0) return c;
+                }
+                return 0;
+            };
+            Arrays.sort(order, by);
+            int[] out = new int[count];
+            int first = -1;
+            for (int i = 0; i < count; i++) {
+                int v = order[i];
+                if (i == 0 || by.compare(v, order[i - 1]) != 0) first = v;
+                out[v] = first;
             }
-            // normal before
-            double[] nb = normal(verts, a, b, c);
-            // normal after moving rem -> keep position
-            double ax = a == rem ? kx : verts[a * STRIDE];
-            double ay = a == rem ? ky : verts[a * STRIDE + 1];
-            double az = a == rem ? kz : verts[a * STRIDE + 2];
-            double bx = b == rem ? kx : verts[b * STRIDE];
-            double by = b == rem ? ky : verts[b * STRIDE + 1];
-            double bz = b == rem ? kz : verts[b * STRIDE + 2];
-            double cx = c == rem ? kx : verts[c * STRIDE];
-            double cy = c == rem ? ky : verts[c * STRIDE + 1];
-            double cz = c == rem ? kz : verts[c * STRIDE + 2];
-            double e1x = bx - ax, e1y = by - ay, e1z = bz - az;
-            double e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
-            double nx = e1y * e2z - e1z * e2y;
-            double ny = e1z * e2x - e1x * e2z;
-            double nz = e1x * e2y - e1y * e2x;
-            if (nb[0] * nx + nb[1] * ny + nb[2] * nz < 0) {
-                return true;
+            return out;
+        }
+
+        private static boolean samePlace(float[] verts, int a, int b) {
+            return verts[a * STRIDE] == verts[b * STRIDE] && verts[a * STRIDE + 1] == verts[b * STRIDE + 1]
+                    && verts[a * STRIDE + 2] == verts[b * STRIDE + 2];
+        }
+
+        private void build() {
+            int[] counts = new int[positions];
+            for (int t = 0; t < triangles; t++) {
+                int a = position[corner[t * 3]], b = position[corner[t * 3 + 1]], c = position[corner[t * 3 + 2]];
+                alive[t] = a != b && b != c && c != a;
+                if (!alive[t]) continue;
+                living++;
+                counts[a]++;
+                counts[b]++;
+                counts[c]++;
+            }
+            for (int p = 0; p < positions; p++) around[p] = new int[Math.max(4, counts[p])];
+            // a position is free with one set of attributes, a seam with two, locked with more
+            int[] first = new int[positions];
+            int[] second = new int[positions];
+            Arrays.fill(first, -1);
+            Arrays.fill(second, -1);
+            Edges edges = new Edges(living * 3);
+            for (int t = 0; t < triangles; t++) {
+                if (!alive[t]) continue;
+                double[] plane = plane(t);
+                for (int k = 0; k < 3; k++) {
+                    int v = variant[corner[t * 3 + k]];
+                    int p = position[v];
+                    add(around, aroundCount, p, t);
+                    addTo(quadric[p], plane, 1);
+                    if (first[p] == -1) first[p] = v;
+                    else if (first[p] != v && second[p] == -1) second[p] = v;
+                    else if (first[p] != v && second[p] != v) kind[p] = LOCKED;
+                    int next = variant[corner[t * 3 + (k + 1) % 3]];
+                    edges.add(t, p, position[next], v, next);
+                }
+            }
+            for (int p = 0; p < positions; p++) {
+                if (kind[p] != LOCKED) kind[p] = second[p] == -1 ? FREE : SEAM;
+            }
+            edges.mark(this);
+        }
+
+        void levels(int[] targets, float[] maxErrors, Level[] out) {
+            PriorityQueue<Collapse> queue = new PriorityQueue<>();
+            for (int t = 0; t < triangles; t++) {
+                if (!alive[t]) continue;
+                for (int k = 0; k < 3; k++) {
+                    int a = position[corner[t * 3 + k]], b = position[corner[t * 3 + (k + 1) % 3]];
+                    if (a < b) offer(queue, a, b);
+                }
+            }
+            for (int level = 0; level < targets.length; level++) {
+                double most = (double) maxErrors[level] * maxErrors[level];
+                while (living > targets[level] && !queue.isEmpty()) {
+                    Collapse next = queue.peek();
+                    if (gone[next.from] || gone[next.to] || version[next.from] != next.fromVersion || version[next.to] != next.toVersion) {
+                        queue.poll();
+                        continue;
+                    }
+                    if (next.cost > most) break;
+                    queue.poll();
+                    if (!collapse(next.from, next.to)) continue;
+                    worst = Math.max(worst, next.cost);
+                    for (int i = 0; i < aroundCount[next.to]; i++) {
+                        int t = around[next.to][i];
+                        if (!alive[t]) continue;
+                        for (int k = 0; k < 3; k++) {
+                            int other = position[corner[t * 3 + k]];
+                            if (other != next.to) offer(queue, next.to, other);
+                        }
+                    }
+                }
+                out[level] = new Level(snapshot(), (float) Math.sqrt(worst));
             }
         }
-        return false;
-    }
 
-    private static double[] normal(float[] v, int a, int b, int c) {
-        double ax = v[a * STRIDE], ay = v[a * STRIDE + 1], az = v[a * STRIDE + 2];
-        double e1x = v[b * STRIDE] - ax, e1y = v[b * STRIDE + 1] - ay, e1z = v[b * STRIDE + 2] - az;
-        double e2x = v[c * STRIDE] - ax, e2y = v[c * STRIDE + 1] - ay, e2z = v[c * STRIDE + 2] - az;
-        return new double[]{ e1y * e2z - e1z * e2y, e1z * e2x - e1x * e2z, e1x * e2y - e1y * e2x };
-    }
+        private int[] snapshot() {
+            int[] out = new int[living * 3];
+            int at = 0;
+            for (int t = 0; t < triangles; t++) {
+                if (!alive[t]) continue;
+                out[at++] = corner[t * 3];
+                out[at++] = corner[t * 3 + 1];
+                out[at++] = corner[t * 3 + 2];
+            }
+            return out;
+        }
 
-    private static void pushEdgeIfNew(PriorityQueue<Edge> heap, Set<Long> seen, float[] verts, double[][] q,
-                                      long[] version, int a, int b) {
-        long key = a < b ? ((long) a << 32) | (b & 0xffffffffL) : ((long) b << 32) | (a & 0xffffffffL);
-        if (seen.add(key)) {
-            heap.add(makeEdge(verts, q, version, a, b));
+        // the cheaper way of folding the edge a b, either end into the other, when either may move
+        private void offer(PriorityQueue<Collapse> queue, int a, int b) {
+            double[] sum = new double[10];
+            addTo(sum, quadric[a], 1);
+            addTo(sum, quadric[b], 1);
+            double intoB = kind[a] == LOCKED ? Double.MAX_VALUE : error(sum, b);
+            double intoA = kind[b] == LOCKED ? Double.MAX_VALUE : error(sum, a);
+            if (intoB == Double.MAX_VALUE && intoA == Double.MAX_VALUE) return;
+            boolean toB = intoB <= intoA;
+            int from = toB ? a : b;
+            int to = toB ? b : a;
+            queue.add(new Collapse(from, to, Math.max(0, toB ? intoB : intoA), version[from], version[to]));
+        }
+
+        // folds from into to when that keeps seams whole, the surface unfolded and the mesh a surface
+        private boolean collapse(int from, int to) {
+            int[] partner = partners(from, to);
+            if (partner == null || flips(from, to) || !linked(from, to)) return false;
+            for (int i = 0; i < aroundCount[from]; i++) {
+                int t = around[from][i];
+                if (!alive[t]) continue;
+                if (holds(t, to)) {
+                    alive[t] = false;
+                    living--;
+                    continue;
+                }
+                for (int k = 0; k < 3; k++) {
+                    int c = corner[t * 3 + k];
+                    if (position[c] == from) corner[t * 3 + k] = partner[0] == variant[c] ? partner[1] : partner[3];
+                }
+                add(around, aroundCount, to, t);
+            }
+            addTo(quadric[to], quadric[from], 1);
+            gone[from] = true;
+            aroundCount[from] = 0;
+            version[to]++;
+            return true;
+        }
+
+        private boolean holds(int t, int p) {
+            return position[corner[t * 3]] == p || position[corner[t * 3 + 1]] == p || position[corner[t * 3 + 2]] == p;
+        }
+
+        // the vertex at to that each vertex at from turns into, as {from a, to a, from b, to b}
+        // null when one has none or both land on the same one, which would tear a seam
+        private int[] partners(int from, int to) {
+            int[] pair = {-1, -1, -1, -1};
+            for (int i = 0; i < aroundCount[from]; i++) {
+                int t = around[from][i];
+                if (!alive[t]) continue;
+                int mine = -1, theirs = -1;
+                for (int k = 0; k < 3; k++) {
+                    int c = corner[t * 3 + k];
+                    if (position[c] == from) mine = variant[c];
+                    if (position[c] == to) theirs = variant[c];
+                }
+                int slot = pair[0] == -1 || pair[0] == mine ? 0 : pair[2] == -1 || pair[2] == mine ? 2 : -1;
+                if (slot < 0) return null;
+                pair[slot] = mine;
+                if (theirs == -1) continue;
+                if (pair[slot + 1] != -1 && pair[slot + 1] != theirs) return null;
+                pair[slot + 1] = theirs;
+            }
+            if (pair[0] == -1 || pair[1] == -1) return null;
+            if (pair[2] != -1 && (pair[3] == -1 || pair[3] == pair[1])) return null;
+            return pair;
+        }
+
+        // whether moving from onto to turns a triangle around from over, or nearly
+        private boolean flips(int from, int to) {
+            for (int i = 0; i < aroundCount[from]; i++) {
+                int t = around[from][i];
+                if (!alive[t] || holds(t, to)) continue;
+                double[] before = normal(t, -1, -1);
+                double[] after = normal(t, from, to);
+                double dot = before[0] * after[0] + before[1] * after[1] + before[2] * after[2];
+                double lengths = Math.sqrt((before[0] * before[0] + before[1] * before[1] + before[2] * before[2])
+                        * (after[0] * after[0] + after[1] * after[1] + after[2] * after[2]));
+                if (dot <= 0.2 * lengths) return true;
+            }
+            return false;
+        }
+
+        // the link condition: from and to share no neighbour other than the far corners of the triangles on their edge
+        private boolean linked(int from, int to) {
+            int[] near = new int[8];
+            int count = 0;
+            int shared = 0;
+            for (int i = 0; i < aroundCount[from]; i++) {
+                int t = around[from][i];
+                if (!alive[t]) continue;
+                if (holds(t, to)) shared++;
+                for (int k = 0; k < 3; k++) {
+                    int p = position[corner[t * 3 + k]];
+                    if (p == from || p == to) continue;
+                    boolean known = false;
+                    for (int n = 0; n < count && !known; n++) known = near[n] == p;
+                    if (known) continue;
+                    if (count == near.length) near = Arrays.copyOf(near, count * 2);
+                    near[count++] = p;
+                }
+            }
+            int common = 0;
+            for (int n = 0; n < count; n++) {
+                if (touches(to, near[n])) common++;
+            }
+            return common <= shared;
+        }
+
+        private boolean touches(int p, int other) {
+            for (int i = 0; i < aroundCount[p]; i++) {
+                int t = around[p][i];
+                if (alive[t] && holds(t, other)) return true;
+            }
+            return false;
+        }
+
+        // the normal of triangle t, with position moved standing at onto
+        private double[] normal(int t, int moved, int onto) {
+            int a = spot(corner[t * 3], moved, onto), b = spot(corner[t * 3 + 1], moved, onto), c = spot(corner[t * 3 + 2], moved, onto);
+            double ax = verts[a * STRIDE], ay = verts[a * STRIDE + 1], az = verts[a * STRIDE + 2];
+            double e1x = verts[b * STRIDE] - ax, e1y = verts[b * STRIDE + 1] - ay, e1z = verts[b * STRIDE + 2] - az;
+            double e2x = verts[c * STRIDE] - ax, e2y = verts[c * STRIDE + 1] - ay, e2z = verts[c * STRIDE + 2] - az;
+            return new double[] {e1y * e2z - e1z * e2y, e1z * e2x - e1x * e2z, e1x * e2y - e1y * e2x};
+        }
+
+        private int spot(int v, int moved, int onto) {
+            return position[v] == moved ? standIn[onto] : v;
+        }
+
+        private double[] plane(int t) {
+            double[] n = normal(t, -1, -1);
+            int a = corner[t * 3];
+            return quadricOf(n[0], n[1], n[2], verts[a * STRIDE], verts[a * STRIDE + 1], verts[a * STRIDE + 2]);
+        }
+
+        // a seam edge also pulls on a plane standing on it, so the seam keeps its line as it loses vertices
+        void seam(int t, int v, int next) {
+            double[] n = normal(t, -1, -1);
+            double ex = verts[next * STRIDE] - verts[v * STRIDE];
+            double ey = verts[next * STRIDE + 1] - verts[v * STRIDE + 1];
+            double ez = verts[next * STRIDE + 2] - verts[v * STRIDE + 2];
+            double px = ey * n[2] - ez * n[1], py = ez * n[0] - ex * n[2], pz = ex * n[1] - ey * n[0];
+            double[] q = quadricOf(px, py, pz, verts[v * STRIDE], verts[v * STRIDE + 1], verts[v * STRIDE + 2]);
+            addTo(quadric[position[v]], q, SEAM_WEIGHT);
+            addTo(quadric[position[next]], q, SEAM_WEIGHT);
+        }
+
+        private static double[] quadricOf(double nx, double ny, double nz, double x, double y, double z) {
+            double length = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (length < 1e-20) return new double[10];
+            nx /= length;
+            ny /= length;
+            nz /= length;
+            double d = -(nx * x + ny * y + nz * z);
+            return new double[] {nx * nx, nx * ny, nx * nz, nx * d, ny * ny, ny * nz, ny * d, nz * nz, nz * d, d * d};
+        }
+
+        // the summed squared distance from position p to every plane in q
+        private double error(double[] q, int p) {
+            int v = standIn[p];
+            double x = verts[v * STRIDE], y = verts[v * STRIDE + 1], z = verts[v * STRIDE + 2];
+            return q[0] * x * x + 2 * q[1] * x * y + 2 * q[2] * x * z + 2 * q[3] * x
+                    + q[4] * y * y + 2 * q[5] * y * z + 2 * q[6] * y
+                    + q[7] * z * z + 2 * q[8] * z + q[9];
         }
     }
 
-    private static Edge makeEdge(float[] verts, double[][] q, long[] version, int a, int b) {
-        double[] qs = new double[10];
-        add(qs, q[a]); add(qs, q[b]);
-        double cost = Math.min(eval(qs, verts, a), eval(qs, verts, b));
-        Edge e = new Edge();
-        e.a = a; e.b = b; e.va = version[a]; e.vb = version[b]; e.cost = cost;
-        return e;
-    }
+    // welded edges, how many triangles hold each and whether its two sides disagree on attributes
+    private static final class Edges {
+        final long[] keys;
+        final int[] count;
+        final int[] from;
+        final int[] to;
+        final boolean[] split;
+        final int mask;
+        // every corner's edge in the order they were added, as slot, triangle, vertex, next vertex
+        final int[] added;
+        int addedCount;
 
-    // quadric of the plane through triangle (a,b,c): outer product of the normalized plane [nx,ny,nz,d]
-    private static double[] faceQuadric(float[] v, int a, int b, int c) {
-        double ax = v[a * STRIDE], ay = v[a * STRIDE + 1], az = v[a * STRIDE + 2];
-        double e1x = v[b * STRIDE] - ax, e1y = v[b * STRIDE + 1] - ay, e1z = v[b * STRIDE + 2] - az;
-        double e2x = v[c * STRIDE] - ax, e2y = v[c * STRIDE + 1] - ay, e2z = v[c * STRIDE + 2] - az;
-        double nx = e1y * e2z - e1z * e2y;
-        double ny = e1z * e2x - e1x * e2z;
-        double nz = e1x * e2y - e1y * e2x;
-        double len = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        if (len < 1e-12) {
-            return new double[10];
+        Edges(int expected) {
+            int size = Integer.highestOneBit(Math.max(16, expected)) << 2;
+            keys = new long[size];
+            Arrays.fill(keys, -1);
+            count = new int[size];
+            from = new int[size];
+            to = new int[size];
+            split = new boolean[size];
+            mask = size - 1;
+            added = new int[expected * 4];
         }
-        nx /= len; ny /= len; nz /= len;
-        double d = -(nx * ax + ny * ay + nz * az);
-        return new double[]{
-                nx * nx, nx * ny, nx * nz, nx * d,
-                ny * ny, ny * nz, ny * d,
-                nz * nz, nz * d,
-                d * d
-        };
-    }
 
-    private static void add(double[] into, double[] other) {
-        for (int i = 0; i < 10; i++) {
-            into[i] += other[i];
+        void add(int t, int a, int b, int v, int next) {
+            long key = a < b ? ((long) a << 32) | b : ((long) b << 32) | a;
+            int slot = (int) (mix(key) & mask);
+            while (keys[slot] != -1 && keys[slot] != key) slot = (slot + 1) & mask;
+            if (keys[slot] == -1) {
+                keys[slot] = key;
+                from[slot] = v;
+                to[slot] = next;
+            } else if (from[slot] != next || to[slot] != v) {
+                split[slot] = true;
+            }
+            count[slot]++;
+            added[addedCount * 4] = slot;
+            added[addedCount * 4 + 1] = t;
+            added[addedCount * 4 + 2] = v;
+            added[addedCount * 4 + 3] = next;
+            addedCount++;
+        }
+
+        // locks both ends of an open or shared edge, and makes seams resist bending
+        void mark(Run run) {
+            for (int n = 0; n < addedCount; n++) {
+                int slot = added[n * 4];
+                int v = added[n * 4 + 2];
+                int next = added[n * 4 + 3];
+                if (count[slot] != 2) {
+                    run.kind[run.position[v]] = LOCKED;
+                    run.kind[run.position[next]] = LOCKED;
+                } else if (split[slot]) {
+                    run.seam(added[n * 4 + 1], v, next);
+                }
+            }
+        }
+
+        private static long mix(long key) {
+            key ^= key >>> 33;
+            key *= 0xff51afd7ed558ccdL;
+            key ^= key >>> 33;
+            return key;
         }
     }
 
-    // v^T Q v for the homogeneous quadric (v = [x,y,z,1]) of vertex vi
-    private static double eval(double[] q, float[] verts, int vi) {
-        double x = verts[vi * STRIDE], y = verts[vi * STRIDE + 1], z = verts[vi * STRIDE + 2];
-        return q[0] * x * x + 2 * q[1] * x * y + 2 * q[2] * x * z + 2 * q[3] * x
-                + q[4] * y * y + 2 * q[5] * y * z + 2 * q[6] * y
-                + q[7] * z * z + 2 * q[8] * z
-                + q[9];
-    }
-
-    private static final class Edge implements Comparable<Edge> {
-        int a, b;
-        long va, vb;
-        double cost;
-
+    private record Collapse(int from, int to, double cost, int fromVersion, int toVersion) implements Comparable<Collapse> {
         @Override
-        public int compareTo(Edge o) {
-            return Double.compare(cost, o.cost);
+        public int compareTo(Collapse other) {
+            return Double.compare(cost, other.cost);
         }
+    }
+
+    private static void add(int[][] lists, int[] counts, int p, int t) {
+        if (counts[p] == lists[p].length) lists[p] = Arrays.copyOf(lists[p], lists[p].length * 2);
+        lists[p][counts[p]++] = t;
+    }
+
+    private static void addTo(double[] into, double[] q, double weight) {
+        for (int i = 0; i < 10; i++) into[i] += q[i] * weight;
     }
 }

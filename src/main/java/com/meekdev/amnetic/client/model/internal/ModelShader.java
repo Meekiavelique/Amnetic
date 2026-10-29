@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.model.internal;
 
 
+import com.meekdev.amnetic.client.render.ProgramLink;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.model.ModelLighting;
 import java.nio.FloatBuffer;
@@ -10,7 +11,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
 import com.meekdev.amnetic.client.material.SurfaceInputs;
@@ -18,45 +18,47 @@ import org.lwjgl.system.MemoryStack;
 
 final class ModelShader implements AutoCloseable {
 
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Amnetic/Model");
+
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/model.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/model.fsh");
 
-    private final int program;
-    private final int projViewLoc;
-    private final int baseColorLoc;
-    private final int emissiveLoc;
-    private final int metallicLoc;
-    private final int roughnessLoc;
-    private final int alphaCutoffLoc;
-    private final int transmissionLoc;
-    private final int emissiveStrengthLoc;
-    private final int hasAlbedoLoc;
-    private final int hasNormalLoc;
-    private final int hasOrmLoc;
-    private final int hasEmissiveLoc;
-    private final int materialIdLoc;
-    private final int skinnedLoc;
-    private final int jointCountLoc;
-    private final int prevJointBaseLoc;
-    private final int cameraPosLoc;
-    private final int worldSpaceLoc;
-    private final int sourceIndexedLoc;
+    private int program;
+    private int projViewLoc;
+    private int baseColorLoc;
+    private int emissiveLoc;
+    private int metallicLoc;
+    private int roughnessLoc;
+    private int alphaCutoffLoc;
+    private int transmissionLoc;
+    private int emissiveStrengthLoc;
+    private int hasAlbedoLoc;
+    private int hasNormalLoc;
+    private int hasOrmLoc;
+    private int hasEmissiveLoc;
+    private int materialIdLoc;
+    private int skinnedLoc;
+    private int jointCountLoc;
+    private int prevJointBaseLoc;
+    private int cameraPosLoc;
+    private int worldSpaceLoc;
+    private int sourceIndexedLoc;
 
     static final int JOINT_UNIT = 6;
-    private final int hasEnvCubeLoc;
-    private final int envMaxLodLoc;
-    private final int sunDirectionLoc;
-    private final int sunColorLoc;
-    private final int sunIntensityLoc;
-    private final int ambientStrengthLoc;
-    private final int envIntensityLoc;
-    private final int exposureLoc;
-    private final int tonemapLoc;
-    private final int timeLoc;
-    private final int surfaceValuesLoc;
-    private final int uvTransformLoc;
-    private final int doubleSidedLoc;
-    private final int albedoEncodedLoc;
+    private int hasEnvCubeLoc;
+    private int envMaxLodLoc;
+    private int sunDirectionLoc;
+    private int sunColorLoc;
+    private int sunIntensityLoc;
+    private int ambientStrengthLoc;
+    private int envIntensityLoc;
+    private int exposureLoc;
+    private int tonemapLoc;
+    private int timeLoc;
+    private int surfaceValuesLoc;
+    private int uvTransformLoc;
+    private int doubleSidedLoc;
+    private int albedoEncodedLoc;
 
     static final int SURFACE_TEXTURE_UNIT = 8;
     static final int ROUGHNESS_UNIT = 4;
@@ -64,12 +66,45 @@ final class ModelShader implements AutoCloseable {
     static final int OCCLUSION_UNIT = 12;
     static final int LIGHTMAP_UNIT = 13;
     static final int[] MATERIAL_UNITS = {0, 1, 2, 3, ROUGHNESS_UNIT, METALLIC_UNIT, OCCLUSION_UNIT};
-    private final int emissiveEncodedLoc;
-    private final int hasRoughnessMapLoc;
-    private final int hasMetallicMapLoc;
-    private final int hasOcclusionMapLoc;
+    private int emissiveEncodedLoc;
+    private int hasRoughnessMapLoc;
+    private int hasMetallicMapLoc;
+    private int hasOcclusionMapLoc;
+    private int textureWarpLoc;
+    private int vertexColorsLoc;
+    private int unlitLoc;
 
-    private ModelShader(int program) {
+    private final Identifier vshId;
+    private final Identifier fshId;
+    private ProgramLink link;
+    private boolean failed;
+
+    private ModelShader(Identifier vshId, Identifier fshId, ProgramLink link) {
+        this.vshId = vshId;
+        this.fshId = fshId;
+        this.link = link;
+    }
+
+    // true once it can draw. false while the driver is still on it, and for good when it did not build
+    boolean ready() {
+        if (program != 0) return true;
+        if (failed || link == null || !link.ready()) return false;
+        ProgramLink done = link;
+        link = null;
+        if (done.failed()) {
+            failed = true;
+            LOG.error("model shader {}/{} does not build: {}", vshId, fshId, done.problem());
+            return false;
+        }
+        linked(done.program());
+        return true;
+    }
+
+    boolean failed() {
+        return failed;
+    }
+
+    private void linked(int program) {
         this.program = program;
         this.projViewLoc = uniform("ProjViewMatrix");
         this.baseColorLoc = uniform("BaseColor");
@@ -108,6 +143,9 @@ final class ModelShader implements AutoCloseable {
         this.hasRoughnessMapLoc = uniform("HasRoughnessMap");
         this.hasMetallicMapLoc = uniform("HasMetallicMap");
         this.hasOcclusionMapLoc = uniform("HasOcclusionMap");
+        this.textureWarpLoc = uniform("TextureWarp");
+        this.vertexColorsLoc = uniform("VertexColors");
+        this.unlitLoc = uniform("Unlit");
         bindSamplerUnits();
     }
 
@@ -123,22 +161,13 @@ final class ModelShader implements AutoCloseable {
         return Identifier.fromNamespaceAndPath(id.getNamespace(), "shaders/" + id.getPath() + ext);
     }
 
+    // starts compiling, it draws once ready() says so
     private static ModelShader loadResolved(Identifier vshId, Identifier fshId) {
-        int vs = compile(GL20.GL_VERTEX_SHADER, loadSource(vshId), vshId);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, loadSource(fshId), fshId);
-        int prog = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(prog, vs);
-        GlStateManager.glAttachShader(prog, fs);
-        GlStateManager.glLinkProgram(prog);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            int length = GlStateManager.glGetProgrami(prog, GL20.GL_INFO_LOG_LENGTH);
-            String log = GlStateManager.glGetProgramInfoLog(prog, Math.max(length, 512));
-            GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("Failed to link model shader (" + vshId + "/" + fshId + "): " + log);
-        }
-        return new ModelShader(prog);
+        ProgramLink link = ProgramLink.builder("model shader " + vshId + "/" + fshId)
+                .vertex(loadSource(vshId), vshId)
+                .fragment(loadSource(fshId), fshId)
+                .start();
+        return new ModelShader(vshId, fshId, link);
     }
 
     void bind() {
@@ -264,6 +293,9 @@ final class ModelShader implements AutoCloseable {
         if (doubleSidedLoc != -1) {
             GL20.glUniform1i(doubleSidedLoc, mat.doubleSided ? 1 : 0);
         }
+        if (unlitLoc != -1) {
+            GL20.glUniform1i(unlitLoc, mat.unlit ? 1 : 0);
+        }
     }
 
     void uploadAlbedoEncoded(boolean encoded) {
@@ -277,6 +309,14 @@ final class ModelShader implements AutoCloseable {
         if (hasRoughnessMapLoc != -1) GL20.glUniform1i(hasRoughnessMapLoc, roughness ? 1 : 0);
         if (hasMetallicMapLoc != -1) GL20.glUniform1i(hasMetallicMapLoc, metallic ? 1 : 0);
         if (hasOcclusionMapLoc != -1) GL20.glUniform1i(hasOcclusionMapLoc, occlusion ? 1 : 0);
+    }
+
+    void uploadWarp(float warp) {
+        if (textureWarpLoc != -1) GL20.glUniform1f(textureWarpLoc, warp);
+    }
+
+    void uploadVertexColors(boolean colored) {
+        if (vertexColorsLoc != -1) GL20.glUniform1i(vertexColorsLoc, colored ? 1 : 0);
     }
 
     void uploadUv(float repeatU, float repeatV, float offsetU, float offsetV) {
@@ -331,27 +371,17 @@ final class ModelShader implements AutoCloseable {
         return GlStateManager._glGetUniformLocation(program, name);
     }
 
-    private static int compile(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            int length = GlStateManager.glGetShaderi(shader, GL20.GL_INFO_LOG_LENGTH);
-            String log = GlStateManager.glGetShaderInfoLog(shader, Math.max(length, 512));
-            GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("Failed to compile model shader " + id + ": " + log);
-        }
-        return shader;
-    }
-
     private static String loadSource(Identifier id) {
         return ShaderProgram.readSource(id);
     }
 
     @Override
     public void close() {
+        if (link != null) link.delete();
+        link = null;
         if (program != 0) {
             GlStateManager.glDeleteProgram(program);
+            program = 0;
         }
     }
 }

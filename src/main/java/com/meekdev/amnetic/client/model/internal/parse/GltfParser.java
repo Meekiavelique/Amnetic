@@ -3,11 +3,14 @@ package com.meekdev.amnetic.client.model.internal.parse;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import com.meekdev.amnetic.client.model.ModelLoadException;
+import com.meekdev.amnetic.client.model.internal.GpuModel;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import de.javagl.jgltf.model.AccessorModel;
 import de.javagl.jgltf.model.AnimationModel;
@@ -17,8 +20,13 @@ import de.javagl.jgltf.model.MaterialModel;
 import de.javagl.jgltf.model.MeshModel;
 import de.javagl.jgltf.model.MeshPrimitiveModel;
 import de.javagl.jgltf.model.NodeModel;
+import de.javagl.jgltf.model.SkinModel;
+import com.meekdev.amnetic.client.model.TextureFilter;
 import de.javagl.jgltf.model.TextureModel;
-import de.javagl.jgltf.model.io.GltfModelReader;
+import de.javagl.jgltf.model.GltfModels;
+import de.javagl.jgltf.model.io.GltfAsset;
+import de.javagl.jgltf.model.io.GltfAssetReader;
+import de.javagl.jgltf.model.io.GltfReference;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
@@ -40,8 +48,14 @@ public final class GltfParser {
     }
 
     public static ModelIR parse(byte[] bytes, Identifier source) {
+        return parse(bytes, source, null);
+    }
+
+    // files reads an image the file points at by a relative uri, given the decoded uri, null when it has none
+    public static ModelIR parse(byte[] bytes, Identifier source, Function<String, byte[]> files) {
         try {
-            GltfModel gltf = new GltfModelReader().readWithoutReferences(byteStream(bytes));
+            GltfModel gltf = read(bytes, files);
+            GltfExtras extras = new GltfExtras(GltfExtras.json(bytes), gltf.getMaterialModels(), files);
             ModelIR ir = new ModelIR();
             if (source != null) {
                 ir.setName(source.toString());
@@ -55,7 +69,7 @@ public final class GltfParser {
             buildNodes(ir, nodes, nodeIndices);
 
             Map<MaterialModel, Integer> materialIndices = new IdentityHashMap<>();
-            buildParts(ir, gltf, nodes, nodeIndices, materialIndices);
+            buildParts(ir, gltf, nodes, nodeIndices, materialIndices, extras);
 
             if (ir.isEmpty()) {
                 throw new ModelLoadException("glTF produced no drawable geometry: " + ir.name());
@@ -80,18 +94,26 @@ public final class GltfParser {
             float[] m = node.getMatrix();
             if (m != null && m.length == 16) {
                 out.local.set(m); // jgltf matrices are column-major, same as JOML
+                out.local.getTranslation(out.t);
+                out.local.getScale(out.s);
+                // a mirrored node keeps its mirror as a negative x scale, or posing it would flip it back
+                Matrix4f turn = new Matrix4f(out.local);
+                if (out.local.determinant3x3() < 0f) {
+                    out.s.x = -out.s.x;
+                    turn.m00(-turn.m00()).m01(-turn.m01()).m02(-turn.m02());
+                }
+                turn.getUnnormalizedRotation(out.r);
+                out.r.normalize();
             } else {
+                // the file's own parts are kept as they are, decomposing them again would lose a negative scale
                 float[] t = node.getTranslation();
                 float[] r = node.getRotation();
                 float[] s = node.getScale();
                 if (t != null) out.t.set(t[0], t[1], t[2]);
-                if (r != null) out.r.set(r[0], r[1], r[2], r[3]);
+                if (r != null) out.r.set(r[0], r[1], r[2], r[3]).normalize();
                 if (s != null) out.s.set(s[0], s[1], s[2]);
                 out.rebuildLocal();
             }
-            out.local.getTranslation(out.t);
-            out.local.getUnnormalizedRotation(out.r);
-            out.local.getScale(out.s);
 
             List<NodeModel> children = node.getChildren();
             out.children = new int[children == null ? 0 : children.size()];
@@ -105,7 +127,8 @@ public final class GltfParser {
     }
 
     private static void buildParts(ModelIR ir, GltfModel gltf, List<NodeModel> nodes,
-                                   Map<NodeModel, Integer> nodeIndices, Map<MaterialModel, Integer> materialIndices) {
+                                   Map<NodeModel, Integer> nodeIndices, Map<MaterialModel, Integer> materialIndices,
+                                   GltfExtras extras) {
         for (NodeModel node : nodes) {
             List<MeshModel> meshes = node.getMeshModels();
             if (meshes == null || meshes.isEmpty()) {
@@ -123,8 +146,9 @@ public final class GltfParser {
                     if (prim.getMode() != MODE_TRIANGLES) {
                         continue;
                     }
-                    ModelIR.Part part = buildPart(ir, gltf, prim, nodeIndex, world, materialIndices, mesh.getName());
+                    ModelIR.Part part = buildPart(ir, gltf, prim, nodeIndex, world, materialIndices, mesh.getName(), extras);
                     if (part != null) {
+                        readSkin(part, prim.getAttributes(), node.getSkinModel(), nodeIndices, ir.name());
                         ir.addPart(part);
                     }
                 }
@@ -133,7 +157,8 @@ public final class GltfParser {
     }
 
     private static ModelIR.Part buildPart(ModelIR ir, GltfModel gltf, MeshPrimitiveModel prim, int nodeIndex,
-                                          Matrix4f world, Map<MaterialModel, Integer> materialIndices, String name) {
+                                          Matrix4f world, Map<MaterialModel, Integer> materialIndices, String name,
+                                          GltfExtras extras) {
         Map<String, AccessorModel> attrs = prim.getAttributes();
         AccessorModel posAcc = attrs.get("POSITION");
         if (posAcc == null) {
@@ -146,7 +171,11 @@ public final class GltfParser {
         }
 
         float[] normals = attrs.containsKey("NORMAL") ? readFloats(attrs.get("NORMAL")) : null;
-        float[] uvs = attrs.containsKey("TEXCOORD_0") ? readFloats(attrs.get("TEXCOORD_0")) : null;
+        GltfExtras.UvTransform tiling = extras.uvTransform(prim.getMaterialModel());
+        String uvSet = "TEXCOORD_" + (tiling == null ? 0 : tiling.texCoord());
+        if (!attrs.containsKey(uvSet)) uvSet = "TEXCOORD_0";
+        float[] uvs = attrs.containsKey(uvSet) ? readFloats(attrs.get(uvSet)) : null;
+        if (uvs != null && tiling != null) tiling.apply(uvs);
         float[] tangentsSrc = attrs.containsKey("TANGENT") ? readFloats(attrs.get("TANGENT")) : null;
 
         float[] vertices = new float[vcount * ModelIR.VERTEX_STRIDE_FLOATS];
@@ -174,11 +203,91 @@ public final class GltfParser {
 
         int[] indices = prim.getIndices() != null ? readUnsignedInts(prim.getIndices()) : sequentialIndices(vcount);
 
-        int materialIndex = resolveMaterial(ir, prim.getMaterialModel(), materialIndices);
-        return new ModelIR.Part(vertices, tangentData, indices, materialIndex, nodeIndex, world, name);
+        int materialIndex = resolveMaterial(ir, prim.getMaterialModel(), materialIndices, extras);
+        ModelIR.Part part = new ModelIR.Part(vertices, tangentData, indices, materialIndex, nodeIndex, world, name);
+        if (attrs.containsKey("COLOR_0")) part.colors = GltfExtras.rgba(readFloats(attrs.get("COLOR_0")), vcount);
+        return part;
     }
 
-    private static int resolveMaterial(ModelIR ir, MaterialModel mat, Map<MaterialModel, Integer> indices) {
+    // joints and weights of a skinned primitive, the 4 heaviest influences kept and summed to 1
+    private static void readSkin(ModelIR.Part part, Map<String, AccessorModel> attrs, SkinModel skin,
+                                 Map<NodeModel, Integer> nodeIndices, String model) {
+        if (skin == null || !attrs.containsKey("JOINTS_0") || !attrs.containsKey("WEIGHTS_0")) {
+            return;
+        }
+        List<NodeModel> joints = skin.getJoints();
+        int jointCount = joints == null ? 0 : joints.size();
+        if (jointCount == 0) {
+            return;
+        }
+        int[] jointNodes = new int[jointCount];
+        Matrix4f[] inverseBind = new Matrix4f[jointCount];
+        float[] binds = skin.getInverseBindMatrices() == null ? null : readFloats(skin.getInverseBindMatrices());
+        for (int j = 0; j < jointCount; j++) {
+            jointNodes[j] = nodeIndices.getOrDefault(joints.get(j), -1);
+            inverseBind[j] = new Matrix4f();
+            if (binds != null && binds.length >= (j + 1) * 16) {
+                inverseBind[j].set(binds, j * 16);
+            }
+        }
+        if (jointCount > GpuModel.MAX_JOINTS) {
+            LOG.warn("{} has a skin with {} joints, only the first {} move", model, jointCount, GpuModel.MAX_JOINTS);
+        }
+
+        int vcount = part.vertexCount();
+        float[][] sets = {
+                readFloats(attrs.get("JOINTS_0")), readFloats(attrs.get("WEIGHTS_0")),
+                attrs.containsKey("JOINTS_1") && attrs.containsKey("WEIGHTS_1") ? readFloats(attrs.get("JOINTS_1")) : null,
+                attrs.containsKey("JOINTS_1") && attrs.containsKey("WEIGHTS_1") ? readFloats(attrs.get("WEIGHTS_1")) : null
+        };
+        float[] jointIndices = new float[vcount * 4];
+        float[] jointWeights = new float[vcount * 4];
+        int[] pickJoint = new int[4];
+        float[] pickWeight = new float[4];
+        for (int v = 0; v < vcount; v++) {
+            Arrays.fill(pickWeight, 0f);
+            Arrays.fill(pickJoint, 0);
+            for (int set = 0; set < 4; set += 2) {
+                float[] js = sets[set];
+                float[] ws = sets[set + 1];
+                if (js == null || ws == null) {
+                    continue;
+                }
+                for (int k = 0; k < 4; k++) {
+                    int at = v * 4 + k;
+                    if (at >= js.length || at >= ws.length) {
+                        break;
+                    }
+                    int joint = (int) js[at];
+                    float weight = ws[at];
+                    if (!(weight > 0f) || joint < 0 || joint >= jointCount) {
+                        continue;
+                    }
+                    int lightest = 0;
+                    for (int s = 1; s < 4; s++) {
+                        if (pickWeight[s] < pickWeight[lightest]) {
+                            lightest = s;
+                        }
+                    }
+                    if (weight > pickWeight[lightest]) {
+                        pickWeight[lightest] = weight;
+                        pickJoint[lightest] = joint;
+                    }
+                }
+            }
+            float sum = pickWeight[0] + pickWeight[1] + pickWeight[2] + pickWeight[3];
+            for (int k = 0; k < 4; k++) {
+                jointIndices[v * 4 + k] = pickJoint[k];
+                jointWeights[v * 4 + k] = sum > 1e-6f ? pickWeight[k] / sum : (k == 0 ? 1f : 0f);
+            }
+        }
+        part.jointIndices = jointIndices;
+        part.jointWeights = jointWeights;
+        part.jointNodes = jointNodes;
+        part.inverseBind = inverseBind;
+    }
+
+    private static int resolveMaterial(ModelIR ir, MaterialModel mat, Map<MaterialModel, Integer> indices, GltfExtras extras) {
         if (mat == null) {
             return -1;
         }
@@ -214,11 +323,13 @@ public final class GltfParser {
             out.transmission = transmissionFactor(v2);
             out.blend = "BLEND".equals(alphaMode) || out.baseA < 0.999f || out.transmission > 0f;
 
-            out.baseColorImageBytes = imageBytes(v2.getBaseColorTexture());
-            out.normalImageBytes = imageBytes(v2.getNormalTexture());
+            out.unlit = extras.unlit(mat);
+            out.baseColorImageBytes = imageBytes(v2.getBaseColorTexture(), extras);
+            if (nearest(v2.getBaseColorTexture())) out.baseColorFilter = TextureFilter.NEAREST;
+            out.normalImageBytes = imageBytes(v2.getNormalTexture(), extras);
             // glTF metallicRoughness packs roughness in G and metallic in B, same layout model.fsh reads
-            out.ormImageBytes = imageBytes(v2.getMetallicRoughnessTexture());
-            out.emissiveImageBytes = imageBytes(v2.getEmissiveTexture());
+            out.ormImageBytes = imageBytes(v2.getMetallicRoughnessTexture(), extras);
+            out.emissiveImageBytes = imageBytes(v2.getEmissiveTexture(), extras);
         }
         int index = ir.addMaterial(out);
         indices.put(mat, index);
@@ -254,7 +365,14 @@ public final class GltfParser {
         return 0f;
     }
 
-    private static byte[] imageBytes(TextureModel texture) {
+    // a sampler asking for nearest magnification, the way pixel art and psx exports come out
+    private static boolean nearest(TextureModel texture) {
+        if (texture == null) return false;
+        Integer mag = texture.getMagFilter();
+        return mag != null && mag == 9728;
+    }
+
+    private static byte[] imageBytes(TextureModel texture, GltfExtras extras) {
         if (texture == null) {
             return null;
         }
@@ -264,7 +382,8 @@ public final class GltfParser {
         }
         ByteBuffer data = image.getImageData();
         if (data == null) {
-            return null;
+            // an image by uri, a data uri or a file next to the model
+            return extras.image(image.getUri());
         }
         ByteBuffer dup = data.slice();
         byte[] bytes = new byte[dup.remaining()];
@@ -310,9 +429,19 @@ public final class GltfParser {
                     if (times.length == 0) {
                         continue;
                     }
+                    int width = path == ModelIR.Path.ROTATION ? 4 : 3;
+                    ModelIR.Interp interp = switch (String.valueOf(sampler.getInterpolation())) {
+                        case "STEP" -> ModelIR.Interp.STEP;
+                        case "CUBICSPLINE" -> ModelIR.Interp.CUBICSPLINE;
+                        default -> ModelIR.Interp.LINEAR;
+                    };
+                    if (values.length < times.length * width * (interp == ModelIR.Interp.CUBICSPLINE ? 3 : 1)) {
+                        continue;
+                    }
                     ModelIR.Channel ch = new ModelIR.Channel();
                     ch.node = node;
                     ch.path = path;
+                    ch.interp = interp;
                     ch.times = times;
                     ch.values = values;
                     out.channels.add(ch);
@@ -332,6 +461,17 @@ public final class GltfParser {
             out[i] = i;
         }
         return out;
+    }
+
+    // the file with every buffer and image it names by uri filled in through files, one it cannot find comes in empty
+    // jgltf reads image data while building the model, so an image left unresolved would fail the whole file
+    private static GltfModel read(byte[] bytes, Function<String, byte[]> files) throws java.io.IOException {
+        GltfAsset asset = new GltfAssetReader().readWithoutReferences(byteStream(bytes));
+        for (GltfReference reference : asset.getReferences()) {
+            byte[] found = GltfExtras.image(reference.getUri(), files);
+            reference.getTarget().accept(ByteBuffer.wrap(found == null ? new byte[0] : found));
+        }
+        return GltfModels.create(asset);
     }
 
     private static InputStream byteStream(byte[] bytes) {
