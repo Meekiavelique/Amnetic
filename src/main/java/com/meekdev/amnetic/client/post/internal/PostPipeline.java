@@ -7,6 +7,7 @@ import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.internal.DepthFormat;
 import com.meekdev.amnetic.client.post.UniformValue;
 import com.meekdev.amnetic.client.render.GlState;
+import com.meekdev.amnetic.client.render.ProgramLink;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import java.io.InputStreamReader;
@@ -52,6 +53,7 @@ final class PostPipeline implements AutoCloseable {
     private final List<Pass> passes;
     private final Map<Identifier, Surface> internal = new HashMap<>();
     private final List<PostProgram> programs = new ArrayList<>();
+    private final List<ProgramLink> links = new ArrayList<>();
     private int fbo;
     private int scratchColor;
     private int scratchWidth;
@@ -129,18 +131,35 @@ final class PostPipeline implements AutoCloseable {
         return new PostPipeline(id, targets, passes);
     }
 
-    // compiles the next missing program, true when it did some work
-    boolean warmOne() {
+    boolean warm() {
         if (programs.size() >= passes.size()) return false;
-        Pass pass = passes.get(programs.size());
+        startLinks();
+        while (programs.size() < passes.size() && programs.size() < links.size() && links.get(programs.size()).ready()) adopt();
+        return programs.size() < passes.size();
+    }
+
+    private void startLinks() {
+        int most = ProgramLink.parallel() ? passes.size() : programs.size() + 1;
+        while (links.size() < most) {
+            Pass pass = passes.get(links.size());
+            links.add(PostProgram.start(pass.vertexShader(), pass.fragmentShader()));
+        }
+    }
+
+    private void adopt() {
         try {
-            programs.add(new PostProgram(pass.vertexShader(), pass.fragmentShader()));
+            programs.add(new PostProgram(links.get(programs.size())));
         } catch (RuntimeException e) {
             for (PostProgram program : programs) program.close();
             programs.clear();
+            dropLinks();
             throw e;
         }
-        return true;
+    }
+
+    private void dropLinks() {
+        for (int i = programs.size(); i < links.size(); i++) links.get(i).delete();
+        links.clear();
     }
 
     boolean usesTarget(Identifier target) {
@@ -156,7 +175,10 @@ final class PostPipeline implements AutoCloseable {
         RenderTarget main = mc.getMainRenderTarget();
         if (main == null) return;
         ensureResources();
-        while (programs.size() < passes.size()) warmOne();
+        while (programs.size() < passes.size()) {
+            startLinks();
+            adopt();
+        }
 
         int prevFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         int[] prevViewport = new int[4];
@@ -360,6 +382,7 @@ final class PostPipeline implements AutoCloseable {
 
     @Override
     public void close() {
+        dropLinks();
         for (PostProgram p : programs) p.close();
         programs.clear();
         for (Surface s : internal.values()) deleteSurface(s);

@@ -1,11 +1,11 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
+import com.meekdev.amnetic.client.render.ProgramLink;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import org.joml.Matrix4f;
-import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 
 import java.io.InputStream;
@@ -26,22 +26,14 @@ public final class ShadowDepthProgram implements AutoCloseable {
 
     private void ensure() {
         if (program != 0) return;
-        int vs = compile(GL20.GL_VERTEX_SHADER, load(vsh), vsh);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, load(fsh), fsh);
-        int prog = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(prog, vs);
-        GlStateManager.glAttachShader(prog, fs);
-        GL20.glBindAttribLocation(prog, 0, "Position");
-        GL20.glBindAttribLocation(prog, 1, "UV");
-        GlStateManager.glLinkProgram(prog);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(prog, 512);
-            GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("Failed to link shadow program " + vsh + "/" + fsh + ": " + log);
-        }
-        program = prog;
+        ProgramLink link = ProgramLink.builder("shadow program " + vsh + "/" + fsh)
+                .vertex(load(vsh), vsh)
+                .fragment(load(fsh), fsh)
+                .attribute(0, "Position")
+                .attribute(1, "UV")
+                .start();
+        if (link.failed()) throw new RuntimeException("Failed to build shadow program " + vsh + "/" + fsh + ": " + link.problem());
+        program = link.program();
         viewProjLoc = GlStateManager._glGetUniformLocation(program, "uViewProj");
     }
 
@@ -63,18 +55,6 @@ public final class ShadowDepthProgram implements AutoCloseable {
     @Override
     public void close() {
         if (program != 0) { GlStateManager.glDeleteProgram(program); program = 0; }
-    }
-
-    private static int compile(int type, String src, Identifier id) {
-        int shader = GlStateManager.glCreateShader(type);
-        GlStateManager.glShaderSource(shader, src);
-        GlStateManager.glCompileShader(shader);
-        if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 512);
-            GlStateManager.glDeleteShader(shader);
-            throw new RuntimeException("Failed to compile shadow shader " + id + ": " + log);
-        }
-        return shader;
     }
 
     private static String load(Identifier id) {

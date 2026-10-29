@@ -157,6 +157,12 @@ public final class UiDraw {
         return this;
     }
 
+    public UiDraw imageTriangle(int glTextureId, float x0, float y0, float u0, float v0, float x1, float y1, float u1, float v1,
+                                float x2, float y2, float u2, float v2, int argb, boolean nearest) {
+        batcher.imageTriangle(glTextureId, x0, y0, u0, v0, x1, y1, u1, v1, x2, y2, u2, v2, argb, nearest);
+        return this;
+    }
+
     public UiDraw withProgram(com.meekdev.amnetic.client.render.ShaderProgram program,
                               java.util.function.Consumer<com.meekdev.amnetic.client.render.ShaderProgram> uniforms,
                               Runnable draw) {

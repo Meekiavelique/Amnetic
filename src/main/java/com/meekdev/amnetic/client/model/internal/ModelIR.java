@@ -18,6 +18,7 @@ public final class ModelIR {
     private final List<Node> nodes = new ArrayList<>();
     private final List<Animation> animations = new ArrayList<>();
     private String name = "model";
+    private java.nio.file.Path textures;
 
     public List<Part> parts() {
         return parts;
@@ -37,6 +38,14 @@ public final class ModelIR {
 
     public String name() {
         return name;
+    }
+
+    public java.nio.file.Path textures() {
+        return textures;
+    }
+
+    public void setTextures(java.nio.file.Path textures) {
+        this.textures = textures;
     }
 
     public void setName(String name) {
@@ -83,12 +92,15 @@ public final class ModelIR {
         public final Matrix4f transform;
         public final String name;
 
+        public float[] colors;
+
         public float[] jointIndices;
         public float[] jointWeights;
         public int[] jointNodes;
         public Matrix4f[] inverseBind;
 
         public volatile int[][] lods;
+        public volatile float[] lodErrors;
 
         public Part(float[] vertices, float[] tangents, int[] indices, int materialIndex,
                     int nodeIndex, Matrix4fc transform, String name) {
@@ -107,6 +119,10 @@ public final class ModelIR {
 
         public boolean hasIndices() {
             return indices != null && indices.length > 0;
+        }
+
+        public boolean hasColors() {
+            return colors != null && colors.length >= vertexCount() * 4;
         }
 
         public boolean hasTangents() {
@@ -142,6 +158,7 @@ public final class ModelIR {
         public int shadingModelId = 0;
         public boolean blend = false;
         public boolean doubleSided = false;
+        public boolean unlit = false;
 
         public byte[] baseColorImageBytes;
         public Identifier baseColorTexture;
@@ -151,6 +168,11 @@ public final class ModelIR {
         public Identifier ormTexture;
         public byte[] emissiveImageBytes;
         public Identifier emissiveTexture;
+
+        public String baseColorImageKey;
+        public String normalImageKey;
+        public String ormImageKey;
+        public String emissiveImageKey;
     }
 
     public static final class Node {
@@ -183,7 +205,8 @@ public final class ModelIR {
     public enum Interp {
         STEP,
         LINEAR,
-        CATMULLROM
+        CATMULLROM,
+        CUBICSPLINE
     }
 
     public static final class Channel {

@@ -17,6 +17,15 @@ public final class SurfaceInputs {
         return this;
     }
 
+    public boolean sameAs(SurfaceInputs other) {
+        return other == this || other != null && java.util.Arrays.equals(values, other.values)
+                && java.util.Arrays.equals(textures, other.textures);
+    }
+
+    public int contentHash() {
+        return 31 * java.util.Arrays.hashCode(values) + java.util.Arrays.hashCode(textures);
+    }
+
     public float[] values() {
         return values;
     }

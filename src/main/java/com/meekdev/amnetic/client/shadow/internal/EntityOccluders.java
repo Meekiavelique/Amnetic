@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
+import com.meekdev.amnetic.client.shadow.ShadowSettings;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -44,7 +45,7 @@ public final class EntityOccluders {
         AABB area = new AABB(lx - range, ly - range, lz - range, lx + range, ly + range, lz + range);
         List<Entity> entities;
         try {
-            entities = level.getEntities((Entity) null, area, e -> !e.isSpectator());
+            entities = level.getEntities((Entity) null, area, e -> !e.isSpectator() && ShadowSettings.defaults().castsShadow(e));
         } catch (Throwable t) {
             return 0L;
         }

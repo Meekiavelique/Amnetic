@@ -2,6 +2,7 @@ package com.meekdev.amnetic.client.model;
 
 import java.util.Arrays;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
+import com.meekdev.amnetic.client.model.internal.Skinning;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -15,6 +16,7 @@ public final class Animator {
     private final Vector3f[] nodeScale;
     private final Matrix4f[] localPose;
     private final Matrix4f[] worldPose;
+    private final int[] order;
 
     private final Vector3f tmpVec = new Vector3f();
     private final Quaternionf tmpQuat = new Quaternionf();
@@ -47,6 +49,7 @@ public final class Animator {
         this.nodeScale = new Vector3f[count];
         this.localPose = new Matrix4f[count];
         this.worldPose = new Matrix4f[count];
+        this.order = Skinning.order(ir);
         for (int i = 0; i < count; i++) {
             nodeTranslation[i] = new Vector3f();
             nodeRotation[i] = new Quaternionf();
@@ -261,6 +264,31 @@ public final class Animator {
         return this;
     }
 
+    public Animator blend(String from, float fromTime, String clip, float clipTime, float weight) {
+        float w = Math.max(0f, Math.min(1f, weight));
+        if (w >= 1f || from == null && clip == null || from != null && from.equals(clip)) {
+            current = clip;
+            crossfadeTo = null;
+            time = clipTime;
+            return this;
+        }
+        if (clip == null) {
+            return blend(null, 0f, from, fromTime, 1f - w);
+        }
+        current = from;
+        time = fromTime;
+        crossfadeTo = clip;
+        crossfadeDuration = 1f;
+        crossfadeElapsed = w;
+        crossfadeStart = clipTime - w;
+        return this;
+    }
+
+    public float clipLength(String clip) {
+        ModelIR.Animation anim = clip == null ? null : ir.animation(clip);
+        return anim == null ? 0f : anim.duration;
+    }
+
     public Animator update(float dt) {
         time += dt * speed;
         if (crossfadeTo != null) {
@@ -321,7 +349,7 @@ public final class Animator {
         for (int i = 0; i < localPose.length; i++) {
             localPose[i].translationRotateScale(nodeTranslation[i], nodeRotation[i], nodeScale[i]);
         }
-        for (int i = 0; i < worldPose.length; i++) {
+        for (int i : order) {
             ModelIR.Node node = ir.nodes().get(i);
             if (node.parent < 0) {
                 worldPose[i].set(localPose[i]);
@@ -397,6 +425,11 @@ public final class Animator {
     }
 
     private void sampleVec(ModelIR.Channel ch, float t, Vector3f out) {
+        if (ch.interp == ModelIR.Interp.CUBICSPLINE) {
+            float[] v = cubic(ch, t, 3);
+            out.set(v[0], v[1], v[2]);
+            return;
+        }
         int n = ch.times.length;
         if (n == 1) {
             out.set(ch.values[0], ch.values[1], ch.values[2]);
@@ -406,6 +439,7 @@ public final class Animator {
         int a = i * 3;
         int b = (i + 1) * 3;
         if (ch.interp == ModelIR.Interp.STEP) {
+            if (t >= ch.times[n - 1]) a = b;
             out.set(ch.values[a], ch.values[a + 1], ch.values[a + 2]);
             return;
         }
@@ -426,6 +460,16 @@ public final class Animator {
     }
 
     private void sampleQuat(ModelIR.Channel ch, float t, Quaternionf out) {
+        if (ch.interp == ModelIR.Interp.CUBICSPLINE) {
+            float[] v = cubic(ch, t, 4);
+            out.set(v[0], v[1], v[2], v[3]);
+            if (out.lengthSquared() < 1.0e-8f) {
+                out.identity();
+            } else {
+                out.normalize();
+            }
+            return;
+        }
         int n = ch.times.length;
         if (n == 1) {
             out.set(ch.values[0], ch.values[1], ch.values[2], ch.values[3]);
@@ -434,6 +478,7 @@ public final class Animator {
         int i = findKey(ch.times, t);
         int a = i * 4;
         int b = (i + 1) * 4;
+        if (ch.interp == ModelIR.Interp.STEP && t >= ch.times[n - 1]) a = b;
         out.set(ch.values[a], ch.values[a + 1], ch.values[a + 2], ch.values[a + 3]);
         if (ch.interp == ModelIR.Interp.STEP) {
             return;
@@ -460,6 +505,41 @@ public final class Animator {
             return;
         }
         out.slerp(tmpQuatB, f);
+    }
+
+    private final float[] cubicOut = new float[4];
+
+    private float[] cubic(ModelIR.Channel ch, float t, int width) {
+        float[] v = ch.values;
+        int n = ch.times.length;
+        int stride = width * 3;
+        if (n == 1 || t <= ch.times[0]) {
+            System.arraycopy(v, width, cubicOut, 0, width);
+            return cubicOut;
+        }
+        if (t >= ch.times[n - 1]) {
+            System.arraycopy(v, (n - 1) * stride + width, cubicOut, 0, width);
+            return cubicOut;
+        }
+        int i = findKey(ch.times, t);
+        float span = ch.times[i + 1] - ch.times[i];
+        float f = keyFactor(ch.times, i, t);
+        float f2 = f * f;
+        float f3 = f2 * f;
+        float h00 = 2f * f3 - 3f * f2 + 1f;
+        float h10 = f3 - 2f * f2 + f;
+        float h01 = -2f * f3 + 3f * f2;
+        float h11 = f3 - f2;
+        int a = i * stride;
+        int b = (i + 1) * stride;
+        for (int c = 0; c < width; c++) {
+            float p0 = v[a + width + c];
+            float m0 = v[a + 2 * width + c] * span;
+            float p1 = v[b + width + c];
+            float m1 = v[b + c] * span;
+            cubicOut[c] = h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
+        }
+        return cubicOut;
     }
 
     private static float hemisphere(float[] values, int offset, float[] reference, int at) {

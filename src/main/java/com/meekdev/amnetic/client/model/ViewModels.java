@@ -44,6 +44,14 @@ public final class ViewModels {
         capturedProjection.set(projection);
     }
 
+    public static Matrix4f projection(float fovDegrees) {
+        Matrix4f out = new Matrix4f(capturedProjection);
+        if (fovDegrees <= 0 || out.m11() == 0) return out;
+        float focal = 1f / (float) Math.tan(Math.toRadians(Math.min(fovDegrees, 179f)) * 0.5);
+        float ratio = focal / out.m11();
+        return out.m00(out.m00() * ratio).m11(focal);
+    }
+
     public static void render() {
         if (handles.isEmpty()) {
             return;

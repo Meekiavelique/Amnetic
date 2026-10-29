@@ -43,11 +43,12 @@ public final class PostEffectRegistry {
         }
     }
 
-    public boolean warmOne() {
+    public boolean warm() {
+        boolean worked = false;
         for (PostEffectEntry entry : new java.util.ArrayList<>(entries)) {
-            if (entry.warm()) return true;
+            if (entry.warm()) worked = true;
         }
-        return false;
+        return worked;
     }
 
     public boolean hasEnabledEffectInPhase(RenderPhase phase) {

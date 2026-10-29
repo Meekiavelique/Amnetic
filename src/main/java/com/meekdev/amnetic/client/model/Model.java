@@ -17,6 +17,7 @@ import com.meekdev.amnetic.client.model.internal.GpuModel;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import com.meekdev.amnetic.client.model.internal.ModelLod;
 import com.meekdev.amnetic.client.model.internal.ModelRegistry;
+import com.meekdev.amnetic.client.model.internal.Skinning;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -25,16 +26,15 @@ import org.joml.Quaternionfc;
 import org.joml.Vector3f;
 
 public final class Model {
-
     public record Draw(Matrix4f world, Matrix4f[] pose,
-                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look, Object key) {
-
+                       float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look, Object key,
+                       float lodPixels) {
         public Draw(Matrix4f world, Matrix4f[] pose) {
-            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null, null);
+            this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null, null, Float.NaN);
         }
 
         public Draw(Matrix4f world, Matrix4f[] pose, float blockLight, float skyLight, float emissive) {
-            this(world, pose, blockLight, skyLight, emissive, null, null, null);
+            this(world, pose, blockLight, skyLight, emissive, null, null, null, Float.NaN);
         }
     }
 
@@ -44,6 +44,7 @@ public final class Model {
         public Matrix4f[] pose;
         public Matrix4f[] lastPose;
         public long frame = Long.MIN_VALUE;
+        public int lod = -1;
     }
 
     public record Piece(int node, boolean[] nodes, Matrix4f frame, Vector3f min, Vector3f max) {
@@ -113,6 +114,9 @@ public final class Model {
             return;
         }
         lodDone = true;
+        for (ModelIR.Part part : local.parts()) {
+            if (part.lods != null) return;
+        }
         ModelLod.generate(local);
     }
 
@@ -146,6 +150,23 @@ public final class Model {
 
     public boolean hasBones() {
         return ir != null && ir.nodes().size() > 1;
+    }
+
+    public boolean isSkinned() {
+        if (ir == null) {
+            return false;
+        }
+        for (ModelIR.Part part : ir.parts()) {
+            if (part.hasSkin()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public float clipLength(String clip) {
+        ModelIR.Animation anim = ir == null || clip == null ? null : ir.animation(clip);
+        return anim == null ? 0f : anim.duration;
     }
 
     public List<String> boneNames() {
@@ -242,10 +263,67 @@ public final class Model {
     }
 
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look, Object key) {
+        return render(worldTransform, pose, inputs, look, key, Float.NaN);
+    }
+
+    public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look, Object key, float lodPixels) {
         if (!disposed) {
-            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look, key));
+            pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look, key, lodPixels));
         }
         return this;
+    }
+
+    private float[] lodErrors;
+    private int lodParts = -1;
+
+    public float[] internalLodErrors() {
+        return lodErrors();
+    }
+
+    public int lodLevels() {
+        float[] errors = lodErrors();
+        return errors == null ? 1 : errors.length;
+    }
+
+    public float lodError(int level) {
+        float[] errors = lodErrors();
+        return errors == null || level <= 0 ? 0f : errors[Math.min(level, errors.length - 1)];
+    }
+
+    public int lodTriangles(int level) {
+        ModelIR source = ir;
+        if (source == null) return 0;
+        int total = 0;
+        for (ModelIR.Part part : source.parts()) {
+            int[][] lods = part.lods;
+            if (lods != null && level > 0) total += lods[Math.min(level, lods.length - 1)].length / 3;
+            else total += part.hasIndices() ? part.indices.length / 3 : part.vertexCount() / 3;
+        }
+        return total;
+    }
+
+    private float[] lodErrors() {
+        ModelIR source = ir;
+        if (source == null) return null;
+        int parts = 0;
+        for (ModelIR.Part part : source.parts()) {
+            if (part.lods != null && part.lodErrors != null) parts++;
+        }
+        if (parts == lodParts) return lodErrors;
+        float[] errors = null;
+        if (parts > 0) {
+            errors = new float[ModelLod.LEVELS];
+            for (ModelIR.Part part : source.parts()) {
+                float[] own = part.lodErrors;
+                if (part.lods == null || own == null) continue;
+                Vector3f axes = part.transform.getScale(new Vector3f());
+                float scale = Math.max(axes.x, Math.max(axes.y, axes.z));
+                for (int n = 1; n < errors.length; n++) errors[n] = Math.max(errors[n], own[Math.min(n, own.length - 1)] * scale);
+            }
+        }
+        lodErrors = errors;
+        lodParts = parts;
+        return errors;
     }
 
     private final Map<Object, Moved> moved = new WeakHashMap<>();
@@ -577,7 +655,17 @@ public final class Model {
         float maxZ = -Float.MAX_VALUE;
         Vector3f v = new Vector3f();
         int stride = ModelIR.VERTEX_STRIDE_FLOATS;
+        Matrix4f[] rest = null;
         for (ModelIR.Part part : ir.parts()) {
+            if (part.hasSkin()) {
+                if (rest == null) rest = Skinning.restPose(ir);
+                Vector3f lo = new Vector3f(minX, minY, minZ);
+                Vector3f hi = new Vector3f(maxX, maxY, maxZ);
+                Skinning.bounds(part, rest, lo, hi);
+                minX = lo.x; minY = lo.y; minZ = lo.z;
+                maxX = hi.x; maxY = hi.y; maxZ = hi.z;
+                continue;
+            }
             float[] verts = part.vertices;
             for (int i = 0; i < verts.length; i += stride) {
                 v.set(verts[i], verts[i + 1], verts[i + 2]);
@@ -623,7 +711,18 @@ public final class Model {
     }
 
     public boolean internalHasPending() {
-        return !pending.isEmpty();
+        return !pending.isEmpty() || kept != null && kept.size() > 0;
+    }
+
+    private KeptDraws kept;
+
+    public KeptDraws kept() {
+        if (kept == null) kept = new KeptDraws(this);
+        return kept;
+    }
+
+    public KeptDraws internalKept() {
+        return kept;
     }
 
     public List<Draw> internalPending() {
@@ -645,6 +744,7 @@ public final class Model {
         }
         disposed = true;
         pending.clear();
+        if (kept != null) kept.clear();
         gpu.close();
     }
 }

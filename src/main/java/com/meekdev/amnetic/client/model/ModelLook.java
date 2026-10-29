@@ -41,6 +41,33 @@ public final class ModelLook {
         return false;
     }
 
+    public boolean sameAs(ModelLook other) {
+        if (other == this) return true;
+        if (other == null || piece != other.piece || !all.sameAs(other.all)) return false;
+        return namedSame(named, other.named) && namedSame(other.named, named);
+    }
+
+    private static boolean namedSame(Map<String, MaterialLook> mine, Map<String, MaterialLook> theirs) {
+        for (Map.Entry<String, MaterialLook> entry : mine.entrySet()) {
+            MaterialLook other = theirs.get(entry.getKey());
+            if (!entry.getValue().sameAs(other == null ? PLAIN : other)) return false;
+        }
+        return true;
+    }
+
+    private static final MaterialLook PLAIN = new MaterialLook();
+
+    public int contentHash() {
+        int h = System.identityHashCode(piece) * 31 + all.contentHash();
+        for (Map.Entry<String, MaterialLook> entry : named.entrySet()) {
+            int own = entry.getValue().contentHash();
+            if (own != PLAIN_HASH) h += entry.getKey().hashCode() ^ own;
+        }
+        return h;
+    }
+
+    private static final int PLAIN_HASH = PLAIN.contentHash();
+
     public MaterialLook resolve(String name) {
         merged.reset();
         all.onto(merged);

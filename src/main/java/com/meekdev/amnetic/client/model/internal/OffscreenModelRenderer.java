@@ -38,6 +38,10 @@ public final class OffscreenModelRenderer implements AutoCloseable {
                 return false;
             }
         }
+        if (!shader.ready()) {
+            if (shader.failed()) failed = true;
+            return false;
+        }
 
         GlStateManager._disableDepthTest();
         GlStateManager._depthMask(false);

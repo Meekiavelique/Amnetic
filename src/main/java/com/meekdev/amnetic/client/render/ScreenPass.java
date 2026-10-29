@@ -17,7 +17,6 @@ public abstract class ScreenPass {
         ALL.add(this);
     }
 
-    // builds the program objects of every pass made so far, the actual links happen in ShaderProgram.warmOne
     public static void prepareAll() {
         for (ScreenPass pass : new java.util.ArrayList<>(ALL)) {
             if (pass.program != null) continue;
