@@ -11,6 +11,10 @@ public final class OccluderEntry {
     public final float[] cutoutVerts;
     public final float[] translucentVerts;
 
+    public OccluderEntry(BlockPos pos, VoxelShape shape) {
+        this(pos, shape, !shape.isEmpty() && shape.equals(net.minecraft.world.phys.shapes.Shapes.block()));
+    }
+
     public OccluderEntry(BlockPos pos, VoxelShape shape, boolean full) {
         this.pos = pos;
         this.shape = shape;

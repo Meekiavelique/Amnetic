@@ -103,10 +103,10 @@ public class AmneticClient implements ClientModInitializer {
         if (levelCamera == null || CaptureManager.INSTANCE.isCapturing()) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.getMainRenderTarget() != null
+        if (mc.gameRenderer.mainRenderTarget() != null
                 && (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.PRE_GUI)
                     || PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER))) {
-            PostEffectRegistry.INSTANCE.captureWorldDepthSnapshot(mc.getMainRenderTarget());
+            PostEffectRegistry.INSTANCE.captureWorldDepthSnapshot(mc.gameRenderer.mainRenderTarget());
         }
 
         int snapshotDepth = SceneDepth.snapshotDepthGlId();
@@ -121,10 +121,15 @@ public class AmneticClient implements ClientModInitializer {
     }
 
     private static void registerDefaultPasses() {
-        Pipeline.add(RenderStage.SETUP, 90, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(true));
-        Pipeline.add(RenderStage.GEOMETRY, 1, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
+        //? if <26.3 {
+        /*Pipeline.add(RenderStage.GEOMETRY, 0, "GBuffer Begin", ctx -> GBuffer.beginFrame());
+        *///?}
         Pipeline.add(RenderStage.GEOMETRY, 10, "GBuffer Normal Fill", ctx -> GBufferNormalFill.INSTANCE.render());
+        //? if <26.2 {
+        /*Pipeline.add(RenderStage.SETUP, 90, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(true));
+        Pipeline.add(RenderStage.GEOMETRY, 1, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
         Pipeline.add(RenderStage.GEOMETRY, 15, "Entity Motion", ctx -> EntityMotion.INSTANCE.render());
+        *///?}
         Pipeline.add(RenderStage.GEOMETRY, 20, "Instanced Mesh (GBuffer)", ctx -> InstanceMeshRegistry.INSTANCE.renderGBuffer(InstancePhase.WORLD_LAST, ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 30, "Instanced Mesh (World)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_LAST, ctx.levelCamera()));
         Pipeline.add(RenderStage.GEOMETRY, 40, "Models", ctx -> ModelRegistry.INSTANCE.flush(ctx.levelCamera()));
@@ -141,9 +146,13 @@ public class AmneticClient implements ClientModInitializer {
         Pipeline.add(RenderStage.SCREEN_SPACE, 20, "SSGI", ctx -> Ssgi.render());
         Pipeline.add(RenderStage.SCREEN_SPACE, 30, "SSR", ctx -> Ssr.render());
 
-        Pipeline.add(RenderStage.AFTER_WATER, 5, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(false));
+        //? if <26.2 {
+        /*Pipeline.add(RenderStage.AFTER_WATER, 5, "Reactive Mask", ctx -> ReactivePass.INSTANCE.before(false));
+        *///?}
         Pipeline.add(RenderStage.AFTER_WATER, 10, "Instanced Mesh (Translucent)", ctx -> InstanceMeshRegistry.INSTANCE.renderAll(InstancePhase.WORLD_TRANSLUCENT, ctx.levelCamera()));
-        Pipeline.add(RenderStage.AFTER_WATER, 15, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
+        //? if <26.2 {
+        /*Pipeline.add(RenderStage.AFTER_WATER, 15, "Reactive Mask", ctx -> ReactivePass.INSTANCE.after());
+        *///?}
 
         Pipeline.add(RenderStage.ATMOSPHERE, 10, "Volumetric", ctx -> VolumetricPass.INSTANCE.render());
 
@@ -166,12 +175,13 @@ public class AmneticClient implements ClientModInitializer {
     private static void registerFabricEvents() {
         ClientTickEvents.END_CLIENT_TICK.register(AmneticClient::endClientTick);
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> stopping());
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> disconnect());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(AmneticClient::disconnect));
 
-        //? if >=26.1 {
-        LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> beforeTranslucent(LevelCamera.of(ctx.levelState().cameraRenderState)));
+        //? if >=26.2 {
+        //?} else if >=26.1 {
+        /*LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> beforeTranslucent(LevelCamera.of(ctx.levelState().cameraRenderState)));
         LevelRenderEvents.END_MAIN.register(ctx -> endMain(LevelCamera.of(ctx.levelState().cameraRenderState)));
-        //?} else if >=1.21.9 {
+        *///?} else if >=1.21.9 {
         /*WorldRenderEvents.BEFORE_TRANSLUCENT.register(ctx -> beforeTranslucent(LevelCamera.main()));
         WorldRenderEvents.END_MAIN.register(ctx -> endMain(LevelCamera.main()));
         *///?} else {
@@ -209,6 +219,9 @@ public class AmneticClient implements ClientModInitializer {
 
         AmneticResources.register(() -> FramebufferRegistry.INSTANCE.closeAll());
         AmneticResources.register(Lights::clear);
+        //? if >=26.2 {
+        AmneticResources.register(com.meekdev.amnetic.client.light.internal.TiledLighting::close);
+        //?}
         AmneticResources.register(DeferredLightingPass.INSTANCE::dispose);
         AmneticResources.register(VolumetricPass.INSTANCE::dispose);
         AmneticResources.register(Ssr::dispose);
@@ -254,18 +267,30 @@ public class AmneticClient implements ClientModInitializer {
     public static void disconnect() {
         pendingPostCamera = null;
         shaderLightCamera = null;
+        Decals.clearFilms();
+        surfaceLastNano = 0;
         WorldModels.clear();
         ItemModels.clear();
         Decals.clear();
-        Decals.clearFilms();
+        Decals.dispose();
+        Shadows.dispose();
+        EntityEffectRegistry.INSTANCE.clear();
+        TextureOverrideRegistry.INSTANCE.clear();
+        MeshTapRegistry.INSTANCE.clear();
+        CameraSnapshot.endHand();
         Lights.clear();
+        //? if >=26.2 {
+        com.meekdev.amnetic.client.light.internal.TiledLighting.close();
+        //?}
     }
 
     public static void stopping() {
+        com.meekdev.amnetic.client.render.ImportedTextures.clear();
         AmneticResources.disposeAll();
     }
 
     public static void reloadResources() {
+        com.meekdev.amnetic.client.render.ShaderProgram.invalidateAll();
         PostEffectRegistry.INSTANCE.invalidatePipelineCaches();
         AmmeshScanner.scanAsync();
     }
@@ -291,13 +316,14 @@ public class AmneticClient implements ClientModInitializer {
         GlUploadQueue.drain(2_000_000L);
         Animations.update();
         Reactive.tick(surfaceDt());
-        GBuffer.beginFrame();
         FrameContext fc = new FrameContext(CameraSnapshot.current(), levelCamera, SceneDepth.snapshotDepthGlId());
         MainTargetFramebuffer.setDepthOverride(0);
         Pipeline.runStage(RenderStage.GEOMETRY, fc);
         if (IrisCompat.shadersActive()) shaderLightCamera = levelCamera;
-        else Pipeline.runStage(RenderStage.LIGHTING, fc);
+        else {
+        Pipeline.runStage(RenderStage.LIGHTING, fc);
         Pipeline.runStage(RenderStage.SCREEN_SPACE, fc);
+        }
         pendingPostCamera = levelCamera;
     }
 

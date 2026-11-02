@@ -9,7 +9,7 @@ import com.meekdev.amnetic.client.surface.HudSurface;
 import com.meekdev.amnetic.client.surface.reactive.Reactive;
 import com.meekdev.amnetic.client.surface.ScreenSurface;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
@@ -103,7 +103,7 @@ public final class SurfaceRenderer {
 
         int prevFbo = MainTargetFramebuffer.bind();
         GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
-        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);

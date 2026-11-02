@@ -33,10 +33,10 @@ public interface LevelRendererAccessor {
     //?}
 
     //? if >=26.2 {
+    @Accessor("targets")
+    net.minecraft.client.renderer.LevelTargetBundle amnetic$getTargets();
+    //?} else {
     /*@Invoker("compileSections")
-    void amnetic$compileSections(CameraRenderState camera);
-    *///?} else {
-    @Invoker("compileSections")
     void amnetic$compileSections(Camera camera);
-    //?}
+    *///?}
 }

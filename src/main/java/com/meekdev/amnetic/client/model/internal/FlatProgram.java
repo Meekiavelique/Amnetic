@@ -5,7 +5,7 @@ import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;

@@ -7,12 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.Files;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Stream;
 
 public final class EffectIO {
 
@@ -21,29 +18,28 @@ public final class EffectIO {
 
     private EffectIO() {}
 
+    private static EffectPresetFiles files() {
+        return new EffectPresetFiles(Minecraft.getInstance().gameDirectory.toPath());
+    }
+
     public static Path dir() {
-        Path p = Minecraft.getInstance().gameDirectory.toPath().resolve("amnetic").resolve("particles");
-        try { Files.createDirectories(p); } catch (IOException ignored) {}
-        return p;
+        try { return files().directory(); }
+        catch (IOException e) { throw new UncheckedIOException(e); }
     }
 
     public static List<String> list() {
-        List<String> out = new ArrayList<>();
-        try (Stream<Path> s = Files.list(dir())) {
-            s.filter(f -> f.getFileName().toString().endsWith(".json"))
-                    .forEach(f -> {
-                        String n = f.getFileName().toString();
-                        out.add(n.substring(0, n.length() - 5));
-                    });
-        } catch (IOException ignored) {}
-        Collections.sort(out);
-        return out;
+        try { return files().list(); }
+        catch (IOException e) {
+            LOGGER.warn("Unable to list local particle presets", e);
+            return List.of();
+        }
     }
 
     public static boolean save(EffectDraft draft) {
+        if (draft == null) return false;
         String stem = sanitize(draft.name);
         try {
-            Files.writeString(dir().resolve(stem + ".json"), GSON.toJson(draft));
+            files().write(stem, GSON.toJson(draft));
             return true;
         } catch (IOException e) {
             LOGGER.warn("failed to save particle effect '{}'", stem, e);
@@ -53,7 +49,7 @@ public final class EffectIO {
 
     public static EffectDraft load(String name) {
         try {
-            EffectDraft d = GSON.fromJson(Files.readString(dir().resolve(name + ".json")), EffectDraft.class);
+            EffectDraft d = GSON.fromJson(files().read(name), EffectDraft.class);
             if (d != null && d.name == null) d.name = name;
             return d;
         } catch (Exception e) {
@@ -63,7 +59,8 @@ public final class EffectIO {
     }
 
     public static void delete(String name) {
-        try { Files.deleteIfExists(dir().resolve(name + ".json")); } catch (IOException ignored) {}
+        try { files().delete(name); }
+        catch (IOException e) { LOGGER.warn("Unable to delete local particle preset", e); }
     }
 
     private static String sanitize(String name) {

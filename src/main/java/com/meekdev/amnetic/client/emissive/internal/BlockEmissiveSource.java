@@ -4,7 +4,6 @@ import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.emissive.EmissiveContext;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import java.nio.FloatBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -21,6 +20,7 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryUtil;
+import java.nio.FloatBuffer;
 
 public final class BlockEmissiveSource {
 
@@ -35,6 +35,7 @@ public final class BlockEmissiveSource {
     private static final int MAX_VERTICES = 400_000;
     private static final int INITIAL_VERTICES = 4096;
     private static final int MISSED_CHUNK_RETRY_FRAMES = 20;
+    private static final int SECTION_SIZE = 16;
 
     private ShaderProgram program;
 
@@ -46,7 +47,9 @@ public final class BlockEmissiveSource {
     private FloatBuffer scratch;
     private final Matrix4f viewProj = new Matrix4f();
 
-    private int anchorX = Integer.MIN_VALUE, anchorY, anchorZ;
+    private int anchorX = Integer.MIN_VALUE;
+    private int anchorY;
+    private int anchorZ;
     private boolean dirty = true;
     private boolean missedChunk;
     private int retryCooldown;
@@ -91,6 +94,10 @@ public final class BlockEmissiveSource {
         }
         if (vertexCount == 0) return;
 
+        drawGl(ctx);
+    }
+
+    private void drawGl(EmissiveContext ctx) {
         int atlas = atlasGlId();
         if (atlas == 0) return;
 
@@ -109,13 +116,15 @@ public final class BlockEmissiveSource {
 
         GL30.glBindVertexArray(vao);
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, vertexCount);
-        GL30.glBindVertexArray(0);
+        GlState.resetVertexArray();
     }
 
     private void rebuild(ClientLevel level, int cx, int cy, int cz) {
         dirty = false;
         missedChunk = false;
-        anchorX = cx; anchorY = cy; anchorZ = cz;
+        anchorX = cx;
+        anchorY = cy;
+        anchorZ = cz;
         vertexCount = 0;
 
         if (scratch == null) scratch = MemoryUtil.memAllocFloat(INITIAL_VERTICES * STRIDE);
@@ -152,31 +161,7 @@ public final class BlockEmissiveSource {
                     int baseY = (minSectionY + si) << 4;
                     int baseX = (chunkX + dx) << 4;
                     int baseZ = (chunkZ + dz) << 4;
-
-                    for (int ly = 0; ly < 16; ly++) {
-                        for (int lz = 0; lz < 16; lz++) {
-                            for (int lx = 0; lx < 16; lx++) {
-                                BlockState state = section.getBlockState(lx, ly, lz);
-                                if (state.isAir() || state.getLightEmission() <= 0) continue;
-
-                                float[] quads = BlockEmissiveGeometry.quads(state);
-                                if (quads == null) continue;
-
-                                int verts = quads.length / STRIDE;
-                                if (!ensureRoom(verts)) break outer;
-                                FloatBuffer buf = scratch;
-
-                                mut.set(baseX + lx, baseY + ly, baseZ + lz);
-                                float ox = mut.getX() - anchorX;
-                                float oy = mut.getY() - anchorY;
-                                float oz = mut.getZ() - anchorZ;
-                                for (int i = 0; i + STRIDE - 1 < quads.length; i += STRIDE) {
-                                    buf.put(quads[i] + ox).put(quads[i + 1] + oy).put(quads[i + 2] + oz);
-                                    for (int k = 3; k < STRIDE; k++) buf.put(quads[i + k]);
-                                }
-                            }
-                        }
-                    }
+                    if (!appendSection(section, baseX, baseY, baseZ, mut)) break outer;
                 }
             }
         }
@@ -187,6 +172,40 @@ public final class BlockEmissiveSource {
         if (missedChunk) retryCooldown = MISSED_CHUNK_RETRY_FRAMES;
         if (vertexCount == 0) return;
 
+        uploadGl(buf);
+    }
+
+    private boolean appendSection(LevelChunkSection section, int baseX, int baseY, int baseZ, BlockPos.MutableBlockPos mut) {
+        for (int ly = 0; ly < SECTION_SIZE; ly++) {
+            for (int lz = 0; lz < SECTION_SIZE; lz++) {
+                for (int lx = 0; lx < SECTION_SIZE; lx++) {
+                    BlockState state = section.getBlockState(lx, ly, lz);
+                    if (state.isAir() || state.getLightEmission() <= 0) continue;
+
+                    float[] quads = BlockEmissiveGeometry.quads(state);
+                    if (quads == null) continue;
+
+                    int verts = quads.length / STRIDE;
+                    if (!ensureRoom(verts)) return false;
+                    mut.set(baseX + lx, baseY + ly, baseZ + lz);
+                    appendQuads(quads, mut.getX() - anchorX, mut.getY() - anchorY, mut.getZ() - anchorZ);
+                }
+            }
+        }
+        return true;
+    }
+
+    private void appendQuads(float[] quads, float ox, float oy, float oz) {
+        FloatBuffer buf = scratch;
+        for (int i = 0; i + STRIDE - 1 < quads.length; i += STRIDE) {
+            buf.put(quads[i] + ox);
+            buf.put(quads[i + 1] + oy);
+            buf.put(quads[i + 2] + oz);
+            for (int k = 3; k < STRIDE; k++) buf.put(quads[i + k]);
+        }
+    }
+
+    private void uploadGl(FloatBuffer buf) {
         if (vao == 0) vao = GL30.glGenVertexArrays();
         if (vbo == 0) vbo = GL15.glGenBuffers();
         GL30.glBindVertexArray(vao);
@@ -206,7 +225,7 @@ public final class BlockEmissiveSource {
         GL20.glVertexAttribPointer(2, 2, GL11.GL_FLOAT, false, stride, 5 * Float.BYTES);
         GL20.glEnableVertexAttribArray(3);
         GL20.glVertexAttribPointer(3, 2, GL11.GL_FLOAT, false, stride, 7 * Float.BYTES);
-        GL30.glBindVertexArray(0);
+        GlState.resetVertexArray();
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 
@@ -226,9 +245,18 @@ public final class BlockEmissiveSource {
     }
 
     public void dispose() {
-        if (vbo != 0) { GL15.glDeleteBuffers(vbo); vbo = 0; }
-        if (vao != 0) { GL30.glDeleteVertexArrays(vao); vao = 0; }
-        if (scratch != null) { MemoryUtil.memFree(scratch); scratch = null; }
+        if (vbo != 0) {
+            GL15.glDeleteBuffers(vbo);
+            vbo = 0;
+        }
+        if (vao != 0) {
+            GL30.glDeleteVertexArrays(vao);
+            vao = 0;
+        }
+        if (scratch != null) {
+            MemoryUtil.memFree(scratch);
+            scratch = null;
+        }
         vertexCount = 0;
         capacityVertices = 0;
         anchorX = Integer.MIN_VALUE;

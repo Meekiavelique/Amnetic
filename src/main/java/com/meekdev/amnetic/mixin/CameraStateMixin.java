@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 //? if >=26.1 {
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
@@ -20,7 +20,7 @@ import org.joml.Vector4f;
 //?} else if >=1.21.5 {
 /*import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.render.LevelCamera;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -47,31 +47,31 @@ import net.minecraft.client.DeltaTracker;
 @Mixin(LevelRenderer.class)
 public abstract class CameraStateMixin {
 
-    //? if >=26.2 {
-    /*@Inject(method = "render", at = @At("HEAD"))
-    private void amnetic$captureCameraState(GraphicsResourceAllocator allocator, DeltaTracker deltaTracker,
-                                            boolean renderBlockOutline, CameraRenderState camera,
-                                            Matrix4fc viewRotation, GpuBufferSlice fog,
-                                            Vector4f fogColor, boolean sky, CallbackInfo ci) {
+    //? if >=26.3 {
+    @Inject(method = "render", at = @At("HEAD"))
+    private void amnetic$captureCameraState(GraphicsResourceAllocator allocator, boolean renderBlockOutline,
+                                            CameraRenderState camera, GpuBufferSlice projection,
+                                            Vector4f clippingPlanes, boolean sky, boolean improvedTransparency,
+                                            CallbackInfo ci) {
         Vec3 pos = camera.pos;
         CameraState.update(camera.projectionMatrix, camera.viewRotationMatrix, pos.x, pos.y, pos.z, camera.depthFar);
-
-        if (!CaptureManager.INSTANCE.isCapturing()) {
-            FrameView.INSTANCE.set(viewRotation);
-        }
+        if (!CaptureManager.INSTANCE.isCapturing()) FrameView.INSTANCE.set(camera.viewRotationMatrix);
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void amnetic$renderPost(CallbackInfo ci) {
-        AmneticClient.renderPost();
-    }
-    *///?} else if >=26.1 {
-    @Inject(method = "renderLevel", at = @At("HEAD"))
+    //?} else if >=26.1 {
+    /*//? if >=26.2 {
+    @Inject(method = "render", at = @At("HEAD"))
+    //? } else {
+    /^@Inject(method = "renderLevel", at = @At("HEAD"))
+    ^///? }
     private void amnetic$captureCameraState(GraphicsResourceAllocator allocator, DeltaTracker deltaTracker,
                                             boolean renderBlockOutline, CameraRenderState camera,
                                             Matrix4fc viewRotation, GpuBufferSlice projection,
                                             Vector4f clippingPlanes, boolean sky,
-                                            ChunkSectionsToRender sections, CallbackInfo ci) {
+                                            //? if <26.2 {
+                                            /^ChunkSectionsToRender sections,
+                                            ^///? }
+                                            CallbackInfo ci) {
         Vec3 pos = camera.pos;
         CameraState.update(camera.projectionMatrix, camera.viewRotationMatrix, pos.x, pos.y, pos.z, camera.depthFar);
 
@@ -80,15 +80,27 @@ public abstract class CameraStateMixin {
         }
     }
 
-    @Inject(method = "renderLevel", at = @At("TAIL"))
+    //? if >=26.2 {
+    @Inject(method = "render", at = @At("TAIL"))
+    //? } else {
+    /^@Inject(method = "renderLevel", at = @At("TAIL"))
+    ^///? }
     private void amnetic$renderPost(GraphicsResourceAllocator allocator, DeltaTracker deltaTracker,
                                     boolean renderBlockOutline, CameraRenderState camera,
                                     Matrix4fc viewRotation, GpuBufferSlice projection,
                                     Vector4f clippingPlanes, boolean sky,
-                                    ChunkSectionsToRender sections, CallbackInfo ci) {
+                                    //? if <26.2 {
+                                            /^ChunkSectionsToRender sections,
+                                            ^///? }
+                                            CallbackInfo ci) {
+        //? if fabric && >=26.2 {
+        var levelCamera = com.meekdev.amnetic.client.render.LevelCamera.of(camera);
+        AmneticClient.beforeTranslucent(levelCamera);
+        AmneticClient.endMain(levelCamera);
+        //?}
         AmneticClient.renderPost();
     }
-    //?} else if >=1.21.5 {
+    *///?} else if >=1.21.5 {
     /*@Inject(method = "renderLevel", at = @At("HEAD"))
     private void amnetic$captureCameraState(GraphicsResourceAllocator allocator, DeltaTracker deltaTracker,
                                             boolean renderBlockOutline, Camera camera,
@@ -110,14 +122,22 @@ public abstract class CameraStateMixin {
         VanillaCompat.recordCullFrustum(cir.getReturnValue());
     }
 
+    //? if >=26.2 {
+    @Inject(method = "render", at = @At("TAIL"))
+    //? } else {
     @Inject(method = "renderLevel", at = @At("TAIL"))
+    //? }
     private void amnetic$renderPost(CallbackInfo ci) {
         AmneticClient.renderPost();
     }
     *///?} else if >=1.21 {
     /*@Shadow private Frustum cullingFrustum;
 
+    //? if >=26.2 {
+    @Inject(method = "render", at = @At("HEAD"))
+    //? } else {
     @Inject(method = "renderLevel", at = @At("HEAD"))
+    //? }
     private void amnetic$captureCameraState(DeltaTracker deltaTracker, boolean renderBlockOutline, Camera camera,
                                             GameRenderer gameRenderer, LightTexture lightTexture,
                                             Matrix4f viewRotation, Matrix4f projection, CallbackInfo ci) {
@@ -135,14 +155,22 @@ public abstract class CameraStateMixin {
         VanillaCompat.recordCullFrustum(cullingFrustum);
     }
 
+    //? if >=26.2 {
+    @Inject(method = "render", at = @At("TAIL"))
+    //? } else {
     @Inject(method = "renderLevel", at = @At("TAIL"))
+    //? }
     private void amnetic$renderPost(CallbackInfo ci) {
         AmneticClient.renderPost();
     }
     *///?} else {
     /*@Shadow private Frustum cullingFrustum;
 
+    //? if >=26.2 {
+    @Inject(method = "render", at = @At("HEAD"))
+    //? } else {
     @Inject(method = "renderLevel", at = @At("HEAD"))
+    //? }
     private void amnetic$captureCameraState(PoseStack poseStack, float partialTick, long nanoTime,
                                             boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer,
                                             LightTexture lightTexture, Matrix4f projection, CallbackInfo ci) {
@@ -161,7 +189,11 @@ public abstract class CameraStateMixin {
         VanillaCompat.recordCullFrustum(cullingFrustum);
     }
 
+    //? if >=26.2 {
+    @Inject(method = "render", at = @At("TAIL"))
+    //? } else {
     @Inject(method = "renderLevel", at = @At("TAIL"))
+    //? }
     private void amnetic$renderPost(CallbackInfo ci) {
         AmneticClient.renderPost();
     }

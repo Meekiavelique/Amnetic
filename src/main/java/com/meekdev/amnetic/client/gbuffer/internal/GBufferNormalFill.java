@@ -21,8 +21,27 @@ public final class GBufferNormalFill extends ScreenPass {
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/gbuffer/normal_fill.fsh");
 
     private GBufferNormalFill() { super("GBufferFill"); }
+    //? if >=26.2 {
+    private NativeNormalFill nativePass;
+    //?}
 
-    public void render() { dispatch(); }
+    public void render() {
+        //? if >=26.2 {
+        if (!enabled() || com.meekdev.amnetic.client.compat.IrisCompat.shadersActive()) return;
+        dispatchNative(() -> {
+            if (nativePass == null) nativePass = new NativeNormalFill();
+            nativePass.render(CameraSnapshot.current());
+        });
+        //?} else {
+        /*dispatch();
+        *///?}
+    }
+
+    @Override protected void onDispose() {
+        //? if >=26.2 {
+        if (nativePass != null) { nativePass.close(); nativePass = null; }
+        //?}
+    }
 
     @Override
     protected boolean enabled() {

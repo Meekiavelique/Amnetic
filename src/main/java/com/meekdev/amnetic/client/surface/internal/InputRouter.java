@@ -3,7 +3,7 @@ package com.meekdev.amnetic.client.surface.internal;
 import com.meekdev.amnetic.client.surface.widget.Widget;
 import java.util.ArrayList;
 import java.util.List;
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 
 public final class InputRouter {
 
@@ -114,7 +114,7 @@ public final class InputRouter {
     }
 
     public boolean keyPressed(int key, int modifiers) {
-        if (key == GLFW.GLFW_KEY_TAB && focused != null) {
+        if (key == KeyInput.KEY_TAB && focused != null) {
             cycleFocus();
             return true;
         }

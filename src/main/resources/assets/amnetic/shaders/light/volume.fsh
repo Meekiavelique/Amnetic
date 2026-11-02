@@ -17,12 +17,14 @@ void main() {
     vec3 N;
     float rough = 0.7;
     float f0 = 0.04;
+    float metallic = 0.0;
     if (HasGBuffer == 1) {
         vec4 gn = texture(GNormalSampler, uv);
         N = (gn.a > 0.5) ? normalize(gn.xyz) : betterNormal(uv, fragPos);
         if (gn.a > 0.5) {
             vec4 gm = texture(GMaterialSampler, uv);
             rough = gm.x;
+            metallic = gm.y;
             f0 = mix(0.04, 1.0, gm.y);
         }
     } else {
@@ -30,18 +32,19 @@ void main() {
     }
 
     vec3 V = normalize(-fragPos);
+    vec3 nDx = dFdx(N), nDy = dFdy(N);
+    float nVar = 0.25 * (dot(nDx, nDx) + dot(nDy, nDy));
+    rough = clamp(sqrt(rough * rough + min(2.0 * nVar, 0.18)), 0.0, 1.0);
     vec3 scene = texture(AlbedoSampler, uv).rgb;
     vec3 albedo = lightMaterial(scene);
-    if (HasGBuffer == 1) {
-        vec4 published = texture(GAlbedoSampler, uv);
-        if (published.a > 0.5) albedo = published.rgb;
-    }
+    vec4 published = texture(GAlbedoSampler, uv);
+    if (HasGBuffer == 1 && published.a > 0.5) albedo = published.rgb;
 
     vec3 specular = vec3(0.0);
     float sunShadow = 0.0;
     vec3 radiance = lightContribution(LightIndex, fragPos, N, V, rough, f0, specular, sunShadow);
 
-    vec3 lit = compositeLight(scene, albedo * radiance + specular);
+    vec3 lit = compositeLight(scene, surfaceRadiance(albedo, radiance, specular, metallic));
     lit = max(lit, vec3(0.0));
     if (any(isnan(lit)) || any(isinf(lit))) lit = vec3(0.0);
     FragColor = vec4(lit, 1.0);

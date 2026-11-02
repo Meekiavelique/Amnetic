@@ -16,7 +16,21 @@ public final class DeviceInfoInspector extends Inspector {
 
     @Override
     public void render() {
-        ImGui.text("Vendor:   " + str(GL11.GL_VENDOR));
+        //? if >=26.2 {
+        var info = com.mojang.blaze3d.systems.RenderSystem.getDevice().getDeviceInfo();
+        ImGui.text("Backend: " + info.backendName());
+        ImGui.text("Vendor: " + info.vendorName());
+        ImGui.text("Renderer: " + info.name());
+        ImGui.text("Driver: " + info.driverInfo());
+        ImGui.separator();
+        cap("Compute interop", ComputeCapabilities.isComputeAvailable());
+        cap("Multi-draw indirect", info.features().multiDrawIndirect());
+        cap("Persistent mapping", info.features().persistentMapping());
+        //? if >=26.3 {
+        cap("Wireframe fill", info.features().wireframeFillMode());
+        //? }
+        //?} else {
+        /*ImGui.text("Vendor:   " + str(GL11.GL_VENDOR));
         ImGui.text("Renderer: " + str(GL11.GL_RENDERER));
         ImGui.text("Version:  " + str(GL11.GL_VERSION));
         ImGui.text("GLSL:     " + str(GL20.GL_SHADING_LANGUAGE_VERSION));
@@ -32,6 +46,7 @@ public final class DeviceInfoInspector extends Inspector {
         cap("Bindless textures", caps.GL_ARB_bindless_texture);
         cap("Multi-draw indirect", caps.GL_ARB_multi_draw_indirect);
         cap("Buffer storage", caps.GL_ARB_buffer_storage);
+        *///?}
     }
 
     private static void cap(String label, boolean supported) {

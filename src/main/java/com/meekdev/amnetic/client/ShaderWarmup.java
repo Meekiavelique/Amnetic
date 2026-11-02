@@ -19,12 +19,11 @@ public final class ShaderWarmup {
     private ShaderWarmup() {}
 
     public static void tick() {
-        // resources are not readable while the loading overlay is up
         //? if >=26.2 {
-        /*if (net.minecraft.client.Minecraft.getInstance().gui.overlay() != null) return;
-        *///?} else {
-        if (net.minecraft.client.Minecraft.getInstance().getOverlay() != null) return;
-        //?}
+        return;
+        //?} else {
+        /*
+        if (net.minecraft.client.Minecraft.getInstance().gui.overlay() != null) return;
         if (!touched) {
             touched = true;
             Decals.touch();
@@ -48,5 +47,6 @@ public final class ShaderWarmup {
             announced = true;
             LOG.info("warmed {} shader programs ahead of use", warmed);
         }
+        *///?}
     }
 }

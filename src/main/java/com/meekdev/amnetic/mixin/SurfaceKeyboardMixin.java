@@ -7,7 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 //?}
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,10 +24,17 @@ public abstract class SurfaceKeyboardMixin {
     //?} else {
     /*private void amnetic$surfaceKeyPress(long window, int key, int scancode, int action, int modifiers, CallbackInfo ci) {
     *///?}
-        if (action == GLFW.GLFW_RELEASE || !amnetic$eligible()) {
+        //? if >=26.2 {
+        if (action == KeyInput.PRESS
+                && com.meekdev.amnetic.client.ui.AmneticEditorBridge.keyPressed(event)) {
+            ci.cancel();
             return;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE) {
+        //?}
+        if (action == KeyInput.RELEASE || !amnetic$eligible()) {
+            return;
+        }
+        if (key == KeyInput.KEY_ESCAPE) {
             return;
         }
         if (WorldSurfaceRenderer.INSTANCE.keyPressed(key, modifiers)) {
@@ -52,10 +59,6 @@ public abstract class SurfaceKeyboardMixin {
 
     private static boolean amnetic$eligible() {
         Minecraft minecraft = Minecraft.getInstance();
-        //? if >=26.2 {
-        /*return minecraft.gui.screen() == null && minecraft.gui.overlay() == null;
-        *///?} else {
-        return minecraft.screen == null && minecraft.getOverlay() == null;
-        //?}
+        return minecraft.gui.screen() == null && minecraft.gui.overlay() == null;
     }
 }

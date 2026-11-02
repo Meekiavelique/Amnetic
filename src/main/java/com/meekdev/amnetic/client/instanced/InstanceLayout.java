@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.instanced;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL33;
 
@@ -26,6 +26,7 @@ public final class InstanceLayout {
     public int stride() { return stride; }
 
     public int divisor() { return divisor; }
+    public List<AttributeSpec> attributes() { return attributes; }
 
     public void setupVaoAttributes() {
         for (AttributeSpec spec : attributes) {
@@ -85,5 +86,5 @@ public final class InstanceLayout {
         }
     }
 
-    private record AttributeSpec(int location, int components, int byteOffset) {}
+    public record AttributeSpec(int location, int components, int byteOffset) {}
 }

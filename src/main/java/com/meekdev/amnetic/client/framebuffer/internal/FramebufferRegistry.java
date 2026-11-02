@@ -9,6 +9,13 @@ public final class FramebufferRegistry {
     public static final FramebufferRegistry INSTANCE = new FramebufferRegistry();
 
     private final CopyOnWriteArrayList<GlFramebuffer> live = new CopyOnWriteArrayList<>();
+    //? if >=26.2 {
+    private final CopyOnWriteArrayList<NativeFramebuffer> nativeLive = new CopyOnWriteArrayList<>();
+
+    public void register(NativeFramebuffer fb) { nativeLive.addIfAbsent(fb); }
+    public void deregister(NativeFramebuffer fb) { nativeLive.remove(fb); }
+    public List<NativeFramebuffer> registeredNative() { return new ArrayList<>(nativeLive); }
+    //?}
 
     private FramebufferRegistry() {}
 
@@ -25,6 +32,10 @@ public final class FramebufferRegistry {
     }
 
     public void closeAll() {
+        //? if >=26.2 {
+        for (var fb : nativeLive) fb.close();
+        nativeLive.clear();
+        //?}
         for (GlFramebuffer fb : live) {
             fb.dispose();
         }

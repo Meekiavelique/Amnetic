@@ -8,7 +8,7 @@ import com.meekdev.amnetic.client.surface.reactive.Signal;
 import java.util.Locale;
 import java.util.function.Consumer;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 
 public class KeybindField extends Widget {
 
@@ -57,7 +57,7 @@ public class KeybindField extends Widget {
 
     public static String keyName(int code) {
         if (code < 0) return "none";
-        String name = GLFW.glfwGetKeyName(code, 0);
+        String name = KeyInput.keyName(code, 0);
         if (name != null && !name.isEmpty()) return name.toUpperCase(Locale.ROOT);
         return "KEY " + code;
     }
@@ -94,7 +94,7 @@ public class KeybindField extends Widget {
     public boolean onKey(int keyCode, int modifiers) {
         if (!armed) return false;
         armed = false;
-        if (keyCode != GLFW.GLFW_KEY_ESCAPE) {
+        if (keyCode != KeyInput.KEY_ESCAPE) {
             key.set(keyCode);
             if (onChange != null) onChange.accept(keyCode);
         }

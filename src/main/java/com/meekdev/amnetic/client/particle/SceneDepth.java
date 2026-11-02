@@ -27,12 +27,17 @@ public final class SceneDepth extends AbstractTexture {
 
     public static boolean update() {
         Minecraft mc = Minecraft.getInstance();
-        RenderTarget main = mc.getMainRenderTarget();
-        if (main == null || VanillaCompat.depthTextureGlId(main) == 0) {
+        RenderTarget main = mc.gameRenderer.mainRenderTarget();
+        //? if >=26.2 {
+        if (main == null || main.getDepthTexture() == null) {
+        //?} else {
+        /*if (main == null || VanillaCompat.depthTextureGlId(main) == 0) {
+        *///?}
             return false;
         }
         if (instance == null) {
             instance = new SceneDepth();
+            com.meekdev.amnetic.client.render.AmneticResources.register(instance);
         }
         if (!instance.capture(main)) {
             return false;
@@ -58,12 +63,18 @@ public final class SceneDepth extends AbstractTexture {
             VanillaCompat.resize(snapshot, src.width, src.height);
             directCopyProven = false;
         }
-        if (VanillaCompat.depthTextureGlId(snapshot) == 0) {
+        //? if >=26.2 {
+        var encoder = com.mojang.blaze3d.systems.RenderSystem.getDevice().createCommandEncoder();
+        encoder.copyTextureToTexture(src.getDepthTexture(), snapshot.getDepthTexture(), 0, 0, 0, 0, 0, src.width, src.height);
+        encoder.submit();
+        //?} else {
+        /*if (VanillaCompat.depthTextureGlId(snapshot) == 0) {
             return false;
         }
         if (!fastCopyDepth(src)) {
             snapshot.copyDepthFrom(src);
         }
+        *///?}
         //? if >=1.21.5 {
         this.texture = snapshot.getDepthTexture();
         this.textureView = snapshot.getDepthTextureView();
@@ -104,6 +115,14 @@ public final class SceneDepth extends AbstractTexture {
 
     @Override
     public void close() {
+        //? if >=1.21.5 {
+        texture = null;
+        textureView = null;
+        //?} else {
+        /*id = -1;
+        *///?}
+        if (snapshot != null) { snapshot.destroyBuffers(); snapshot = null; }
+        directCopyProven = false;
     }
 
     //? if <1.21.5 {

@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL15;
 
 import java.nio.ByteBuffer;

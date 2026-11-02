@@ -56,6 +56,14 @@ public final class MaterialParams {
             texels.upload(scratch);
             dirty = false;
         }
-        texels.bind(UNIT);
+        //? if <26.2 {
+        /*texels.bind(UNIT);
+        *///?}
     }
+    //? if >=26.2 {
+    public synchronized com.mojang.renderpearl.api.buffers.GpuBufferSlice nativeSlice() {
+        bind();
+        return texels.nativeSlice();
+    }
+    //?}
 }

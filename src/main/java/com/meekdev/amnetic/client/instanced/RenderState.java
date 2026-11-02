@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.instanced;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL11;
 
 public final class RenderState {
@@ -28,6 +28,11 @@ public final class RenderState {
         NONE, ALPHA, ADDITIVE, MULTIPLY
     }
 
+    public boolean depthTest() { return depthTest; }
+    public boolean depthWrite() { return depthWrite; }
+    public BlendMode blendMode() { return blendMode; }
+    public boolean backfaceCulling() { return backfaceCulling; }
+
     public static Builder builder() { return new Builder(); }
 
     public static final class Builder {
@@ -53,21 +58,21 @@ public final class RenderState {
         GlStateManager._depthMask(depthWrite);
         if (backfaceCulling) GlStateManager._enableCull(); else GlStateManager._disableCull();
         switch (blendMode) {
-            case NONE -> GlStateManager._disableBlend();
+            case NONE -> GlStateManager._disableBlend(0);
             case ALPHA -> {
-                GlStateManager._enableBlend();
+                GlStateManager._enableBlend(0);
                 GlStateManager._blendFuncSeparate(
                         GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
                         GL11.GL_ONE,       GL11.GL_ONE_MINUS_SRC_ALPHA);
             }
             case ADDITIVE -> {
-                GlStateManager._enableBlend();
+                GlStateManager._enableBlend(0);
                 GlStateManager._blendFuncSeparate(
                         GL11.GL_SRC_ALPHA, GL11.GL_ONE,
                         GL11.GL_ONE,       GL11.GL_ONE);
             }
             case MULTIPLY -> {
-                GlStateManager._enableBlend();
+                GlStateManager._enableBlend(0);
                 GlStateManager._blendFuncSeparate(
                         GL11.GL_DST_COLOR, GL11.GL_ZERO,
                         GL11.GL_ONE,       GL11.GL_ZERO);
@@ -78,7 +83,7 @@ public final class RenderState {
     public void restore() {
         GlStateManager._enableDepthTest();
         GlStateManager._depthMask(true);
-        GlStateManager._disableBlend();
+        GlStateManager._disableBlend(0);
         GlStateManager._enableCull();
     }
 }

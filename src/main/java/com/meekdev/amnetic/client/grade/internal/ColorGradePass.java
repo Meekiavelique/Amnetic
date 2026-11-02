@@ -25,12 +25,22 @@ public final class ColorGradePass extends ScreenPass {
     private Framebuffer capture;
     private final Set<Identifier> loadedLuts = new HashSet<>();
     private ColorGradeSettings settings;
+    //? if >=26.2 {
+    private NativeColorGrade nativePass;
+    //?}
 
     private ColorGradePass() { super("ColorGrade"); }
 
     public void render(ColorGradeSettings s) {
         this.settings = s;
-        dispatch();
+        //? if >=26.2 {
+        if (!s.isEnabled() || s.isIdentity() || CameraSnapshot.current() == null) return;
+        if (com.meekdev.amnetic.client.compat.IrisCompat.shadersActive()) return;
+        if (nativePass == null) nativePass = new NativeColorGrade();
+        nativePass.render(s);
+        //?} else {
+        /*dispatch();
+        *///?}
     }
 
     @Override protected boolean enabled() { return settings != null && settings.isEnabled(); }
@@ -75,6 +85,9 @@ public final class ColorGradePass extends ScreenPass {
 
     @Override
     protected void onDispose() {
+        //? if >=26.2 {
+        if (nativePass != null) { nativePass.close(); nativePass = null; }
+        //?}
         if (capture != null) { capture.dispose(); capture = null; }
     }
 

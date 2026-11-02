@@ -20,7 +20,7 @@ public final class FrameView {
 
     public void setProjection(Matrix4fc m) { projection.set(m); projectionValid = true; }
 
-    public void invalidate() { valid = false; }
+    public void invalidate() { valid = false; projectionValid = false; }
 
     public Matrix4f get(Matrix4f dest, Matrix4fc fallback) {
         return valid ? dest.set(view) : dest.set(fallback);
@@ -28,6 +28,6 @@ public final class FrameView {
 
     public Matrix4f getProjection(Matrix4f dest, Matrix4fc fallback) {
         Matrix4fc source = projectionValid ? projection : fallback;
-        return TaaJitter.INSTANCE.resolved() ? TaaJitter.INSTANCE.unjitter(source, dest) : dest.set(source);
+        return dest.set(source);
     }
 }
