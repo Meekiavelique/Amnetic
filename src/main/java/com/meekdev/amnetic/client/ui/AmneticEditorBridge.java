@@ -8,11 +8,13 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 //?} else {
 /*import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 *///?}
-//?} else {
+//?} else if neoforge {
+/*import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+*///?} else {
 /*import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 *///?}
 import net.minecraft.client.KeyMapping;
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,8 +32,8 @@ public final class AmneticEditorBridge {
     public static void init() {
         toggleKey = new KeyMapping(
                 "key.amnetic.editor",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_RIGHT_SHIFT,
+                InputConstants.Type.KEYBOARD,
+                KeyInput.KEY_RIGHT_SHIFT,
                 //? if >=1.21.9 {
                 KeyMapping.Category.MISC);
                 //?} else {
@@ -43,15 +45,18 @@ public final class AmneticEditorBridge {
         /*KeyBindingHelper.registerKeyBinding(toggleKey);
         *///?}
 
-        //? if fabric && >=1.21 {
-        if (Platform.isModLoaded(IMGUIMC)) {
+        //? if >=26.2 {
+        AmneticEditor.init();
+        available = true;
+        //?} else if fabric && >=1.21 {
+        /*if (Platform.isModLoaded(IMGUIMC)) {
             AmneticEditor.init();
             available = true;
         }
-        //?}
+        *///?}
     }
 
-    //? forge {
+    //? forge || neoforge {
     /*public static void registerKeyMapping(RegisterKeyMappingsEvent event) {
         event.register(toggleKey);
     }
@@ -63,7 +68,7 @@ public final class AmneticEditorBridge {
         while (toggleKey.consumeClick()) toggled = true;
         if (!toggled) return;
 
-        //? if fabric && >=1.21 {
+        //? if >=26.2 || (fabric && >=1.21) {
         if (available) {
             AmneticEditor.toggle();
             return;
@@ -74,4 +79,13 @@ public final class AmneticEditorBridge {
             LOGGER.info("Install the ImGuiMC mod to use the Amnetic editor overlay.");
         }
     }
+
+    //? if >=26.2 {
+    public static boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
+        if(net.minecraft.client.Minecraft.getInstance().gui.screen()!=null && !AmneticEditor.isEnabled())return false;
+        if (!available || toggleKey == null || !toggleKey.matches(event)) return false;
+        AmneticEditor.toggle();
+        return true;
+    }
+    //?}
 }

@@ -11,11 +11,11 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
-import java.util.ArrayList;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
@@ -33,7 +33,6 @@ import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryStack;
 
 public final class DecalRenderer extends ScreenPass {
-
     public static final DecalRenderer INSTANCE = new DecalRenderer();
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/decal.vsh");
@@ -49,6 +48,7 @@ public final class DecalRenderer extends ScreenPass {
     private final DecalBounds bounds = new DecalBounds();
 
     private static final int BATCH = 32;
+    private static final float DEFAULT_ROUGHNESS = 0.7f;
 
     private record Group(Identifier texture, boolean multiply) {}
 
@@ -58,8 +58,13 @@ public final class DecalRenderer extends ScreenPass {
     private final float[] axes = new float[BATCH * 4];
     private final float[] params = new float[BATCH * 4];
     private final float[] tints = new float[BATCH * 4];
+    //? if >=26.2 {
+    private final NativeDecalRenderer nativeRenderer = new NativeDecalRenderer();
+    //?}
 
-    private DecalRenderer() { super("Decal"); }
+    private DecalRenderer() {
+        super("Decal");
+    }
 
     private void flush(ShaderProgram program, int count) {
         program.setMatrix4Array("DecalInvs", invs, count);
@@ -72,10 +77,16 @@ public final class DecalRenderer extends ScreenPass {
 
     public void render(List<Decal> decals) {
         this.decals = decals;
-        dispatch();
+        //? if >=26.2 {
+        dispatchNative(() -> nativeRenderer.render(decals));
+        //?} else {
+        /*dispatch();
+        *///?}
     }
 
-    @Override protected boolean enabled() { return decals != null && !decals.isEmpty(); }
+    @Override protected boolean enabled() {
+        return decals != null && !decals.isEmpty();
+    }
 
     @Override
     protected ShaderProgram createProgram() {
@@ -99,7 +110,7 @@ public final class DecalRenderer extends ScreenPass {
 
         depthCapture.blitDepthFromMain();
 
-        GlStateManager._enableBlend();
+        GlStateManager._enableBlend(0);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
 
         MainTargetFramebuffer.bind();
@@ -114,8 +125,6 @@ public final class DecalRenderer extends ScreenPass {
             program.setMatrix4("InvViewProj", cam.invViewProj);
             program.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
 
-            // decals sharing a texture and blend go out as one instanced draw per batch, each instance
-            // covering only its own screen rect, so hundreds of small prints are a handful of draws
             groups.clear();
             for (Decal d : decals) {
                 if (d.isRemoved()) continue;
@@ -123,7 +132,8 @@ public final class DecalRenderer extends ScreenPass {
             }
             Matrix4f model = new Matrix4f();
             Matrix4f inv = new Matrix4f();
-            int w = targetWidth(), h = targetHeight();
+            int w = targetWidth();
+            int h = targetHeight();
             for (Map.Entry<Group, List<Decal>> e : groups.entrySet()) {
                 Group gr = e.getKey();
                 if (gr.multiply()) {
@@ -182,12 +192,10 @@ public final class DecalRenderer extends ScreenPass {
     }
 
     private void renderGBufferDecals(CameraSnapshot cam, Vec3 eye, int mcFbo, int[] mcViewport) {
-        boolean any = false;
-        for (Decal d : decals) if (!d.isRemoved() && d.writesGBuffer()) { any = true; break; }
-        if (!any || gbufferProgram == null) return;
+        if (!anyWritesGBuffer() || gbufferProgram == null) return;
 
         GBufferTargets g = GBufferTargets.INSTANCE;
-        if (!g.isPopulated()) return; // need the depth-reconstructed normals underneath
+        if (!g.isPopulated()) return;
         int prevFbo = g.bind();
         if (prevFbo == -1) return;
         bounds.begin();
@@ -205,7 +213,9 @@ public final class DecalRenderer extends ScreenPass {
 
             Matrix4f model = new Matrix4f();
             Matrix4f inv = new Matrix4f();
-            Vector3f n = new Vector3f(), right = new Vector3f(), up = new Vector3f();
+            Vector3f n = new Vector3f();
+            Vector3f right = new Vector3f();
+            Vector3f up = new Vector3f();
             for (Decal d : decals) {
                 if (d.isRemoved() || !d.writesGBuffer()) continue;
                 decalMatrix(d, eye, model);
@@ -232,7 +242,7 @@ public final class DecalRenderer extends ScreenPass {
                 gbufferProgram.setVec3("DecalUp", up.x, up.y, up.z);
                 gbufferProgram.setFloat("Opacity", d.opacity());
                 gbufferProgram.setFloat("AngleFade", d.angleFade());
-                gbufferProgram.setFloat("Roughness", d.roughnessOr(0.7f));
+                gbufferProgram.setFloat("Roughness", d.roughnessOr(DEFAULT_ROUGHNESS));
                 gbufferProgram.setFloat("Metallic", d.metallic());
                 gbufferProgram.draw();
             }
@@ -246,14 +256,37 @@ public final class DecalRenderer extends ScreenPass {
 
     @Override
     protected void onDispose() {
-        if (depthCapture != null) { depthCapture.dispose(); depthCapture = null; }
-        if (nearestSampler != 0) { GL33.glDeleteSamplers(nearestSampler); nearestSampler = 0; }
-        if (gbufferProgram != null) { gbufferProgram.close(); gbufferProgram = null; }
+        //? if >=26.2 {
+        nativeRenderer.close();
+        //?}
+        if (depthCapture != null) {
+            depthCapture.dispose();
+            depthCapture = null;
+        }
+        if (nearestSampler != 0) {
+            GL33.glDeleteSamplers(nearestSampler);
+            nearestSampler = 0;
+        }
+        if (gbufferProgram != null) {
+            gbufferProgram.close();
+            gbufferProgram = null;
+        }
     }
 
-    // scissor rects are in the main target's pixels, not whatever viewport an earlier pass left behind
-    private static int targetWidth() { return Minecraft.getInstance().getMainRenderTarget().width; }
-    private static int targetHeight() { return Minecraft.getInstance().getMainRenderTarget().height; }
+    private boolean anyWritesGBuffer() {
+        for (Decal d : decals) {
+            if (!d.isRemoved() && d.writesGBuffer()) return true;
+        }
+        return false;
+    }
+
+    private static int targetWidth() {
+        return Minecraft.getInstance().gameRenderer.mainRenderTarget().width;
+    }
+
+    private static int targetHeight() {
+        return Minecraft.getInstance().gameRenderer.mainRenderTarget().height;
+    }
 
     private static void basis(Decal d, Vector3f n, Vector3f right, Vector3f up) {
         n.set(d.normal()).normalize();
@@ -264,18 +297,27 @@ public final class DecalRenderer extends ScreenPass {
     }
 
     private static void decalMatrix(Decal d, Vec3 cam, Matrix4f out) {
-        Vector3f n = new Vector3f(d.normal()).normalize();
-        Vector3f right = new Vector3f(n).cross(0f, 1f, 0f);
-        if (right.lengthSquared() < 1e-6f) right.set(1f, 0f, 0f);
-        right.normalize();
-        Vector3f up = new Vector3f(right).cross(n).normalize();
+        Vector3f n = new Vector3f();
+        Vector3f right = new Vector3f();
+        Vector3f up = new Vector3f();
+        basis(d, n, right, up);
         Vec3 c = d.center();
-        float w = d.width(), h = d.height(), dp = d.depth();
+        float w = d.width();
+        float h = d.height();
+        float dp = d.depth();
         out.identity();
-        out.m00(right.x * w); out.m01(right.y * w); out.m02(right.z * w);
-        out.m10(n.x * dp); out.m11(n.y * dp); out.m12(n.z * dp);
-        out.m20(up.x * h); out.m21(up.y * h); out.m22(up.z * h);
-        out.m30((float) (c.x - cam.x)); out.m31((float) (c.y - cam.y)); out.m32((float) (c.z - cam.z));
+        out.m00(right.x * w);
+        out.m01(right.y * w);
+        out.m02(right.z * w);
+        out.m10(n.x * dp);
+        out.m11(n.y * dp);
+        out.m12(n.z * dp);
+        out.m20(up.x * h);
+        out.m21(up.y * h);
+        out.m22(up.z * h);
+        out.m30((float) (c.x - cam.x));
+        out.m31((float) (c.y - cam.y));
+        out.m32((float) (c.z - cam.z));
     }
 
     private int loadTextureGlId(Identifier id) {

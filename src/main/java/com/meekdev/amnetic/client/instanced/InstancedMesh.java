@@ -203,6 +203,13 @@ public final class InstancedMesh<T> {
             this.extraSamplers.add(new ExtraSampler(uniformName, textureId, unit));
             return this;
         }
+        //? if >=26.2 {
+        public Builder<T> extraSampler(String uniformName,
+                java.util.function.Supplier<com.mojang.renderpearl.api.textures.GpuTextureView> texture, int unit) {
+            this.extraSamplers.add(new ExtraSampler(uniformName, texture, unit));
+            return this;
+        }
+        //?}
 
         public Builder<T> extraSampler(String uniformName, Identifier textureId, int unit, boolean fileBacked) {
             this.extraSamplers.add(new ExtraSampler(uniformName, textureId, unit, fileBacked));

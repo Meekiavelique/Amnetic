@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
@@ -13,8 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 public final class ShadowDepthProgram implements AutoCloseable {
+    private static final int INFO_LOG_LENGTH = 512;
 
-    private final Identifier vsh, fsh;
+    private final Identifier vsh;
+    private final Identifier fsh;
     private int program;
     private int viewProjLoc = -1;
     private final float[] mat = new float[16];
@@ -37,7 +39,7 @@ public final class ShadowDepthProgram implements AutoCloseable {
         GlStateManager.glDeleteShader(vs);
         GlStateManager.glDeleteShader(fs);
         if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(prog, 512);
+            String log = GlStateManager.glGetProgramInfoLog(prog, INFO_LOG_LENGTH);
             GlStateManager.glDeleteProgram(prog);
             throw new RuntimeException("Failed to link shadow program " + vsh + "/" + fsh + ": " + log);
         }
@@ -62,7 +64,10 @@ public final class ShadowDepthProgram implements AutoCloseable {
 
     @Override
     public void close() {
-        if (program != 0) { GlStateManager.glDeleteProgram(program); program = 0; }
+        if (program != 0) {
+            GlStateManager.glDeleteProgram(program);
+            program = 0;
+        }
     }
 
     private static int compile(int type, String src, Identifier id) {
@@ -70,7 +75,7 @@ public final class ShadowDepthProgram implements AutoCloseable {
         GlStateManager.glShaderSource(shader, src);
         GlStateManager.glCompileShader(shader);
         if (GlStateManager.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetShaderInfoLog(shader, 512);
+            String log = GlStateManager.glGetShaderInfoLog(shader, INFO_LOG_LENGTH);
             GlStateManager.glDeleteShader(shader);
             throw new RuntimeException("Failed to compile shadow shader " + id + ": " + log);
         }

@@ -10,7 +10,7 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.taa.Taa;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
@@ -73,12 +73,12 @@ public final class ReactivePass extends ScreenPass {
         }
         if (!copied) return false;
         copied = false;
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return false;
         mask.begin();
         GlState.bindTexture(0, before.colorTextureGlId(0));
         GlState.bindTexture(1, VanillaCompat.colorTextureGlId(main));
-        GlStateManager._enableBlend();
+        GlStateManager._enableBlend(0);
         GL11.glEnable(GL11.GL_BLEND);
         GL14.glBlendEquation(GL14.GL_MAX);
         program.begin();
@@ -86,7 +86,7 @@ public final class ReactivePass extends ScreenPass {
         program.setSampler("After", 1);
         program.draw();
         GL14.glBlendEquation(GL14.GL_FUNC_ADD);
-        GlStateManager._disableBlend();
+        GlStateManager._disableBlend(0);
         GL11.glDisable(GL11.GL_BLEND);
         mask.end();
         ready = true;

@@ -8,7 +8,10 @@ import java.util.ArrayList;
 import java.util.List;
 //? fabric {
 import net.fabricmc.loader.api.FabricLoader;
-//?} else {
+//?} else if neoforge {
+/*import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLEnvironment;
+*///?} else {
 /*import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 *///?}
@@ -21,7 +24,9 @@ public final class Platform {
     public static boolean isModLoaded(String id) {
         //? fabric {
         return FabricLoader.getInstance().isModLoaded(id);
-        //?} else if >=26.1 {
+        //?} else if neoforge {
+        /*return ModList.get().isLoaded(id);
+        *///?} else if >=26.1 {
         /*return ModList.isLoaded(id);
         *///?} else {
         /*return ModList.get().isLoaded(id);
@@ -31,7 +36,9 @@ public final class Platform {
     public static boolean isDevelopmentEnvironment() {
         //? fabric {
         return FabricLoader.getInstance().isDevelopmentEnvironment();
-        //?} else {
+        //?} else if neoforge {
+        /*return !FMLEnvironment.isProduction();
+        *///?} else {
         /*return !FMLEnvironment.production;
         *///?}
     }

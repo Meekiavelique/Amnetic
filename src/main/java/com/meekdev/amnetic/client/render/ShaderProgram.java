@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.render;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
@@ -74,7 +74,12 @@ public final class ShaderProgram implements AutoCloseable {
     private static final Map<ShaderProgram, Boolean> LIVE =
             Collections.synchronizedMap(new WeakHashMap<>());
 
+    private static volatile long revision;
+
+    public static long revision() { return revision; }
+
     public static void invalidateAll() {
+        revision++;
         synchronized (LIVE) {
             for (ShaderProgram sp : LIVE.keySet()) sp.invalidate();
         }
@@ -86,35 +91,34 @@ public final class ShaderProgram implements AutoCloseable {
         LIVE.put(this, Boolean.TRUE);
     }
 
-    public void invalidate() {
-        if (program != 0) {
-            GlStateManager.glDeleteProgram(program);
-            program = 0;
-        }
-        if (vao != 0) {
-            GL30.glDeleteVertexArrays(vao);
-            vao = 0;
-        }
-        uniformLocations.clear();
-    }
+    private boolean dirty;
+    private long retryAfter;
+    public void invalidate() { dirty = true; retryAfter = 0; }
 
     private void ensure() {
-        if (program != 0) return;
-        int vs = compile(GL20.GL_VERTEX_SHADER, loadWithIncludes(vshId), vshId);
-        int fs = compile(GL20.GL_FRAGMENT_SHADER, loadWithIncludes(fshId), fshId);
-        int prog = GlStateManager.glCreateProgram();
-        GlStateManager.glAttachShader(prog, vs);
-        GlStateManager.glAttachShader(prog, fs);
-        GlStateManager.glLinkProgram(prog);
-        GlStateManager.glDeleteShader(vs);
-        GlStateManager.glDeleteShader(fs);
-        if (GlStateManager.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-            String log = GlStateManager.glGetProgramInfoLog(prog, 512);
-            GlStateManager.glDeleteProgram(prog);
-            throw new RuntimeException("Failed to link shader (" + vshId + "/" + fshId + "): " + log);
+        if (program != 0 && (!dirty || System.nanoTime() < retryAfter)) return;
+        int vs = 0, fs = 0, next = 0;
+        try {
+            vs = compile(GL20.GL_VERTEX_SHADER, loadWithIncludes(vshId), vshId);
+            fs = compile(GL20.GL_FRAGMENT_SHADER, loadWithIncludes(fshId), fshId);
+            next = GlStateManager.glCreateProgram();
+            GlStateManager.glAttachShader(next, vs); GlStateManager.glAttachShader(next, fs);
+            GlStateManager.glLinkProgram(next);
+            if (GlStateManager.glGetProgrami(next, GL20.GL_LINK_STATUS) == GL11.GL_FALSE)
+                throw new RuntimeException("Failed to link shader " + fshId + ": " + GlStateManager.glGetProgramInfoLog(next, 512));
+            if (program != 0) GlStateManager.glDeleteProgram(program);
+            program = next; next = 0;
+            if (vao == 0) vao = GlStateManager._glGenVertexArrays();
+            uniformLocations.clear(); dirty = false;
+        } catch (RuntimeException error) {
+            if (program == 0) throw error;
+            retryAfter = System.nanoTime() + 1_000_000_000L;
+            org.slf4j.LoggerFactory.getLogger("Amnetic/Shader").debug("Shader reload deferred for {}", fshId);
+        } finally {
+            if (vs != 0) GlStateManager.glDeleteShader(vs);
+            if (fs != 0) GlStateManager.glDeleteShader(fs);
+            if (next != 0) GlStateManager.glDeleteProgram(next);
         }
-        program = prog;
-        vao = GlStateManager._glGenVertexArrays();
     }
 
     public void begin() {
@@ -267,7 +271,13 @@ public final class ShaderProgram implements AutoCloseable {
         if (!seen.add(id)) return;
         for (String line : loadRaw(id).split("\n", -1)) {
             String trimmed = line.trim();
-            if (trimmed.startsWith("#include")) {
+            if (trimmed.startsWith("#include") || trimmed.startsWith("#moj_import")) {
+                int left = trimmed.indexOf('<'), right = trimmed.indexOf('>');
+                if (left >= 0 && right > left) {
+                    Identifier include = Identifier.parse(trimmed.substring(left + 1, right));
+                    resolve(include.withPath(path -> "shaders/include/" + path), out, seen);
+                    continue;
+                }
                 int a = trimmed.indexOf('"');
                 int b = trimmed.lastIndexOf('"');
                 if (a >= 0 && b > a) {
@@ -281,6 +291,10 @@ public final class ShaderProgram implements AutoCloseable {
 
     public static String readSource(Identifier id) {
         return loadWithIncludes(id);
+    }
+
+    public static String readRaw(Identifier id) {
+        return loadRaw(id);
     }
 
     private static String loadRaw(Identifier id) {

@@ -29,16 +29,21 @@ public final class CameraSnapshot {
     private static final Matrix4f PROJ_SCRATCH = new Matrix4f();
     private static final Matrix4f VIEW_SCRATCH = new Matrix4f();
     private static CameraSnapshot cached;
+    private static CameraSnapshot override;
+
+    public static void handProjection(Matrix4f projection) {
+        var world=current();if(world==null)return;
+        var p=new Matrix4f(projection);var v=new Matrix4f(world.view);var vp=new Matrix4f(p).mul(v);
+        override=new CameraSnapshot(world.eye,p,v,vp,new Matrix4f(vp).invert(),world.zeroToOne);
+    }
+    public static void endHand(){override=null;}
 
     public static CameraSnapshot current() {
+        if(override!=null)return override;
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.getMainRenderTarget() == null) return null;
-        //? if >=26.2 {
-        /*var grs = mc.gameRenderer.gameRenderState();
-        if (grs == null || grs.levelRenderState == null) return null;
-        LevelCamera crs = LevelCamera.of(grs.levelRenderState.cameraRenderState);
-        *///?} else if >=26.1 {
-        var grs = mc.gameRenderer.getGameRenderState();
+        if (mc.level == null || mc.gameRenderer.mainRenderTarget() == null) return null;
+        //? if >=26.1 {
+        var grs = mc.gameRenderer.gameRenderState();
         if (grs == null || grs.levelRenderState == null) return null;
         LevelCamera crs = LevelCamera.of(grs.levelRenderState.cameraRenderState);
         //?} else {

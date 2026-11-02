@@ -11,13 +11,13 @@
 </p>
 
 <p align="center">
-A rendering utility library for Minecraft. Fabric and Forge builds cover 1.20.1, 1.21.1, 1.21.11, and 26.1.2; the NeoForge build targets 26.1.2. Quilt uses the Fabric artifact.
+A rendering utility library for Minecraft. Fabric and Forge builds cover 1.20.1, 1.21.1, 1.21.11, 26.1.2, 26.2, and 26.3; NeoForge targets 26.1.2, 26.2, and 26.3. Quilt has a separate 26.3 artifact and uses the Fabric artifact on older versions.
 </p>
 
 ## Development runs
 
 Use a JDK matching the selected Minecraft version (Java 17 for 1.20.1, Java 21 for
-1.21.x, and Java 25 for 26.1.2). Every Stonecutter target exposes the loader's
+1.21.x, and Java 25 for 26.x). Every Stonecutter target exposes the loader's
 normal `runClient` task. Convenience aliases are available from the root:
 
 ```text
@@ -25,6 +25,8 @@ normal `runClient` task. Convenience aliases are available from the root:
 ./gradlew runFabric1211Client   ./gradlew runForge1211Client
 ./gradlew runFabric12111Client  ./gradlew runForge12111Client
 ./gradlew runFabric2612Client   ./gradlew runForge2612Client
+./gradlew runFabric262Client    ./gradlew runForge262Client
+./gradlew runFabric263Client    ./gradlew runForge263Client
 ```
 
 On Windows, replace `./gradlew` with `.\gradlew.bat`. IntelliJ also imports a
@@ -36,39 +38,41 @@ Build NeoForge for Minecraft 26.1.2 with `./gradlew :neoforge:build` and launch 
 with `./gradlew :neoforge:runNeoForgeClient`. Install Forgified Fabric API alongside
 Amnetic; ImGuiMC is optional for the editor.
 
-For Quilt, install the Fabric artifact and Fabric API. Start the Quilt development
-client with `./gradlew :26.1.2-fabric:runClient -Ploader_platform=quilt` (replace the
-Minecraft version for another target). Quilt development runs keep model libraries
-in a separate folder so Quilt loads them through the correct classloader.
+For native NeoForge 26.2 and 26.3, use `:26.2-neoforge:build` or
+`:26.3-neoforge:build`, and the corresponding `runClient` task. These targets
+use native loader events and do not require Forgified Fabric API or Connector.
 
-The ImGui editor is available on Fabric, Quilt and NeoForge; Forge builds omit it.
+For Quilt 26.3, use `./gradlew :26.3-quilt:build` or
+`./gradlew :26.3-quilt:runClient`. Install Fabric API alongside the Quilt artifact.
+Older versions use the Fabric artifact and `-Ploader_platform=quilt` for development runs.
 
-### Iris shader packs
+Build a version with `./gradlew :26.3-fabric:build --configure-on-demand`.
+Artifacts are written to `versions/<minecraft>-<loader>/build/libs`; install the
+JAR without a `sources`, `dev`, `slim`, or `unshaded` classifier.
 
-Amnetic composites local lights after Iris finishes the shader-pack image. Lights
-use the pack's camera matrices and world depth, so they follow ground and visible
-surfaces rather than being overwritten by the pack. Dark surfaces retain a visible
-light response, with a soft brightness limit to avoid washed-out highlights.
+### Lighting and materials
 
-Shader packs retain their own sunlight, shadows and temporal antialiasing. Amnetic's
-local-light composite does not feed the pack's reflections or bloom, and Amnetic
-shadow maps and screen effects stay disabled while a pack is active. With shaders
-turned off, Amnetic's normal rendering and effects remain available.
+The shared lighting shaders preserve material colour under local illumination,
+including in dark scenes. Spotlights clip scattering to their cone, respect
+occluders, and soften shadow edges without sampling neighbouring atlas tiles.
+26.2 and 26.3 use native GPU passes; 26.3 also captures vanilla and Sodium world
+albedo during their original draws and lights the isolated first-person layer.
+Older versions retain the OpenGL rendering path.
 
-### Lighting performance
+On the legacy OpenGL path, Balanced lighting uses 75% resolution for eight or
+more local lights. High uses full resolution and Performance uses 50%; select
+the mode in the editor or with `-Damnetic.lightingQuality=performance`.
 
-Local lights default to Balanced quality. With eight or more visible lights, Amnetic
-renders their contribution at 75% resolution and upsamples it using scene depth.
-The world image stays at full resolution. Small light counts, directional lights,
-custom shading and Iris lighting keep their existing full-resolution path.
+With Asterion, Amnetic disables its own TAA and restores the vertex-array state
+after legacy fullscreen passes. Fabric and Quilt bundle private copies of the
+model-loading libraries to avoid dependency conflicts.
 
-In the editor, open **Renderer → Lights → Global lighting → Lighting quality**:
-High uses full resolution, Balanced uses 75%, and Performance uses 50%. Lower modes
-can soften lighting at thin edges. They do not reduce shadow-map or volumetric costs.
+Sodium 0.9.2 works with the 26.3 lighting path on OpenGL and Vulkan. Iris 1.11.7
+with Complementary Reimagined r5.9.3 works on Fabric and Quilt with OpenGL.
+Iris currently fails on Vulkan; its NeoForge shader-pack path also fails without
+Amnetic. OptiFine 26.3 compatibility is not verified.
 
-Without the editor, add `-Damnetic.lightingQuality=performance` to the launcher's
-JVM arguments (or use `high` / `balanced`). Mods can set the scale through
-`LightSettings.defaults().surfaceScale(0.5f)`.
+See [Native shaders](wiki/Native-Shaders.md) for shader bindings and resource ownership.
 
 ## Installation
 

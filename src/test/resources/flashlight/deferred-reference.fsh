@@ -1,0 +1,244 @@
+#version 410 core
+
+in vec2 vUV;
+out vec4 FragColor;
+
+#include "amnetic:shaders/light/lighting.glsl"
+
+
+float hgPhase(float cosT, float g) {
+    float g2 = g * g;
+    float denom = 1.0 + g2 - 2.0 * g * cosT;
+    return (1.0 - g2) / (4.0 * 3.14159265 * pow(max(denom, 1e-4), 1.5));
+}
+
+
+const float BAYER4[16] = float[16](
+0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+float bayerDither() {
+    int x = int(mod(gl_FragCoord.x, 4.0));
+    int y = int(mod(gl_FragCoord.y, 4.0));
+    return (BAYER4[y * 4 + x] + 0.5) / 16.0;
+}
+
+
+
+const float SKY_RAY_DISTANCE = 8192.0;
+
+
+
+bool clipSpotCone(vec3 origin, vec3 ray, vec3 axis, float cosine, inout float nearT, inout float farT) {
+    float h = dot(origin, axis), dh = dot(ray, axis);
+    if (abs(dh) < 1e-6) { if (h < 0.0) return false; }
+    else if (dh > 0.0) nearT = max(nearT, -h / dh);
+    else farT = min(farT, -h / dh);
+    if (farT <= nearT) return false;
+    float c2 = cosine * cosine;
+    float a = c2 - dh * dh;
+    float b = 2.0 * (c2 * dot(origin, ray) - h * dh);
+    float c = c2 * dot(origin, origin) - h * h;
+    if (abs(a) < 1e-6) {
+        if (abs(b) < 1e-6) return c <= 0.0;
+        if (b > 0.0) farT = min(farT, -c / b); else nearT = max(nearT, -c / b);
+    } else {
+        float discriminant = b * b - 4.0 * a * c;
+        if (discriminant < 0.0) return a < 0.0;
+        float root = sqrt(discriminant);
+        float t0 = (-b - root) / (2.0 * a), t1 = (-b + root) / (2.0 * a);
+        float low = min(t0, t1), high = max(t0, t1);
+        if (a > 0.0) { nearT = max(nearT, low); farT = min(farT, high); }
+        else if (nearT < low) farT = min(farT, low);
+        else nearT = max(nearT, high);
+    }
+    return farT > nearT;
+}
+
+
+
+vec3 volumetric(vec3 fragPos) {
+    float segLen = length(fragPos);
+    if (segLen < 1e-3 || VolumetricSteps <= 0 || VolumetricStrength <= 0.0 || VolumetricDensity <= 0.0) return vec3(0.0);
+    vec3 rayDir = fragPos / segLen;
+    float dither = TemporalOffset < 0.0 ? 0.5 : fract(bayerDither() + TemporalOffset);
+
+    vec3 result = vec3(0.0);
+    for (int i = 0; i < LightCount; i++) {
+        int type = int(texelFetch(LightTexels, i * 8 + 2).w + 0.5);
+        float gstr = texelFetch(LightTexels, i * 8 + 6).z;
+        if (gstr <= 0.0) continue;
+
+
+        int baseSteps = min(VolumetricSteps, int(texelFetch(LightTexels, i * 8 + 7).x + 0.5));
+        float density = texelFetch(LightTexels, i * 8 + 7).y * VolumetricDensity;
+        float aniso = min(VolumetricAniso, texelFetch(LightTexels, i * 8 + 7).z);
+        bool lShadows = VolumetricShadows == 1 && texelFetch(LightTexels, i * 8 + 7).w > 0.5;
+        if (baseSteps <= 0) continue;
+
+        vec3 pos = texelFetch(LightTexels, i * 8 + 0).xyz;
+        float range = texelFetch(LightTexels, i * 8 + 0).w;
+
+
+        vec3 oc = -pos;
+        float b = dot(oc, rayDir);
+        float c = dot(oc, oc) - range * range;
+        float disc = b * b - c;
+        if (type != 2 && disc < 0.0) continue;
+        float sq = sqrt(max(disc, 0.0));
+        float tN = type == 2 ? 0.0 : max(-b - sq, 0.0);
+        float tF = type == 2 ? min(segLen, 96.0) : min(-b + sq, segLen);
+        vec3 spotDir = normalize(texelFetch(LightTexels, i * 8 + 2).xyz);
+        float cosIn = texelFetch(LightTexels, i * 8 + 3).x, cosOut = texelFetch(LightTexels, i * 8 + 3).y;
+        if (type == 1 && !clipSpotCone(-pos, rayDir, spotDir, cosOut, tN, tF)) continue;
+        if (tF <= tN) continue;
+
+
+
+
+        int steps = baseSteps;
+        float stepLen = (tF - tN) / float(steps);
+        int curve = int(texelFetch(LightTexels, i * 8 + 3).z + 0.5);
+        float param = texelFetch(LightTexels, i * 8 + 3).w;
+        int sref = int(texelFetch(LightTexels, i * 8 + 5).w);
+        vec3 lcol = texelFetch(LightTexels, i * 8 + 1).rgb * texelFetch(LightTexels, i * 8 + 1).w;
+
+
+
+        vec3 acc = vec3(0.0);
+        float transmittance = 1.0;
+        for (int s = 0; s < steps; s++) {
+            vec3 p = rayDir * (tN + stepLen * (float(s) + dither));
+            vec3 toL = pos - p;
+            float d = length(toL);
+            if (type != 2 && d > range) continue;
+            vec3 L = type == 2 ? -spotDir : toL / max(d, 1e-4);
+            float a = type == 2 ? 1.0 : falloff(d, range, curve, param);
+            if (type == 1) {
+                float cd = dot(-L, spotDir);
+                a *= smoothstep(0.0, 1.0, clamp((cd - cosOut) / max(cosIn - cosOut, 1e-4), 0.0, 1.0));
+            }
+            if (a <= 0.0) continue;
+            if (lShadows) a *= shadowVisibilityCheap(sref, p, pos, range);
+            float phase = hgPhase(dot(rayDir, L), aniso);
+            float stepT = exp(-density * stepLen);
+
+            acc += transmittance * lcol * a * phase * (1.0 - stepT);
+            transmittance *= stepT;
+            if (transmittance < 0.003) break;
+        }
+        result += acc * gstr;
+    }
+
+
+    vec3 scatter = max(result * (12.5663706 * VolumetricStrength), vec3(0.0));
+    float peak = max(scatter.r, max(scatter.g, scatter.b));
+
+
+    return scatter * (0.16 * (1.0 - exp(-3.0 * peak)) / max(peak, 1e-6));
+}
+
+#include "amnetic:shaders/material/custom_ladder.glsl"
+
+void main() {
+    float depth = texture(DepthSampler, vUV).r;
+
+
+
+    if (VolumetricOnly == 1) {
+        vec3 fp;
+        if (depth >= 1.0) {
+            vec3 rd = reconstruct(vUV, 0.5);
+            float rl = length(rd);
+            if (rl < 1e-5) { FragColor = vec4(0.0, 0.0, 0.0, depth); return; }
+            fp = rd * (SKY_RAY_DISTANCE / rl);
+        } else {
+            fp = reconstruct(vUV, depth);
+        }
+        FragColor = vec4(volumetric(fp), depth);
+        return;
+    }
+
+    if (depth >= 1.0) { FragColor = vec4(texture(AlbedoSampler, vUV).rgb, 1.0); return; }
+
+    vec3 fragPos = reconstruct(vUV, depth);
+    vec3 N;
+    float rough = 0.7;
+    float f0 = 0.04;
+    float metallic = 0.0;
+    int materialId = 0;
+    vec2 lightUV = vec2(0.0);
+    if (HasGBuffer == 1) {
+        vec4 gn = texture(GNormalSampler, vUV);
+        N = (gn.a > 0.5) ? normalize(gn.xyz) : betterNormal(vUV, fragPos);
+        vec4 gm = texture(GMaterialSampler, vUV);
+        if (gn.a > 0.5) {
+            rough = gm.x;
+            metallic = gm.y;
+            f0 = mix(0.04, 1.0, metallic);
+            materialId = int(gm.z * 255.0 + 0.5);
+            float packedLight = gm.w * 255.0;
+            float blockIdx = floor(floor(packedLight + 0.5) / 16.0);
+            float skyIdx = packedLight - blockIdx * 16.0;
+            lightUV = vec2((blockIdx + 0.5) / 16.0, (clamp(skyIdx, 0.0, 15.0) + 0.5) / 16.0);
+        }
+    } else {
+        N = betterNormal(vUV, fragPos);
+    }
+
+
+    vec3 nDx = dFdx(N), nDy = dFdy(N);
+    float nVar = 0.25 * (dot(nDx, nDx) + dot(nDy, nDy));
+    rough = clamp(sqrt(rough * rough + min(2.0 * nVar, 0.18)), 0.0, 1.0);
+
+    vec3 V = normalize(-fragPos);
+    vec3 albedo = texture(AlbedoSampler, vUV).rgb;
+
+
+    vec4 published = texture(GAlbedoSampler, vUV);
+    vec3 material = published.a > 0.5 ? published.rgb : albedo;
+
+    if (DebugMode != 0) {
+        vec3 dbg = vec3(0.0);
+        if (DebugMode == 1) dbg = fract(fragPos * 0.0625);
+        else if (DebugMode == 2) dbg = N * 0.5 + 0.5;
+        else if (DebugMode == 3) dbg = vec3(0.0, 0.12, 0.0);
+        FragColor = vec4(dbg, 1.0);
+        return;
+    }
+
+    vec3 radiance = vec3(0.0);
+    vec3 specular = vec3(0.0);
+    float sunShadow = 0.0;
+    for (int i = 0; i < LightCount; i++) {
+
+
+        if (SkipLocalLights == 1 && int(texelFetch(LightTexels, i * 8 + 2).w + 0.5) != 2) continue;
+        radiance += lightContribution(i, fragPos, N, V, rough, f0, specular, sunShadow);
+    }
+
+
+    float sunMul = clamp(1.0 - sunShadow, 0.0, 1.0);
+    vec3 local = SkipLocalLights == 1 ? texture(LocalLightSampler, vUV).rgb
+            : surfaceRadiance(material, radiance, specular, metallic);
+    vec3 outColor = resolveSurface(albedo, sunMul, material, local);
+    outColor = max(outColor, vec3(0.0));
+    if (any(isnan(outColor)) || any(isinf(outColor))) outColor = vec3(0.0);
+
+    if (materialId != 0) {
+        bool handled;
+        vec3 custom = shadeCustomMaterial(materialId,
+                GBufferSample(albedo, N, fragPos, rough, metallic, outColor,
+                        texture(LightmapSampler, lightUV).rgb, LightTime), handled);
+        if (handled) outColor = custom;
+    }
+
+
+
+    float darkPeak=max(outColor.r,max(outColor.g,outColor.b));
+    if(max(local.r,max(local.g,local.b))>0.0 && darkPeak<0.14) {
+        float noise=(fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))))-0.5)/255.0;
+        vec3 weight=smoothstep(vec3(0.0),vec3(1.0/255.0),outColor)
+                * (1.0-smoothstep(0.08,0.14,darkPeak));
+        outColor=max(outColor+noise*weight,vec3(0.0));
+    }
+    FragColor = vec4(outColor, 1.0);
+}

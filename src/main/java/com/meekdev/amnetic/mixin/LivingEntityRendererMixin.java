@@ -65,7 +65,11 @@ public abstract class LivingEntityRendererMixin {
     }
 
     @Inject(method = "submit", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel(Lnet/minecraft/client/model/Model;Ljava/lang/Object;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/rendertype/RenderType;IIILnet/minecraft/client/renderer/texture/TextureAtlasSprite;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"))
+            //? if >=26.3 {
+            target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel(Lnet/minecraft/client/model/Model;Ljava/lang/Object;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/rendertype/RenderType;IIILnet/minecraft/client/renderer/texture/UvMapping;I)V"))
+            //?} else {
+            /*target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel(Lnet/minecraft/client/model/Model;Ljava/lang/Object;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/rendertype/RenderType;IIILnet/minecraft/client/renderer/texture/TextureAtlasSprite;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"))
+            *///?}
     private void amnetic$captureMesh(LivingEntityRenderState state, PoseStack poseStack,
                                      SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo ci) {
         if (!(state instanceof MeshTapTarget target)) return;
@@ -113,15 +117,15 @@ public abstract class LivingEntityRendererMixin {
         }
     }
 
-    @org.spongepowered.asm.mixin.injection.Redirect(
+    @com.llamalad7.mixinextras.injector.ModifyExpressionValue(
             method = "render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;isSpectator()Z"))
-    private boolean amnetic$hideLayers(LivingEntity entity) {
+    private boolean amnetic$hideLayers(boolean original, LivingEntity entity) {
         if (!TextureOverrideRegistry.INSTANCE.isEmpty()) {
             TextureOverrideRegistry.Entry override = TextureOverrideRegistry.INSTANCE.get(entity);
             if (override != null && override.hideLayers()) return true;
         }
-        return entity.isSpectator();
+        return original;
     }
     *///?}
 }

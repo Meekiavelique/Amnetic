@@ -1,0 +1,21 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="All Rights Reserved"
+[[mods]]
+modId="amnetic"
+version="${version}"
+displayName="Amnetic"
+description="Native rendering library and editor"
+[[dependencies.amnetic]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_version},)"
+side="CLIENT"
+[[dependencies.amnetic]]
+modId="minecraft"
+type="required"
+versionRange="[${minecraft_version}]"
+side="CLIENT"
+
+[[mixins]]
+config="amnetic.mixins.json"

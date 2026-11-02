@@ -1,15 +1,12 @@
 package com.meekdev.amnetic.client.light.internal;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
-import java.util.ArrayList;
 import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.light.LightType;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
+import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
-import java.nio.FloatBuffer;
-import java.util.List;
-import java.util.function.Consumer;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.lwjgl.BufferUtils;
@@ -18,6 +15,10 @@ import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
+import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 public final class LightVolumePass {
 
@@ -35,6 +36,8 @@ public final class LightVolumePass {
     private int vertexCount;
 
     private static final float NEAR_MARGIN = 0.25f;
+    private static final float VOLUME_PADDING = 1.05f;
+    private static final int SPHERE_SUBDIVISIONS = 2;
 
     private LightVolumePass() {}
 
@@ -49,7 +52,7 @@ public final class LightVolumePass {
 
         viewProj.set(cam.projection).mul(cam.view);
 
-        GlStateManager._enableBlend();
+        GlStateManager._enableBlend(0);
         GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
         GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
@@ -83,7 +86,7 @@ public final class LightVolumePass {
             float pz = (float) (light.z() - cam.eye.z);
 
             float d = px * px + py * py + pz * pz;
-            float pad = range * 1.05f;
+            float pad = range * VOLUME_PADDING;
             float inside = pad + NEAR_MARGIN;
             boolean cameraInside = d < inside * inside;
             GL11.glCullFace(cameraInside ? GL11.GL_FRONT : GL11.GL_BACK);
@@ -94,7 +97,7 @@ public final class LightVolumePass {
             program.setFloat("LightRadius", pad);
             GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, vertexCount);
         }
-        GL30.glBindVertexArray(0);
+        GlState.resetVertexArray();
 
         GL11.glCullFace(GL11.GL_BACK);
         GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
@@ -104,7 +107,7 @@ public final class LightVolumePass {
 
     private void ensureMesh() {
         if (vao != 0) return;
-        float[] verts = icosphere(2);
+        float[] verts = icosphere(SPHERE_SUBDIVISIONS);
         FloatBuffer buf = BufferUtils.createFloatBuffer(verts.length);
         buf.put(verts).flip();
         vertexCount = verts.length / 3;
@@ -116,7 +119,7 @@ public final class LightVolumePass {
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, buf, GL15.GL_STATIC_DRAW);
         GL20.glEnableVertexAttribArray(0);
         GL20.glVertexAttribPointer(0, 3, GL11.GL_FLOAT, false, 3 * Float.BYTES, 0L);
-        GL30.glBindVertexArray(0);
+        GlState.resetVertexArray();
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 
@@ -128,10 +131,10 @@ public final class LightVolumePass {
                 {t, 0, -1}, {t, 0, 1}, {-t, 0, -1}, {-t, 0, 1},
         };
         int[][] faces = {
-                {0,11,5},{0,5,1},{0,1,7},{0,7,10},{0,10,11},
-                {1,5,9},{5,11,4},{11,10,2},{10,7,6},{7,1,8},
-                {3,9,4},{3,4,2},{3,2,6},{3,6,8},{3,8,9},
-                {4,9,5},{2,4,11},{6,2,10},{8,6,7},{9,8,1},
+                {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11},
+                {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
+                {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9},
+                {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1},
         };
         List<float[]> tris = new ArrayList<>();
         for (int[] f : faces) {
@@ -139,22 +142,38 @@ public final class LightVolumePass {
             tris.add(norm(base[f[1]]));
             tris.add(norm(base[f[2]]));
         }
-        for (int s = 0; s < subdivisions; s++) {
-            List<float[]> next = new ArrayList<>(tris.size() * 4);
-            for (int i = 0; i < tris.size(); i += 3) {
-                float[] a = tris.get(i), b = tris.get(i + 1), c = tris.get(i + 2);
-                float[] ab = norm(mid(a, b)), bc = norm(mid(b, c)), ca = norm(mid(c, a));
-                next.add(a); next.add(ab); next.add(ca);
-                next.add(b); next.add(bc); next.add(ab);
-                next.add(c); next.add(ca); next.add(bc);
-                next.add(ab); next.add(bc); next.add(ca);
-            }
-            tris = next;
-        }
+        for (int s = 0; s < subdivisions; s++) tris = subdivide(tris);
         float[] out = new float[tris.size() * 3];
         int w = 0;
-        for (float[] v : tris) { out[w++] = v[0]; out[w++] = v[1]; out[w++] = v[2]; }
+        for (float[] v : tris) {
+            out[w++] = v[0];
+            out[w++] = v[1];
+            out[w++] = v[2];
+        }
         return out;
+    }
+
+    private static List<float[]> subdivide(List<float[]> tris) {
+        List<float[]> next = new ArrayList<>(tris.size() * 4);
+        for (int i = 0; i < tris.size(); i += 3) {
+            float[] a = tris.get(i);
+            float[] b = tris.get(i + 1);
+            float[] c = tris.get(i + 2);
+            float[] ab = norm(mid(a, b));
+            float[] bc = norm(mid(b, c));
+            float[] ca = norm(mid(c, a));
+            addTriangle(next, a, ab, ca);
+            addTriangle(next, b, bc, ab);
+            addTriangle(next, c, ca, bc);
+            addTriangle(next, ab, bc, ca);
+        }
+        return next;
+    }
+
+    private static void addTriangle(List<float[]> out, float[] a, float[] b, float[] c) {
+        out.add(a);
+        out.add(b);
+        out.add(c);
     }
 
     private static float[] norm(float[] v) {
@@ -167,9 +186,18 @@ public final class LightVolumePass {
     }
 
     public void dispose() {
-        if (program != null) { program.close(); program = null; }
-        if (vbo != 0) { GL15.glDeleteBuffers(vbo); vbo = 0; }
-        if (vao != 0) { GL30.glDeleteVertexArrays(vao); vao = 0; }
+        if (program != null) {
+            program.close();
+            program = null;
+        }
+        if (vbo != 0) {
+            GL15.glDeleteBuffers(vbo);
+            vbo = 0;
+        }
+        if (vao != 0) {
+            GL30.glDeleteVertexArrays(vao);
+            vao = 0;
+        }
         vertexCount = 0;
     }
 }

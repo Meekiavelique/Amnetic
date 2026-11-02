@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Objects;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -187,7 +187,7 @@ public final class GpuModel implements AutoCloseable {
         drawPass(shader, instances, false, lod, null);
         drawPass(shader, instances, true, lod, null);
 
-        GlStateManager._glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
@@ -198,7 +198,7 @@ public final class GpuModel implements AutoCloseable {
         }
         ensureUploaded();
         drawPass(shader, instances, false, lod, later);
-        GlStateManager._glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
@@ -210,7 +210,7 @@ public final class GpuModel implements AutoCloseable {
         if (!part.skinned) part.selectLod(0);
         List<DrawInstance> one = List.of(instance);
         drawRun(shader, part, effective(part.materialIndex, instance.look), one);
-        GlStateManager._glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
@@ -343,7 +343,7 @@ public final class GpuModel implements AutoCloseable {
                 GlStateManager._enableCull();
             }
         }
-        GlStateManager._glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
@@ -425,7 +425,7 @@ public final class GpuModel implements AutoCloseable {
                 GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, part.vertexCount);
             }
         }
-        GlStateManager._glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
     }
 
     private void drawBatched(ModelShader shader, GpuPart part, List<DrawInstance> instances) {
@@ -753,7 +753,7 @@ public final class GpuModel implements AutoCloseable {
 
     private void applyMaterialState(ModelIR.Material mat) {
         if (mat.blend) {
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
             GlStateManager._depthMask(false);
         }
@@ -765,7 +765,7 @@ public final class GpuModel implements AutoCloseable {
     private void restoreMaterialState(ModelIR.Material mat) {
         clearSamplerState();
         if (mat.blend) {
-            GlStateManager._disableBlend();
+            GlStateManager._disableBlend(0);
             GlStateManager._depthMask(true);
         }
         if (mat.doubleSided) {
@@ -943,7 +943,7 @@ public final class GpuModel implements AutoCloseable {
             }
             if (lodIbo[lod] == 0) {
                 int[] idx = lods[lod];
-                GlStateManager._glBindVertexArray(0);
+                com.meekdev.amnetic.client.render.GlState.resetVertexArray();
                 int b = GlStateManager._glGenBuffers();
                 GlStateManager._glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, b);
                 ByteBuffer buf = MemoryUtil.memAlloc(idx.length * Integer.BYTES);
@@ -1047,7 +1047,7 @@ public final class GpuModel implements AutoCloseable {
             }
 
             GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-            GlStateManager._glBindVertexArray(0);
+            com.meekdev.amnetic.client.render.GlState.resetVertexArray();
             p.drawIbo = p.ibo;
             p.drawCount = p.indexCount;
             return p;

@@ -1,6 +1,6 @@
 package com.meekdev.amnetic.client.render;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.nio.FloatBuffer;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -15,10 +15,21 @@ public final class TexelBuffer implements AutoCloseable {
     private final int texture;
     private final FloatBuffer lastUpload;
     private boolean uploaded;
+    //? if >=26.2 {
+    private final com.mojang.renderpearl.api.buffers.GpuBuffer nativeBuffer;
+    private java.nio.ByteBuffer uploadBytes;
+    public com.mojang.renderpearl.api.buffers.GpuBufferSlice nativeSlice() { return nativeBuffer.slice(); }
+    //?}
 
     public TexelBuffer(long sizeBytes) {
         lastUpload = BufferUtils.createFloatBuffer(Math.toIntExact(sizeBytes / Float.BYTES));
-        buffer = GlStateManager._glGenBuffers();
+        //? if >=26.2 {
+        buffer = texture = 0;
+        nativeBuffer = com.mojang.blaze3d.systems.RenderSystem.getDevice().createBuffer(() -> "Amnetic texel buffer",
+                com.mojang.renderpearl.api.buffers.GpuBuffer.USAGE_UNIFORM_TEXEL_BUFFER
+                        | com.mojang.renderpearl.api.buffers.GpuBuffer.USAGE_COPY_DST, sizeBytes);
+        //?} else {
+        /*buffer = GlStateManager._glGenBuffers();
         GlStateManager._glBindBuffer(GL31.GL_TEXTURE_BUFFER, buffer);
         GL15.glBufferData(GL31.GL_TEXTURE_BUFFER, sizeBytes, GL15.GL_DYNAMIC_DRAW);
         GlStateManager._glBindBuffer(GL31.GL_TEXTURE_BUFFER, 0);
@@ -27,24 +38,37 @@ public final class TexelBuffer implements AutoCloseable {
         GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, texture);
         GL31.glTexBuffer(GL31.GL_TEXTURE_BUFFER, GL30.GL_RGBA32F, buffer);
         GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, 0);
+        *///?}
     }
 
     public void upload(FloatBuffer data) {
-        // Static lights and materials often stay unchanged for many frames. Avoid
-        // writing storage the GPU may still be reading when there is no new data.
         if (uploaded && lastUpload.equals(data)) return;
-        GlStateManager._glBindBuffer(GL31.GL_TEXTURE_BUFFER, buffer);
+        //? if >=26.2 {
+        int length=data.remaining()*Float.BYTES;
+        if(uploadBytes==null||uploadBytes.capacity()<length)uploadBytes=org.lwjgl.BufferUtils.createByteBuffer(length);
+        var bytes=uploadBytes.clear().limit(length);
+        bytes.asFloatBuffer().put(data.duplicate());
+        var encoder = com.mojang.blaze3d.systems.RenderSystem.getDevice().createCommandEncoder();
+        encoder.writeToBuffer(nativeBuffer.slice(0, bytes.remaining()), bytes);
+        encoder.submit();
+        //?} else {
+        /*GlStateManager._glBindBuffer(GL31.GL_TEXTURE_BUFFER, buffer);
         GL15.glBufferSubData(GL31.GL_TEXTURE_BUFFER, 0L, data);
         GlStateManager._glBindBuffer(GL31.GL_TEXTURE_BUFFER, 0);
+        *///?}
         lastUpload.clear();
         lastUpload.put(data.duplicate()).flip();
         uploaded = true;
     }
 
     public void bind(int unit) {
-        select(unit);
+        //? if >=26.2 {
+        throw new IllegalStateException("Bind native texel buffers by name on a RenderPass");
+        //?} else {
+        /*select(unit);
         GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, texture);
         select(0);
+        *///?}
     }
 
     public static void unbind(int unit) {
@@ -60,7 +84,11 @@ public final class TexelBuffer implements AutoCloseable {
 
     @Override
     public void close() {
-        GL11.glDeleteTextures(texture);
+        //? if >=26.2 {
+        nativeBuffer.close();
+        //?} else {
+        /*GL11.glDeleteTextures(texture);
         GlStateManager._glDeleteBuffers(buffer);
+        *///?}
     }
 }

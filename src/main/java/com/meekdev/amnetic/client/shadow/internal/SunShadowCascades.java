@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
 import com.meekdev.amnetic.client.shadow.ShadowSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;
@@ -9,17 +9,25 @@ import org.lwjgl.opengl.GL30;
 
 import java.nio.ByteBuffer;
 
-/** depth-only 2D texture array holding the sun's shadow cascades (layer = cascade, tightest first).
- * one FBO is retargeted per layer during the bake, same as PointShadowArray */
 public final class SunShadowCascades {
-
-    private static int textureId, fboId, resolution, cascades;
+    private static int textureId;
+    private static int fboId;
+    private static int resolution;
+    private static int cascades;
 
     private SunShadowCascades() {}
 
-    public static int glTextureId() { return textureId; }
-    public static int resolution() { return resolution; }
-    public static int cascades() { return cascades; }
+    public static int glTextureId() {
+        return textureId;
+    }
+
+    public static int resolution() {
+        return resolution;
+    }
+
+    public static int cascades() {
+        return cascades;
+    }
 
     public static void ensure(int requestedResolution, int requestedCascades) {
         requestedCascades = Math.max(1, Math.min(ShadowSettings.MAX_CASCADES, requestedCascades));
@@ -28,8 +36,6 @@ public final class SunShadowCascades {
         resolution = requestedResolution;
         cascades = requestedCascades;
 
-        // no glGet of the bindings to restore: the budget can reallocate this mid-game, and the shadow
-        // pass puts its framebuffer back itself
         textureId = GlStateManager._genTexture();
         GL11.glBindTexture(GL30.GL_TEXTURE_2D_ARRAY, textureId);
         GL12.glTexImage3D(GL30.GL_TEXTURE_2D_ARRAY, 0, GL30.GL_DEPTH_COMPONENT32F,
@@ -62,8 +68,14 @@ public final class SunShadowCascades {
     }
 
     public static void delete() {
-        if (textureId != 0) { GL11.glDeleteTextures(textureId); textureId = 0; }
-        if (fboId != 0) { GL30.glDeleteFramebuffers(fboId); fboId = 0; }
+        if (textureId != 0) {
+            GL11.glDeleteTextures(textureId);
+            textureId = 0;
+        }
+        if (fboId != 0) {
+            GL30.glDeleteFramebuffers(fboId);
+            fboId = 0;
+        }
         resolution = 0;
         cascades = 0;
     }

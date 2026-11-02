@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
 import com.meekdev.amnetic.client.shadow.ShadowSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;
@@ -10,19 +10,38 @@ import org.lwjgl.opengl.GL30;
 import java.nio.ByteBuffer;
 
 public final class SpotShadowAtlas {
-
     public static final int GRID = ShadowSettings.SPOT_GRID;
 
-    private static int textureId, colorTextureId, fboId, tileSize;
+    private static int textureId;
+    private static int colorTextureId;
+    private static int fboId;
+    private static int tileSize;
 
     private SpotShadowAtlas() {}
 
-    public static int glTextureId() { return textureId; }
-    public static int colorTextureId() { return colorTextureId; }
-    public static int tileSize() { return tileSize; }
-    public static int atlasSize() { return tileSize * GRID; }
-    public static int tilePixelX(int tile) { return (tile % GRID) * tileSize; }
-    public static int tilePixelY(int tile) { return (tile / GRID) * tileSize; }
+    public static int glTextureId() {
+        return textureId;
+    }
+
+    public static int colorTextureId() {
+        return colorTextureId;
+    }
+
+    public static int tileSize() {
+        return tileSize;
+    }
+
+    public static int atlasSize() {
+        return tileSize * GRID;
+    }
+
+    public static int tilePixelX(int tile) {
+        return (tile % GRID) * tileSize;
+    }
+
+    public static int tilePixelY(int tile) {
+        return (tile / GRID) * tileSize;
+    }
 
     public static void ensure(int requestedTileSize) {
         if (textureId != 0 && tileSize == requestedTileSize) return;
@@ -73,9 +92,18 @@ public final class SpotShadowAtlas {
     }
 
     public static void delete() {
-        if (textureId != 0) { GL11.glDeleteTextures(textureId); textureId = 0; }
-        if (colorTextureId != 0) { GL11.glDeleteTextures(colorTextureId); colorTextureId = 0; }
-        if (fboId != 0) { GL30.glDeleteFramebuffers(fboId); fboId = 0; }
+        if (textureId != 0) {
+            GL11.glDeleteTextures(textureId);
+            textureId = 0;
+        }
+        if (colorTextureId != 0) {
+            GL11.glDeleteTextures(colorTextureId);
+            colorTextureId = 0;
+        }
+        if (fboId != 0) {
+            GL30.glDeleteFramebuffers(fboId);
+            fboId = 0;
+        }
         tileSize = 0;
     }
 }

@@ -12,7 +12,7 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.ssao.SsaoSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
@@ -52,11 +52,23 @@ public final class SsaoPass extends ScreenPass {
     private boolean historyValid;
     private int frame;
 
+    //? if >=26.2 {
+    private final NativeSsaoPass nativePass = new NativeSsaoPass();
+    //?}
+
     private SsaoPass() { super("SSAO"); }
 
     public void render(SsaoSettings s) {
-        this.settings = s;
+        //? if >=26.2 {
+        if (s.isEnabled() && !com.meekdev.amnetic.client.compat.IrisCompat.shadersActive()) {
+            CameraSnapshot camera = CameraSnapshot.current();
+            if (camera != null) nativePass.render(camera, s);
+        }
+        return;
+        //?} else {
+        /*this.settings = s;
         dispatch();
+        *///?}
     }
 
     @Override protected boolean enabled() { return settings != null && settings.isEnabled(); }
@@ -80,7 +92,7 @@ public final class SsaoPass extends ScreenPass {
     @Override
     protected boolean record(CameraSnapshot cam, ShaderProgram gtao) {
         SsaoSettings s = settings;
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return false;
         int depthId = VanillaCompat.depthTextureGlId(main);
         int colorId = VanillaCompat.colorTextureGlId(main);
@@ -156,7 +168,7 @@ public final class SsaoPass extends ScreenPass {
             GlState.bindTexture(1, linear.colorTextureGlId(0));
             GlState.bindTexture(2, depthId);
             GlState.bindTexture(3, shade);
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GlStateManager._blendFuncSeparate(GL11.GL_ZERO, GL11.GL_SRC_COLOR, GL11.GL_ZERO, GL11.GL_ONE);
             GL11.glEnable(GL11.GL_BLEND);
             GL14.glBlendFuncSeparate(GL11.GL_ZERO, GL11.GL_SRC_COLOR, GL11.GL_ZERO, GL11.GL_ONE);
@@ -190,6 +202,9 @@ public final class SsaoPass extends ScreenPass {
 
     @Override
     protected void onDispose() {
+        //? if >=26.2 {
+        nativePass.close();
+        //?}
         if (prep != null) { prep.close(); prep = null; }
         if (composite != null) { composite.close(); composite = null; }
         if (temporal != null) { temporal.close(); temporal = null; }

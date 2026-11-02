@@ -118,7 +118,7 @@ public final class LightsInspector extends Inspector {
             float[] col = {light.red(), light.green(), light.blue()};
             if (ImGui.colorEdit3("Color", col)) light.setColor(col[0], col[1], col[2]);
 
-            float[] kelvin = {6500f};
+            float[] kelvin = {light.temperature()};
             if (ImGui.dragFloat("Temperature (K)", kelvin, 50f, 1000f, 40000f)) {
                 light.setTemperature(kelvin[0]);
             }

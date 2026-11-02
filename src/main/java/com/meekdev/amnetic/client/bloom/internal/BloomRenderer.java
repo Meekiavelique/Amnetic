@@ -1,31 +1,41 @@
 package com.meekdev.amnetic.client.bloom.internal;
 
-import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.bloom.BloomSettings;
+import com.meekdev.amnetic.client.compat.IrisCompat;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.emissive.EmissiveContext;
 import com.meekdev.amnetic.client.emissive.EmissiveSources;
-import com.meekdev.amnetic.client.render.CameraSnapshot;
-import net.minecraft.client.Minecraft;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
-import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
+import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.internal.InstanceMeshRegistry;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
+import com.meekdev.amnetic.client.render.AmneticResources;
+import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.GlState;
-import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
 import com.meekdev.amnetic.client.render.LevelCamera;
+import com.meekdev.amnetic.client.render.ShaderProgram;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL33;
+import java.util.Optional;
+//? if >=26.2 {
+import com.meekdev.amnetic.client.render.NativeScreenProgram;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.commands.RenderPassDescriptor;
+import com.mojang.renderpearl.api.pipeline.BlendFactor;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+//?}
 
 public final class BloomRenderer {
-
     private static final InstancePhase[] PHASES = {
             InstancePhase.WORLD_LAST, InstancePhase.WORLD_TRANSLUCENT };
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/fullscreen.vsh");
@@ -47,16 +57,131 @@ public final class BloomRenderer {
     private boolean occludeMode;
 
     private static final int QUERY_RING = 3;
+    private static final int WRITE_ALL = 15;
     private final int[] brightQueries = new int[QUERY_RING];
     private final boolean[] queryPending = new boolean[QUERY_RING];
     private int queryIndex;
     private boolean hadBloom = true;
 
+    //? if >=26.2 {
+    private NativeScreenProgram nativePrefilter;
+    private NativeScreenProgram nativeDown;
+    private NativeScreenProgram nativeUp;
+    private NativeScreenProgram nativeComposite;
+    private Framebuffer nativeScene;
+    private NativeScreenProgram nativeProgram(Identifier id, boolean additive) {
+        Optional<BlendFunction> blend = additive
+                ? Optional.of(new BlendFunction(BlendFactor.ONE, BlendFactor.ONE))
+                : Optional.empty();
+        return new NativeScreenProgram(id, new ColorTargetState(blend, GpuFormat.RG11B10_FLOAT, WRITE_ALL));
+    }
+
+    private void renderNative(LevelCamera camera, BloomSettings settings) {
+        if (!settings.isEnabled() || IrisCompat.shadersActive()) return;
+        ensureChain(settings.scale(), settings.levels(), settings.isOcclude());
+        if (nativeScene == null) {
+            var spec = FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build();
+            nativeScene = Framebuffers.screen("Bloom native scene", spec);
+            AmneticResources.register(this::disposeNative);
+        }
+        nativeScene.blitColorFromMain();
+        nativeScene.blitDepthFromMain();
+        emissiveBuf.clear(0, 0, 0, 0);
+        ensureNativePrograms();
+        prefilterNative(settings);
+        if (settings.isOcclude()) emissiveBuf.blitDepthFromMain();
+        for (InstancePhase phase : PHASES) {
+            InstanceMeshRegistry.INSTANCE.renderEmissive(phase, camera, emissiveBuf, settings.isAll());
+        }
+        InstanceMeshRegistry.INSTANCE.renderNativeSources(camera, emissiveBuf);
+        var previous = emissiveBuf;
+        for (var mip : mips) {
+            nativeDown.setTexture("Sampler", previous.colorTextureView(0));
+            nativeDown.setVector("TexelSize", 1f / previous.width(), 1f / previous.height());
+            nativeDown.draw(mip.renderPassDescriptor());
+            previous = mip;
+        }
+        for (int i = mips.length - 1; i > 0; i--) {
+            var from = mips[i];
+            nativeUp.setTexture("Sampler", from.colorTextureView(0));
+            nativeUp.setVector("TexelSize", 1f / from.width(), 1f / from.height());
+            nativeUp.setFloat("Radius", 1);
+            nativeUp.draw(mips[i - 1].renderPassDescriptor());
+        }
+        nativeComposite.setTexture("Sampler", mips[0].colorTextureView(0));
+        nativeComposite.setFloat("Intensity", settings.intensity() * 2f / mips.length);
+        var scene = Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTextureView();
+        nativeComposite.draw(RenderPassDescriptor.builder(() -> "Amnetic bloom composite").withColorAttachment(scene).build());
+    }
+
+    private void ensureNativePrograms() {
+        if (nativePrefilter == null) nativePrefilter = nativeProgram(PREFILTER_FSH, false);
+        if (nativeDown == null) nativeDown = nativeProgram(DOWN_FSH, false);
+        if (nativeUp == null) nativeUp = nativeProgram(UP_FSH, true);
+        if (nativeComposite == null) {
+            var blend = new BlendFunction(BlendFactor.ONE, BlendFactor.ONE, BlendFactor.ZERO, BlendFactor.ONE);
+            nativeComposite = new NativeScreenProgram(COMPOSITE_FSH, new ColorTargetState(blend));
+        }
+    }
+
+    private void prefilterNative(BloomSettings settings) {
+        boolean hasEmissive = GBufferTargets.INSTANCE.isPopulated() && GBufferTargets.INSTANCE.hasEmissive();
+        nativePrefilter.setTexture("Sampler", nativeScene.colorTextureView(0));
+        nativePrefilter.setTexture("DepthSampler", nativeScene.depthTextureView());
+        var emissive = hasEmissive ? GBufferTargets.INSTANCE.nativeColorView(2) : nativeScene.colorTextureView(0);
+        nativePrefilter.setTexture("EmissiveSampler", emissive);
+        nativePrefilter.setInt("HasGBuffer", hasEmissive ? 1 : 0);
+        nativePrefilter.setFloat("Threshold", settings.threshold());
+        nativePrefilter.setFloat("Knee", settings.knee());
+        if (hasEmissive || settings.threshold() > 0.0F) nativePrefilter.draw(emissiveBuf.renderPassDescriptor());
+    }
+
+    private void disposeNative() {
+        if (nativePrefilter != null) {
+            nativePrefilter.close();
+            nativePrefilter = null;
+        }
+        if (nativeDown != null) {
+            nativeDown.close();
+            nativeDown = null;
+        }
+        if (nativeUp != null) {
+            nativeUp.close();
+            nativeUp = null;
+        }
+        if (nativeComposite != null) {
+            nativeComposite.close();
+            nativeComposite = null;
+        }
+        if (nativeScene != null) {
+            nativeScene.dispose();
+            nativeScene = null;
+        }
+        if (emissiveBuf != null) {
+            emissiveBuf.dispose();
+            emissiveBuf = null;
+        }
+        if (sceneCapture != null) {
+            sceneCapture.dispose();
+            sceneCapture = null;
+        }
+        if (mips != null) {
+            for (var mip : mips) mip.dispose();
+            mips = null;
+        }
+    }
+    //? }
     public void render(LevelCamera cam, BloomSettings s) {
-        if (!s.isEnabled()) return;
+        //? if >=26.2 {
+        renderNative(cam, s);
+        //? } else {
+        /*if (!s.isEnabled()) return;
         boolean instEmissive = false;
         for (InstancePhase phase : PHASES) {
-            if (InstanceMeshRegistry.INSTANCE.hasEmissive(phase, s.isAll())) { instEmissive = true; break; }
+            if (InstanceMeshRegistry.INSTANCE.hasEmissive(phase, s.isAll())) {
+                instEmissive = true;
+                break;
+            }
         }
         boolean hookEmissive = !EmissiveSources.isEmpty();
         boolean hasGBuffer = GBufferTargets.INSTANCE.isPopulated();
@@ -80,6 +205,7 @@ public final class BloomRenderer {
         if (!hadBloom && !explicitSource) return;
 
         runPyramidAndComposite(s);
+        *///? }
     }
 
     private void pollQueries() {
@@ -105,7 +231,8 @@ public final class BloomRenderer {
         if (instEmissive || hookEmissive) {
             if (s.isOcclude()) {
                 emissiveBuf.blitDepthFromMain();
-                GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual()); // visible surfaces (equal depth) bloom
+                GlStateManager._depthFunc(GL11.GL_LEQUAL);
+                GL11.glDepthFunc(GL11.GL_LEQUAL);
             }
             if (instEmissive) {
                 for (InstancePhase phase : PHASES) {
@@ -124,7 +251,7 @@ public final class BloomRenderer {
             }
             emissiveBuf.begin();
             setupFullscreenState();
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
             boolean hasGBuffer = gbufferEmissive;
             int depth = hasGBuffer ? GBufferTargets.INSTANCE.depthGlId() : sceneCapture.depthTextureGlId();
@@ -144,8 +271,6 @@ public final class BloomRenderer {
         }
     }
 
-    // lets any renderer (entities, GeckoLib, a third-party mod) draw into the emissive buffer
-    // without Amnetic depending on it
     private void emitRegisteredSources(boolean occlude) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
@@ -153,9 +278,7 @@ public final class BloomRenderer {
         if (cam == null) return;
         emissiveBuf.begin();
         try {
-            // sources draw world geometry, so establish known state instead of inheriting
-            // whatever the previous pass left bound
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GL11.glEnable(GL11.GL_BLEND);
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
@@ -166,10 +289,8 @@ public final class BloomRenderer {
             if (occlude) {
                 GlStateManager._enableDepthTest();
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
-                GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
-                // emissive block quads are coplanar with the world geometry already in this
-                // depth buffer, so exact-equality LEQUAL fails at grazing angles and drops
-                // every face except the one squarely facing the camera. bias them nearer.
+                GlStateManager._depthFunc(GL11.GL_LEQUAL);
+                GL11.glDepthFunc(GL11.GL_LEQUAL);
                 GlStateManager._polygonOffset(-1.0f, -1.0f);
                 GlStateManager._enablePolygonOffset();
             } else {
@@ -200,7 +321,7 @@ public final class BloomRenderer {
             Framebuffer to = mips[i - 1];
             to.begin();
             setupFullscreenState();
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
             bindTexture(from.colorTextureGlId(0));
             upsample.begin();
@@ -212,7 +333,6 @@ public final class BloomRenderer {
         }
 
         Framebuffer result = mips[0];
-        // normalize for the mip accumulation so more levels don't blow out the scene
         float intensity = s.intensity() * (2f / mips.length);
         int prevFbo = MainTargetFramebuffer.bind();
         try {
@@ -221,7 +341,7 @@ public final class BloomRenderer {
             composite.begin();
             composite.setSampler("Sampler", 0);
             composite.setFloat("Intensity", intensity);
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE);
             composite.draw();
         } finally {
@@ -249,11 +369,13 @@ public final class BloomRenderer {
         if (emissiveBuf != null) emissiveBuf.dispose();
         if (sceneCapture != null) sceneCapture.dispose();
 
-        // both buffers only feed the mip chain, which downsamples to `scale` immediately, so
-        // capturing/prefiltering at full resolution would be wasted GPU work
         FramebufferSpec.Builder emissive = FramebufferSpec.builder().color(ColorFormat.R11G11B10F);
-        if (occlude) emissive.depthTexture();
-        emissiveBuf = Framebuffers.screen("Bloom Emissive", scale, emissive.build());
+        //? if >=26.2 {
+        emissive.depthTexture();
+        //?} else {
+        /*if (occlude) emissive.depthTexture();
+        *///?}
+        emissiveBuf = Framebuffers.screen("Bloom Emissive", 1.0F, emissive.build());
         sceneCapture = Framebuffers.screen("Bloom Scene Capture", scale,
                 FramebufferSpec.builder().color(ColorFormat.R11G11B10F).depthTexture().build());
 

@@ -10,7 +10,7 @@ import com.meekdev.amnetic.client.surface.text.SdfFont;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 
 public class TextArea extends Widget {
 
@@ -239,7 +239,7 @@ public class TextArea extends Widget {
         SdfFont f = font();
         if (f != null) rewrap(f, w - 16);
         switch (key) {
-            case GLFW.GLFW_KEY_BACKSPACE -> {
+            case KeyInput.KEY_BACKSPACE -> {
                 if (caret > 0) {
                     int n = Character.charCount(s.codePointBefore(caret));
                     value.set(s.substring(0, caret - n) + s.substring(caret));
@@ -247,29 +247,29 @@ public class TextArea extends Widget {
                 }
                 preferredX = -1;
             }
-            case GLFW.GLFW_KEY_DELETE -> {
+            case KeyInput.KEY_DELETE -> {
                 if (caret < s.length()) {
                     int n = Character.charCount(s.codePointAt(caret));
                     value.set(s.substring(0, caret) + s.substring(caret + n));
                 }
                 preferredX = -1;
             }
-            case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> insert("\n");
-            case GLFW.GLFW_KEY_LEFT -> {
+            case KeyInput.KEY_ENTER, KeyInput.KEY_KP_ENTER -> insert("\n");
+            case KeyInput.KEY_LEFT -> {
                 if (caret > 0) caret -= Character.charCount(s.codePointBefore(caret));
                 preferredX = -1;
             }
-            case GLFW.GLFW_KEY_RIGHT -> {
+            case KeyInput.KEY_RIGHT -> {
                 if (caret < s.length()) caret += Character.charCount(s.codePointAt(caret));
                 preferredX = -1;
             }
-            case GLFW.GLFW_KEY_UP -> { if (f != null) moveLine(f, -1); }
-            case GLFW.GLFW_KEY_DOWN -> { if (f != null) moveLine(f, 1); }
-            case GLFW.GLFW_KEY_HOME -> {
+            case KeyInput.KEY_UP -> { if (f != null) moveLine(f, -1); }
+            case KeyInput.KEY_DOWN -> { if (f != null) moveLine(f, 1); }
+            case KeyInput.KEY_HOME -> {
                 if (f != null) caret = lineRanges.get(caretLine())[0];
                 preferredX = -1;
             }
-            case GLFW.GLFW_KEY_END -> {
+            case KeyInput.KEY_END -> {
                 if (f != null) caret = lineRanges.get(caretLine())[1];
                 preferredX = -1;
             }

@@ -61,12 +61,14 @@ public final class ImportedTextures {
     private static Identifier load(String cacheKey, Path file, String idPath) {
         Identifier cached = CACHE.get(cacheKey);
         if (cached != null) return cached;
+        NativeImage img=null;
+        DynamicTexture tex=null;
         try (InputStream in = Files.newInputStream(file)) {
-            NativeImage img = NativeImage.read(in);
+            img = NativeImage.read(in);
             //? if >=1.21.5 {
-            DynamicTexture tex = new DynamicTexture(() -> "amnetic_imported/" + idPath, img);
+            tex = new DynamicTexture(() -> "amnetic_imported/" + idPath, img);
             //?} else {
-            /*DynamicTexture tex = new DynamicTexture(img);
+            /*tex = new DynamicTexture(img);
             *///?}
             tex.upload();
             Identifier id = Identifier.fromNamespaceAndPath("amnetic", idPath);
@@ -74,8 +76,15 @@ public final class ImportedTextures {
             CACHE.put(cacheKey, id);
             return id;
         } catch (Exception e) {
+            if(tex!=null)tex.close();else if(img!=null)img.close();
             return null;
         }
+    }
+
+    public static void clear() {
+        var manager=Minecraft.getInstance().getTextureManager();
+        for(var id:new java.util.HashSet<>(CACHE.values()))manager.release(id);
+        CACHE.clear();
     }
 
     private static String sanitize(String s) {
