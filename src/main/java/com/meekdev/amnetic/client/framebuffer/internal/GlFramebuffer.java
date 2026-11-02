@@ -5,6 +5,7 @@ import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.DepthMode;
 import com.meekdev.amnetic.client.framebuffer.FramebufferException;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
+import com.meekdev.amnetic.client.render.GlState;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import java.nio.IntBuffer;
@@ -153,11 +154,7 @@ public final class GlFramebuffer {
     }
 
     private static int currentDrawFbo() {
-        //? if >=1.21.5 {
-        return GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
-        //?} else {
-        /*return GlStateManager.getBoundFramebuffer();
-        *///?}
+        return GlState.drawFramebuffer();
     }
 
     private void saveOuterViewport() {

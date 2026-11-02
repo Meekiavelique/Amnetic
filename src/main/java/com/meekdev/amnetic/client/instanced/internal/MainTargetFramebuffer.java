@@ -1,6 +1,8 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
+import com.meekdev.amnetic.client.render.GlState;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
@@ -31,8 +33,11 @@ public final class MainTargetFramebuffer {
         int depthId = depthOverride > 0 ? depthOverride : mainDepthId;
 
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
-        // Iris and nested passes can change the outer target within the same frame.
-        int previousFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        // a glGet waits for the driver to drain its queue, ms a frame here, so read GlStateManager's copy
+        // iris binds fbos behind GlStateManager's back, so ask GL then
+        int previousFbo = IrisCompat.shadersActive()
+                ? GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)
+                : GlState.drawFramebuffer();
         // re-attach every bind: GL reuses freed texture ids after a resize, so an id-equality cache can keep us
         // pointing at stale storage (model/effects rendered into limbo after going fullscreen). cheap + correct
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);

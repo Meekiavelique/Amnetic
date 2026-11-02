@@ -40,6 +40,15 @@ public final class GlState {
         GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
     }
 
+    // draw fbo as GlStateManager last bound it, no glGet so no driver sync
+    public static int drawFramebuffer() {
+        //? if >=1.21.5 {
+        return GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
+        //?} else {
+        /*return GlStateManager.getBoundFramebuffer();
+        *///?}
+    }
+
     public static void bindTexture(int unit, int glId) {
         // raw bind forces real GL correct for our pass; the matching GlStateManager call keeps its cache in
         // sync so vanilla's next (cached) bind of the same unit isn't skipped - otherwise vanilla samples our
