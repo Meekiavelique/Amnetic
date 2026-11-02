@@ -39,6 +39,14 @@ public final class GlState {
         GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
     }
 
+    public static int drawFramebuffer() {
+        //? if >=1.21.5 {
+        return GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
+        //?} else {
+        /*return GlStateManager.getBoundFramebuffer();
+        *///?}
+    }
+
     public static void bindTexture(int unit, int glId) {
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);

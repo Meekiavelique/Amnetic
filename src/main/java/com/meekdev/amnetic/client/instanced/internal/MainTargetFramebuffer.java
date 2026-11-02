@@ -1,6 +1,8 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
+import com.meekdev.amnetic.client.render.GlState;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
@@ -30,8 +32,9 @@ public final class MainTargetFramebuffer {
         int depthId = depthOverride > 0 ? depthOverride : mainDepthId;
 
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
-        // Iris and nested passes can change the outer target within the same frame.
-        int previousFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousFbo = IrisCompat.shadersActive()
+                ? GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)
+                : GlState.drawFramebuffer();
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
         GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorId, 0);
         GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, depthId, 0);
