@@ -12,6 +12,7 @@ uniform mat4 InvViewProj;
 uniform int ZeroToOne;
 uniform float Radius;
 uniform float Intensity;
+uniform int Frame;
 
 #include "amnetic:shaders/common/screen.glsl"
 
@@ -35,7 +36,7 @@ void main() {
     vec3 N = (gn.a > 0.5) ? normalize(gn.xyz) : betterNormal(vUV, P);
 
     ivec2 px = ivec2(gl_FragCoord.xy);
-    float a = float((px.x & 3) * 4 + (px.y & 3)) / 16.0 * 6.2831853;
+    float a = float((px.x & 3) * 4 + (px.y & 3)) / 16.0 * 6.2831853 + float(Frame % 64) * 2.39996323;
     // robust basis that won't NaN when N aligns with the dither plane, the source of black splotches
     vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
     vec3 T0 = normalize(cross(up, N));
@@ -58,9 +59,9 @@ void main() {
 
         vec3 sP = reconstruct(suv, sd);
         vec3 dir = sP - P;
-        float dist = length(dir);
-        if (dist < 1e-3) continue;
-        if (dist > Radius) continue; // reject far hits so distant geometry can't bleed colour in
+        float distanceSquared = dot(dir, dir);
+        if (distanceSquared < 1e-6 || distanceSquared > Radius * Radius) continue;
+        float dist = sqrt(distanceSquared); // reject far hits so distant geometry can't bleed colour in
         dir /= dist;
 
         float ndl = max(dot(N, dir), 0.0);

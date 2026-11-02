@@ -6,7 +6,7 @@ import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.light.LightType;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.nio.FloatBuffer;
 import java.util.List;
 import java.util.function.Consumer;
@@ -49,7 +49,7 @@ public final class LightVolumePass {
 
         viewProj.set(cam.projection).mul(cam.view);
 
-        GlStateManager._enableBlend();
+        GlStateManager._enableBlend(0);
         GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
         GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
@@ -94,7 +94,7 @@ public final class LightVolumePass {
             program.setFloat("LightRadius", pad);
             GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, vertexCount);
         }
-        GL30.glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
 
         GL11.glCullFace(GL11.GL_BACK);
         GlStateManager._depthFunc(VanillaCompat.depthNearerOrEqual());
@@ -116,7 +116,7 @@ public final class LightVolumePass {
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, buf, GL15.GL_STATIC_DRAW);
         GL20.glEnableVertexAttribArray(0);
         GL20.glVertexAttribPointer(0, 3, GL11.GL_FLOAT, false, 3 * Float.BYTES, 0L);
-        GL30.glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 

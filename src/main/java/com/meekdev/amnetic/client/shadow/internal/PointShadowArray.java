@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
 import com.meekdev.amnetic.client.shadow.ShadowSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;

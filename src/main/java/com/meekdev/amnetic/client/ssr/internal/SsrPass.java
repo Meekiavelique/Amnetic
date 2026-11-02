@@ -11,7 +11,7 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.ssr.SsrSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
@@ -39,11 +39,58 @@ public final class SsrPass extends ScreenPass {
     private boolean historyValid;
     private long frameCounter;
 
+    //? if >=26.2 {
+    private com.meekdev.amnetic.client.render.NativeScreenProgram nativeMarch,nativeTemporal,nativeComposite;
+    private int nativeWidth,nativeHeight;
+    private com.meekdev.amnetic.client.render.NativeScreenProgram nativeProgram(Identifier id) {
+        return new com.meekdev.amnetic.client.render.NativeScreenProgram(id,
+                source->source.replaceAll("\\b(depth|sd|d) >= 1\\.0", "$1 <= 0.0"),com.mojang.renderpearl.api.pipeline.ColorTargetState.DEFAULT);
+    }
+    private void renderNative(CameraSnapshot cam) {
+        if(capture==null)capture=Framebuffers.screen("SSR Capture",FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
+        ensureReflection(settings.resolution());capture.blitColorFromMain();capture.blitDepthFromMain();reflection.colorTextureView(0);
+        if(nativeWidth!=reflection.width() || nativeHeight!=reflection.height())historyValid=false;
+        nativeWidth=reflection.width();nativeHeight=reflection.height();
+        if(nativeMarch==null)nativeMarch=nativeProgram(FSH);if(nativeTemporal==null)nativeTemporal=nativeProgram(TEMPORAL_FSH);
+        if(nativeComposite==null)nativeComposite=new com.meekdev.amnetic.client.render.NativeScreenProgram(COMPOSITE_FSH,
+                new com.mojang.renderpearl.api.pipeline.ColorTargetState(new com.mojang.renderpearl.api.pipeline.BlendFunction(
+                    com.mojang.renderpearl.api.pipeline.BlendFactor.SRC_ALPHA,com.mojang.renderpearl.api.pipeline.BlendFactor.ONE_MINUS_SRC_ALPHA,
+                    com.mojang.renderpearl.api.pipeline.BlendFactor.ZERO,com.mojang.renderpearl.api.pipeline.BlendFactor.ONE)));
+        var depth=capture.depthTextureView();var g=GBufferTargets.INSTANCE;
+        nativeMarch.setTexture("ColorSampler",capture.colorTextureView(0));nativeMarch.setTexture("DepthSampler",depth);
+        nativeMarch.setTexture("GNormalSampler",g.isPopulated()?g.nativeColorView(0):depth);
+        nativeMarch.setTexture("GMaterialSampler",g.isPopulated()?g.nativeColorView(1):depth);
+        nativeMarch.setInt("HasGBuffer",g.isPopulated()?1:0);
+        nativeMarch.setMatrix("ViewProj",cam.viewProj);nativeMarch.setMatrix("InvViewProj",cam.invViewProj);nativeMarch.setMatrix("View",cam.view);
+        nativeMarch.setInt("ZeroToOne",cam.zeroToOne?1:0);nativeMarch.setFloat("Intensity",settings.intensity());nativeMarch.setInt("MaxSteps",settings.maxSteps());
+        nativeMarch.setFloat("Stride",settings.stride());nativeMarch.setFloat("MaxDistance",settings.maxDistance());nativeMarch.setFloat("Thickness",settings.thickness());
+        nativeMarch.setFloat("EdgeFade",settings.edgeFade());nativeMarch.setFloat("Reflectivity",settings.reflectivity());nativeMarch.setFloat("Frame",(float)(frameCounter++&63));
+        nativeMarch.draw(reflection.renderPassDescriptor());var resolved=reflection;
+        float x=(float)(cam.eye.x-prevEyeX),y=(float)(cam.eye.y-prevEyeY),z=(float)(cam.eye.z-prevEyeZ);
+        if(x*x+y*y+z*z>256)historyValid=false;
+        if(settings.temporal()) {
+            var previous=usingA?historyA:historyB;var current=usingA?historyB:historyA;
+            nativeTemporal.setTexture("Raw",reflection.colorTextureView(0));nativeTemporal.setTexture("History",historyValid?previous.colorTextureView(0):reflection.colorTextureView(0));
+            nativeTemporal.setTexture("DepthSampler",depth);nativeTemporal.setMatrix("PrevViewProj",prevViewProj);nativeTemporal.setMatrix("InvViewProj",cam.invViewProj);
+            nativeTemporal.setInt("ZeroToOne",cam.zeroToOne?1:0);nativeTemporal.setVector("EyeDelta",x,y,z);nativeTemporal.setFloat("Feedback",historyValid?settings.feedback():0);
+            nativeTemporal.draw(current.renderPassDescriptor());resolved=current;usingA=!usingA;historyValid=true;
+        } else historyValid=false;
+        prevViewProj.set(cam.viewProj);prevEyeX=cam.eye.x;prevEyeY=cam.eye.y;prevEyeZ=cam.eye.z;
+        nativeComposite.setTexture("ReflectionSampler",resolved.colorTextureView(0));
+        nativeComposite.draw(com.mojang.renderpearl.api.commands.RenderPassDescriptor.builder(()->"Amnetic SSR composite")
+                .withColorAttachment(net.minecraft.client.Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTextureView()).build());
+    }
+    //? }
     private SsrPass() { super("SSR"); }
 
     public void render(SsrSettings s) {
         this.settings = s;
-        dispatch();
+        if(!s.isEnabled())historyValid=false;
+        //? if >=26.2 {
+        dispatchNative(() -> renderNative(CameraSnapshot.current()));
+        //? } else {
+        /*dispatch();
+        *///? }
     }
 
     @Override protected boolean enabled() { return settings != null && settings.isEnabled(); }
@@ -127,7 +174,7 @@ public final class SsrPass extends ScreenPass {
         int prevFbo = MainTargetFramebuffer.bind();
         try {
             GlState.bindTexture(0, resolved.colorTextureGlId(0));
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GlStateManager._blendFuncSeparate(
                     GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             composite.begin();
@@ -141,6 +188,11 @@ public final class SsrPass extends ScreenPass {
 
     @Override
     protected void onDispose() {
+        //? if >=26.2 {
+        if(nativeMarch!=null){nativeMarch.close();nativeMarch=null;}
+        if(nativeTemporal!=null){nativeTemporal.close();nativeTemporal=null;}
+        if(nativeComposite!=null){nativeComposite.close();nativeComposite=null;}
+        //? }
         if (composite != null) { composite.close(); composite = null; }
         if (temporal != null) { temporal.close(); temporal = null; }
         if (capture != null) { capture.dispose(); capture = null; }

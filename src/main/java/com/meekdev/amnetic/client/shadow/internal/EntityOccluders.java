@@ -23,6 +23,12 @@ public final class EntityOccluders {
     private long builtSig;
     private final List<Entity> found = new ArrayList<>();
     private FloatBuffer upload;
+    //? if >=26.2 {
+    private com.mojang.renderpearl.api.buffers.GpuBufferSlice nativeVertices;
+    private java.nio.ByteBuffer nativeUpload;
+    public com.mojang.renderpearl.api.buffers.GpuBufferSlice nativeVertices(){return nativeVertices;}
+    public int nativeCount(){return vertexCount;}
+    //? }
 
     public boolean build(Level level, double lx, double ly, double lz, float range,
                          int anchorX, int anchorY, int anchorZ, boolean models, float partialTick) {
@@ -94,14 +100,23 @@ public final class EntityOccluders {
         }
         if (triFloats == 0) return false;
 
-        if (upload == null || upload.capacity() < triFloats) {
+        //? if >=26.2 {
+        int length=triFloats*Float.BYTES;
+        if(nativeUpload==null || nativeUpload.capacity()<length) {
+            if(nativeUpload!=null)MemoryUtil.memFree(nativeUpload);
+            nativeUpload=MemoryUtil.memAlloc(Math.max(length,tri.length*Float.BYTES));
+        }
+        var bytes=nativeUpload.clear().limit(length);bytes.asFloatBuffer().put(tri,0,triFloats);
+        var encoder=com.mojang.blaze3d.systems.RenderSystem.getDevice().createCommandEncoder();
+        nativeVertices=encoder.transientMemory().uploadGpu(bytes,4,com.mojang.renderpearl.api.buffers.GpuBuffer.USAGE_VERTEX);
+        encoder.submit();
+        //? } else {
+        /*if (upload == null || upload.capacity() < triFloats) {
             if (upload != null) MemoryUtil.memFree(upload);
             upload = MemoryUtil.memAllocFloat(Math.max(triFloats, tri.length));
         }
         FloatBuffer buf = upload;
-        buf.clear();
-        buf.put(tri, 0, triFloats).flip();
-
+        buf.clear();buf.put(tri, 0, triFloats).flip();
         if (vao == 0) {
             vao = GL30.glGenVertexArrays();
             vbo = GL15.glGenBuffers();
@@ -109,11 +124,12 @@ public final class EntityOccluders {
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
             GL20.glEnableVertexAttribArray(0);
             GL20.glVertexAttribPointer(0, 3, GL11.GL_FLOAT, false, 3 * Float.BYTES, 0L);
-            GL30.glBindVertexArray(0);
+            com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         }
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, buf, GL15.GL_DYNAMIC_DRAW);
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        *///? }
         vertexCount = triFloats / 3;
         return vertexCount > 0;
     }
@@ -125,10 +141,14 @@ public final class EntityOccluders {
         if (vertexCount == 0) return;
         GL30.glBindVertexArray(vao);
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, vertexCount);
-        GL30.glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
     }
 
     public void dispose() {
+        //? if >=26.2 {
+        nativeVertices=null;
+        if(nativeUpload!=null){MemoryUtil.memFree(nativeUpload);nativeUpload=null;}
+        //? }
         if (vbo != 0) { GL15.glDeleteBuffers(vbo); vbo = 0; }
         if (vao != 0) { GL30.glDeleteVertexArrays(vao); vao = 0; }
         if (upload != null) { MemoryUtil.memFree(upload); upload = null; }

@@ -16,6 +16,10 @@ uniform vec3 DecalRight; // tangent basis (local X)
 uniform vec3 DecalUp; // tangent basis (local Z)
 uniform float Roughness;
 uniform float Metallic;
+uniform sampler2D TppWaterColor;
+uniform int TppHasColor;
+uniform vec3 TppTint;
+layout(location=4) out vec4 TppAlbedo;
 
 #include "amnetic:shaders/common/screen.glsl"
 
@@ -45,14 +49,28 @@ void main() {
     fade *= 1.0 - smoothstep(0.35, 0.5, abs(local.y));
     if (fade <= 0.0) discard;
     float cov = Opacity * fade;
+    vec4 pigment;
+    if(TppHasColor==1) {
+        pigment=texture(TppWaterColor,duv);
+        cov*=pigment.a;
+    } else {
+        float radius=length(duv-.5)*2.0;
+        pigment=vec4(1.0,1.0,1.0,1.0-smoothstep(.55,1.0,radius));
+        cov*=pigment.a;
+    }
+    if(cov<=.001)discard;
 
     vec3 wN = axis;
     if (HasNormalMap == 1) {
-        vec3 tn = texture(NormalSampler, duv).xyz * 2.0 - 1.0;
+        vec4 normalTexel = texture(NormalSampler, duv);
+        if(TppHasColor==0)cov *= normalTexel.a;
+        if (cov <= 0.001) discard;
+        vec3 tn = normalTexel.xyz * 2.0 - 1.0;
         tn.xy *= 3.0;
         wN = normalize(tn.x * normalize(DecalRight) + tn.y * normalize(DecalUp) + tn.z * axis);
     }
 
+    TppAlbedo=vec4(pigment.rgb*TppTint,cov);
     OutNormal = vec4(wN, cov);
     OutMaterial = vec4(clamp(Roughness, 0.0, 1.0), clamp(Metallic, 0.0, 1.0), 0.0, cov); // materialId 0 = default PBR
 }

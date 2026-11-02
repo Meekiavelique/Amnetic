@@ -3,7 +3,7 @@ package com.meekdev.amnetic.client.model.internal;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import java.nio.FloatBuffer;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;

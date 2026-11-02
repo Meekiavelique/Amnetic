@@ -11,11 +11,11 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
-import java.util.ArrayList;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
@@ -58,6 +58,9 @@ public final class DecalRenderer extends ScreenPass {
     private final float[] axes = new float[BATCH * 4];
     private final float[] params = new float[BATCH * 4];
     private final float[] tints = new float[BATCH * 4];
+    //? if >=26.2 {
+    private final NativeDecalRenderer nativeRenderer = new NativeDecalRenderer();
+    //?}
 
     private DecalRenderer() { super("Decal"); }
 
@@ -72,7 +75,11 @@ public final class DecalRenderer extends ScreenPass {
 
     public void render(List<Decal> decals) {
         this.decals = decals;
-        dispatch();
+        //? if >=26.2 {
+        dispatchNative(() -> nativeRenderer.render(decals));
+        //?} else {
+        /*dispatch();
+        *///?}
     }
 
     @Override protected boolean enabled() { return decals != null && !decals.isEmpty(); }
@@ -99,7 +106,7 @@ public final class DecalRenderer extends ScreenPass {
 
         depthCapture.blitDepthFromMain();
 
-        GlStateManager._enableBlend();
+        GlStateManager._enableBlend(0);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
 
         MainTargetFramebuffer.bind();
@@ -246,14 +253,17 @@ public final class DecalRenderer extends ScreenPass {
 
     @Override
     protected void onDispose() {
+        //? if >=26.2 {
+        nativeRenderer.close();
+        //?}
         if (depthCapture != null) { depthCapture.dispose(); depthCapture = null; }
         if (nearestSampler != 0) { GL33.glDeleteSamplers(nearestSampler); nearestSampler = 0; }
         if (gbufferProgram != null) { gbufferProgram.close(); gbufferProgram = null; }
     }
 
     // scissor rects are in the main target's pixels, not whatever viewport an earlier pass left behind
-    private static int targetWidth() { return Minecraft.getInstance().getMainRenderTarget().width; }
-    private static int targetHeight() { return Minecraft.getInstance().getMainRenderTarget().height; }
+    private static int targetWidth() { return Minecraft.getInstance().gameRenderer.mainRenderTarget().width; }
+    private static int targetHeight() { return Minecraft.getInstance().gameRenderer.mainRenderTarget().height; }
 
     private static void basis(Decal d, Vector3f n, Vector3f right, Vector3f up) {
         n.set(d.normal()).normalize();

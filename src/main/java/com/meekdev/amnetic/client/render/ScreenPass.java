@@ -37,6 +37,17 @@ public abstract class ScreenPass {
 
     protected boolean skipUnderIris() { return true; }
 
+
+    protected final void dispatchNative(Runnable render) {
+        if (!guard.alive() || !enabled()) return;
+        if (skipUnderIris() && com.meekdev.amnetic.client.compat.IrisCompat.shadersActive()) return;
+        if (CameraSnapshot.current() == null) return;
+        try {
+            render.run();
+            guard.success();
+        } catch (Throwable failure) { guard.fail(log, failure); }
+    }
+
     protected final void dispatch() {
         if (!guard.alive() || !enabled()) return;
         if (IrisCompat.shadowPass()) return;

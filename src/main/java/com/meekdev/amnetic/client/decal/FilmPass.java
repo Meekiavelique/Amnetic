@@ -9,7 +9,7 @@ import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.light.LightType;
 import com.meekdev.amnetic.client.light.internal.LightRegistry;
@@ -81,7 +81,7 @@ final class FilmPass extends ScreenPass {
         int[] viewport = new int[4];
         GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
         // the scissor lives in the main target's pixels, an earlier pass can leave the viewport at some other size
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         int width = main.width, height = main.height;
         Vec3 eye = cam.eye;
         float time = (System.nanoTime() - startNanos) * 1e-9f;
@@ -97,7 +97,7 @@ final class FilmPass extends ScreenPass {
         if (prev < 0) return false;
         bounds.begin();
         try {
-            GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+            GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
             // rgb = added light + destination * transmittance, alpha untouched
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL33.GL_SRC1_COLOR, GL11.GL_ZERO, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_ONE, GL33.GL_SRC1_COLOR, GL11.GL_ZERO, GL11.GL_ONE);
@@ -136,7 +136,7 @@ final class FilmPass extends ScreenPass {
                 IntBuffer bufs = s.ints(GL30.GL_NONE, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2, GL30.GL_NONE);
                 GL30.glDrawBuffers(bufs);
             }
-            GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+            GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
             // coverage weighted, destination alpha kept since it carries the gbuffer markers
             GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);

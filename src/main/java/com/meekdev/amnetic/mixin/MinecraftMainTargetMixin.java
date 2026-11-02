@@ -15,19 +15,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-// the main target getter lives on GameRenderer since 26.2
 //? if >=26.2 {
-/*@Mixin(GameRenderer.class)
-*///?} else {
-@Mixin(Minecraft.class)
-//?}
+@Mixin(net.minecraft.client.renderer.GameRenderer.class)
+//?} else {
+/*@Mixin(Minecraft.class)
+*///?}
 public abstract class MinecraftMainTargetMixin {
 
     //? if >=26.2 {
-    /*@Inject(method = "mainRenderTarget", at = @At("HEAD"), cancellable = true)
-    *///?} else {
-    @Inject(method = "getMainRenderTarget", at = @At("HEAD"), cancellable = true)
-    //?}
+    @Inject(method = "mainRenderTarget", at = @At("HEAD"), cancellable = true)
+    //?} else {
+    /*@Inject(method = "getMainRenderTarget", at = @At("HEAD"), cancellable = true)
+    *///?}
     private void amnetic$redirectCaptureTarget(CallbackInfoReturnable<RenderTarget> cir) {
         RenderTarget capture = CaptureManager.INSTANCE.currentCaptureTarget();
         if (capture != null) {

@@ -20,6 +20,7 @@ public final class Decal {
     boolean multiply;
     // the projected v runs up the box, images are stored top row first, so wall sprites need this to stand upright
     boolean flipV;
+    boolean nearest;
 
     // optional gbuffer-writing (relightable) decal: tangent-space normal map and/or material override
     // when any of these is set the decal also writes gbuffer normal/material so it relights
@@ -45,6 +46,9 @@ public final class Decal {
     public Decal depth(float v) { this.depth = Math.max(0f, v); return this; }
     public Decal normal(float x, float y, float z) { this.normal.set(x, y, z); if (this.normal.lengthSquared() > 1e-8f) this.normal.normalize(); return this; }
     public Decal normalMap(Identifier id) { this.normalMap = id; return this; }
+
+    public Decal nearest(boolean enabled) { this.nearest=enabled;return this; }
+    public boolean nearest() { return nearest; }
     public Decal roughness(float v) { this.roughness = v; return this; }
     public Decal metallic(float v) { this.metallic = Math.max(0f, Math.min(1f, v)); return this; }
     public Decal multiply(boolean v) { this.multiply = v; return this; }

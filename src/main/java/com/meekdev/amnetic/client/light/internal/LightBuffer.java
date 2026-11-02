@@ -20,11 +20,16 @@ public final class LightBuffer implements AutoCloseable {
     private final int maxLights;
     private final TexelBuffer texels;
     private final FloatBuffer scratch;
+    private final FloatBuffer previous;
+    private int previousCount=-1;
+    private int selectionCount;
+    public int selectionCount(){return selectionCount;}
 
     public LightBuffer(int maxLights) {
         this.maxLights = maxLights;
         this.texels = new TexelBuffer((long) maxLights * FLOATS_PER_LIGHT * Float.BYTES);
         this.scratch = BufferUtils.createFloatBuffer(maxLights * FLOATS_PER_LIGHT);
+        this.previous = BufferUtils.createFloatBuffer(maxLights * FLOATS_PER_LIGHT);
     }
 
     public int pack(List<Light> lights, Vec3 camPos, FrustumIntersection frustum) {
@@ -33,6 +38,12 @@ public final class LightBuffer implements AutoCloseable {
 
     // outPacked, when given, receives the lights actually uploaded in texel index order
     public int pack(List<Light> lights, Vec3 camPos, FrustumIntersection frustum, List<Light> outPacked) {
+        return pack(lights,camPos,frustum,outPacked,null);
+    }
+
+
+    public int pack(List<Light> lights, Vec3 camPos, FrustumIntersection frustum, List<Light> outPacked,
+                    java.util.function.Predicate<Light> filter) {
         LightSettings s = LightSettings.defaults();
         boolean cull = s.frustumCull();
         float fadeStart = s.lodFadeStart();
@@ -42,8 +53,9 @@ public final class LightBuffer implements AutoCloseable {
         scratch.clear();
         if (outPacked != null) outPacked.clear();
         int count = 0;
+        selectionCount=0;
         for (Light l : lights) {
-            if (count >= maxLights) break;
+            if (selectionCount >= maxLights) break;
             if (!l.isEnabled() || l.intensity() <= 0f) continue;
 
             float rx = (float) (l.x() - camPos.x);
@@ -63,6 +75,8 @@ public final class LightBuffer implements AutoCloseable {
                 if (edge > fadeStart) fade = 1f - (edge - fadeStart) / (fadeEnd - fadeStart);
             }
 
+            selectionCount++;
+            if(filter!=null && !filter.test(l))continue;
             scratch.put(rx).put(ry).put(rz).put(l.range());
             scratch.put(l.red()).put(l.green()).put(l.blue()).put(l.intensity() * fade);
             scratch.put(l.dirX()).put(l.dirY()).put(l.dirZ()).put((float) l.type().id());
@@ -75,13 +89,19 @@ public final class LightBuffer implements AutoCloseable {
             count++;
         }
         scratch.flip();
-        if (count > 0) texels.upload(scratch);
+        if(count>0 && (previousCount!=count || scratch.mismatch(previous)!=-1)) {
+            texels.upload(scratch);previous.clear().put(scratch.duplicate()).flip();
+        }
+        previousCount=count;
         return count;
     }
 
     public void bind() {
         texels.bind(UNIT);
     }
+    //? if >=26.2 {
+    public com.mojang.renderpearl.api.buffers.GpuBufferSlice nativeSlice() { return texels.nativeSlice(); }
+    //?}
 
     @Override
     public void close() {

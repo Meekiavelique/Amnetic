@@ -28,6 +28,7 @@ vec3 compositeLight(vec3 scene, vec3 light) {
         ? max(vec3(1.0) - scene, vec3(0.0)) * (vec3(1.0) - exp(-max(light, vec3(0.0))))
         : light;
 }
+uniform sampler2D LocalLightSampler;
 
 uniform mat4 InvViewProj;
 uniform int ZeroToOne;
@@ -105,7 +106,10 @@ vec3 cookieTint(vec3 fragPos, vec3 pos, vec3 dir, float cosOut, vec3 tangent) {
 // distance attenuation curves
 float falloff(float dist, float range, int curve, float param) {
     float t = clamp(dist / max(range, 1e-4), 0.0, 1.0);
-    if (curve == 0) return 1.0 - smoothstep(0.0, 1.0, t);
+    if (curve == 0) {
+        float window = 1.0 - t * t;
+        return window * window;
+    }
     if (curve == 1) return 1.0 - t;
     if (curve == 2) { // inverse square, windowed so it hits zero at range
         float d2 = dist * dist;
@@ -162,8 +166,11 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
 
     vec3 L;
     float atten;
+    float ndotl;
     if (type == 2) { // directional, no position
         L = -normalize(dir);
+        ndotl = max(dot(N, L), 0.0);
+        if (ndotl <= 0.0) return vec3(0.0);
         atten = 1.0;
     } else {
         vec3 src = pos; // representative point, area lights move this around
@@ -187,19 +194,20 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
         float dist = length(toL);
         if (dist > range) return vec3(0.0);
         L = toL / max(dist, 1e-4);
+        ndotl = max(dot(N, L), 0.0);
+        if (ndotl <= 0.0) return vec3(0.0);
         atten = falloff(dist, range, curve, param);
         if (type == 1) { // spot cone attenuation
             vec3 Lc = normalize(pos - lp);
             float cd = dot(-Lc, normalize(dir));
-            atten *= clamp((cd - cosOut) / max(cosIn - cosOut, 1e-4), 0.0, 1.0);
+            atten *= smoothstep(0.0, 1.0, clamp((cd - cosOut) / max(cosIn - cosOut, 1e-4), 0.0, 1.0));
         }
     }
     if (iesId > 0 && type != 2) {
         atten *= iesProfile(iesId, dot(normalize(dir), normalize(fragPos - pos)));
     }
 
-    float ndotl = max(dot(N, L), 0.0);
-    if (ndotl <= 0.0 || atten <= 0.0) return vec3(0.0);
+    if (atten <= 0.0) return vec3(0.0);
 
     vec3 lcol = color;
     if (type == 1 && HasCookie == 1 && cookieFlag > 0.5) {
@@ -211,7 +219,7 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     }
 
     vec3 vis = shadowVisibility(shadowRef, fragPos, N, pos, range);
-    vis *= contactShadow(fragPos, L);
+    if (any(notEqual(vis, vec3(0.0)))) vis *= contactShadow(fragPos, L);
     if (shadowRef >= 0) {
         float sStrength = texelFetch(LightTexels, i * 8 + 4).w;
         float camDist = length(fragPos);
@@ -220,9 +228,8 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
             vis = mix(vec3(1.0), vis, sStrength * sFade);
         } else {
             float sFade = clamp((ShadowFadeEnd - camDist) / max(ShadowFadeEnd - ShadowFadeStart, 1e-3), 0.0, 1.0);
-            float lightDist = length(pos - fragPos);
-            float lightFade = 1.0 - smoothstep(range * 0.7, range, lightDist); // shadow fades with the light, not at a hard cutoff
-            vis = mix(vec3(1.0), vis, sStrength * sFade * lightFade);
+            vis = mix(vec3(1.0), vis, sStrength);
+            atten *= sFade; // fade distant shadowed lights out together with their maps
         }
     }
     // directional sun: the forward base lighting is already full daylight and AlbedoSampler holds the
@@ -241,12 +248,36 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     // a fully shadowed pixel still has to be reported above, so this comes after the sun
     if (vis.r + vis.g + vis.b <= 0.0) return vec3(0.0);
 
-    vec3 H = normalize(L + V);
-    float ndoth = max(dot(N, H), 0.0);
-    float shininess = mix(256.0, 4.0, clamp(rough, 0.0, 1.0));
-    float spec = pow(ndoth, shininess) * f0;
-    specOut += lcol * intens * atten * ndotl * spec * vis;
+    float gloss = 1.0 - smoothstep(0.35, 0.75, rough);
+    if (gloss > 0.0) {
+        vec3 halfVector = L + V;
+        vec3 H = halfVector / max(length(halfVector), 1e-5);
+        float ndoth = max(dot(N, H), 0.0);
+        float spec = pow(ndoth, mix(96.0, 512.0, gloss)) * f0 * gloss;
+        specOut += lcol * intens * atten * ndotl * spec * vis;
+    }
 
-    vec3 radiance = lcol * intens * ndotl * atten * vis;
+    vec3 radiance = lcol * intens * ((ndotl + 0.4) / 1.4) * atten * vis;
     return radiance;
+}
+
+vec3 toLinear(vec3 color) {
+    color = max(color, vec3(0.0));
+    return mix(color / 12.92, pow((color + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), color));
+}
+vec3 toDisplay(vec3 color) {
+    color = max(color, vec3(0.0));
+    return mix(color * 12.92, 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), color));
+}
+vec3 surfaceRadiance(vec3 material, vec3 irradiance, vec3 specular, float metallic) {
+    vec3 reflectance = max(toLinear(material), vec3(0.0001));
+    return max(irradiance * (1.0 - metallic)
+            + mix(1.0 / reflectance, vec3(1.0), metallic) * specular, vec3(0.0));
+}
+vec3 resolveSurface(vec3 scene, float sunMultiplier, vec3 material, vec3 local) {
+    vec3 base = scene * sunMultiplier;
+    float peak = max(local.r, max(local.g, local.b));
+    if (peak <= 0.0) return base;
+    vec3 illumination = local / (1.0 + peak / 2.0);
+    return toDisplay(toLinear(base) + toLinear(material) * illumination);
 }

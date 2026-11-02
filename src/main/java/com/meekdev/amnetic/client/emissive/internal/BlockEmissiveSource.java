@@ -109,7 +109,7 @@ public final class BlockEmissiveSource {
 
         GL30.glBindVertexArray(vao);
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, vertexCount);
-        GL30.glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
     }
 
     private void rebuild(ClientLevel level, int cx, int cy, int cz) {
@@ -206,7 +206,7 @@ public final class BlockEmissiveSource {
         GL20.glVertexAttribPointer(2, 2, GL11.GL_FLOAT, false, stride, 5 * Float.BYTES);
         GL20.glEnableVertexAttribArray(3);
         GL20.glVertexAttribPointer(3, 2, GL11.GL_FLOAT, false, stride, 7 * Float.BYTES);
-        GL30.glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
     }
 

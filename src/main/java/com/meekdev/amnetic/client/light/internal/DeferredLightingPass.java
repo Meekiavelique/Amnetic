@@ -21,7 +21,7 @@ import com.meekdev.amnetic.client.shadow.internal.PointShadowArray;
 import com.meekdev.amnetic.client.shadow.internal.ShadowMapPass;
 import com.meekdev.amnetic.client.shadow.internal.SpotShadowAtlas;
 import com.meekdev.amnetic.client.shadow.internal.SunShadowCascades;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import org.joml.FrustumIntersection;
 import org.lwjgl.opengl.GL11;
@@ -52,32 +52,56 @@ public final class DeferredLightingPass extends ScreenPass {
     private float surfaceScale = -1f;
     private final FrustumIntersection frustum = new FrustumIntersection();
 
+    @Override protected boolean skipUnderIris() { return !com.meekdev.amnetic.client.compat.IrisCompat.canComposite(); }
     private DeferredLightingPass() { super("Light"); }
 
     private boolean volumetricOnly;
     private Framebuffer volumetricTarget;
     private int frameCounter;
+    //? if >=26.2 {
+    private NativeDeferredLighting nativePass;
+    private NativeDeferredLighting nativeVolumetric;
+    //?}
+    private boolean nativeScatterDrawn;
+    public boolean hasNativeScattering(){return nativeScatterDrawn;}
+    //? if >=26.2 {
+    private NativeDeferredLighting nativePass() {
+        if (nativePass == null) nativePass = new NativeDeferredLighting();
+        return nativePass;
+    }
+    //?}
 
     public void renderSurface() {
-        volumetricOnly = false; volumetricTarget = null; dispatch();
+        //? if >=26.2 {
+        dispatchNative(() -> nativePass().render(null, frameCounter));
+        //?} else {
+        /*volumetricOnly = false; volumetricTarget = null; dispatch();
+        *///?}
     }
 
     public void renderVolumetricRaw(Framebuffer target) {
+        nativeScatterDrawn=false;
         if (!LightSettings.defaults().volumetric()) return;
-        volumetricOnly = true;
+        //? if >=26.2 {
+        dispatchNative(() -> {
+            if (nativeVolumetric == null) nativeVolumetric = new NativeDeferredLighting(com.mojang.renderpearl.api.GpuFormat.RGBA16_FLOAT);
+            nativeScatterDrawn=nativeVolumetric.render(target, ++frameCounter);
+        });
+        //?} else {
+        /*volumetricOnly = true;
         volumetricTarget = target;
         frameCounter++;
         dispatch();
         volumetricTarget = null;
+        *///?}
     }
 
     public void render() { renderSurface(); }
 
-    @Override protected boolean skipUnderIris() { return false; }
 
     @Override protected boolean enabled() {
         return !LightRegistry.INSTANCE.isEmpty()
-                && (!IrisCompat.shadersActive() || (IrisCompat.compositing() && !volumetricOnly));
+                && (!IrisCompat.shadersActive() || IrisCompat.canComposite());
     }
 
     @Override
@@ -169,13 +193,13 @@ public final class DeferredLightingPass extends ScreenPass {
             applyShared(program, cam, shadows, sunShadows, hasGBuffer, count, volumes);
 
             if (toHalf) {
-                GlStateManager._disableBlend();
+                GlStateManager._disableBlend(0);
                 GL11.glDisable(GL11.GL_BLEND);
             } else if (debugMode == 0) {
                 // replace, not additive: the shader outputs the full recomposed scene (captured scene darkened
                 // by sun-shadow occlusion + local lights + specular). additive blending can't darken, which a
                 // daylight directional sun needs. go check the type==2 block in deferred.fsh
-                GlStateManager._disableBlend();
+                GlStateManager._disableBlend(0);
                 GL11.glDisable(GL11.GL_BLEND);
             }
             if (needsFullscreen) program.draw();
@@ -226,7 +250,7 @@ public final class DeferredLightingPass extends ScreenPass {
             GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
             GlStateManager._depthMask(false); GL11.glDepthMask(false);
             GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
-            GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+            GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE);
             GlState.bindTexture(0, surfaceTarget.colorTextureGlId(0));
@@ -252,6 +276,10 @@ public final class DeferredLightingPass extends ScreenPass {
 
     @Override
     protected void onDispose() {
+        //? if >=26.2 {
+        if (nativePass != null) { nativePass.close(); nativePass = null; }
+        if (nativeVolumetric != null) { nativeVolumetric.close(); nativeVolumetric = null; }
+        //?}
         if (lightBuffer != null) { lightBuffer.close(); lightBuffer = null; }
         if (capture != null) { capture.dispose(); capture = null; }
         if (surfaceTarget != null) { surfaceTarget.dispose(); surfaceTarget = null; }

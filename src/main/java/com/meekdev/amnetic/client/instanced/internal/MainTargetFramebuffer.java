@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
@@ -13,6 +13,8 @@ public final class MainTargetFramebuffer {
     private static int cachedColorId = -1;
     private static int cachedDepthId = -1;
     private static int depthOverride;
+    private static int savedReadFbo;
+
     private static final int[] SAVED_VIEWPORT = new int[4];
 
     private MainTargetFramebuffer() {}
@@ -22,7 +24,7 @@ public final class MainTargetFramebuffer {
     }
 
     public static int bind() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return -1;
         int colorId = VanillaCompat.colorTextureGlId(main);
         if (colorId <= 0) return -1;
@@ -30,6 +32,9 @@ public final class MainTargetFramebuffer {
         int mainDepthId = VanillaCompat.depthTextureGlId(main);
         int depthId = depthOverride > 0 ? depthOverride : mainDepthId;
 
+        int previousDraw = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        savedReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        GL11.glGetIntegerv(GL11.GL_VIEWPORT, SAVED_VIEWPORT);
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
         // Iris and nested passes can change the outer target within the same frame.
         int previousFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
@@ -41,19 +46,14 @@ public final class MainTargetFramebuffer {
         cachedColorId = colorId;
         cachedDepthId = depthId;
 
-        // viewport to restore is always the main target's full size, derive it instead of querying GL
-        SAVED_VIEWPORT[0] = 0;
-        SAVED_VIEWPORT[1] = 0;
-        SAVED_VIEWPORT[2] = main.width;
-        SAVED_VIEWPORT[3] = main.height;
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
         GlStateManager._viewport(0, 0, main.width, main.height);
-        return previousFbo;
+        return previousDraw;
     }
 
     public static void restore(int prevFbo) {
         if (prevFbo < 0) return;
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prevFbo);
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, savedReadFbo);
+        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, prevFbo);
         GlStateManager._viewport(SAVED_VIEWPORT[0], SAVED_VIEWPORT[1], SAVED_VIEWPORT[2], SAVED_VIEWPORT[3]);
     }
 }

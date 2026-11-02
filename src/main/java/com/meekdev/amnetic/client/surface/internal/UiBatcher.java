@@ -8,7 +8,7 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.surface.material.SurfaceMaterial;
 import com.meekdev.amnetic.client.surface.reactive.Reactive;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -478,14 +478,14 @@ public final class UiBatcher {
         // left bound, the sampler would override whatever the game draws on unit zero next
         GL33.glBindSampler(0, 0);
 
-        GlStateManager._glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
         verts.clear();
         segments = 0;
     }
 
     public void restorePassState() {
         GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
-        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
         applyBlend(SurfaceMaterial.Blend.MIX);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
@@ -534,6 +534,6 @@ public final class UiBatcher {
         GL20.glVertexAttribPointer(4, 2, GL11.GL_FLOAT, false, stride, 48);
         GL20.glEnableVertexAttribArray(5);
         GL20.glVertexAttribPointer(5, 4, GL11.GL_FLOAT, false, stride, 56);
-        GlStateManager._glBindVertexArray(0);
+        com.meekdev.amnetic.client.render.GlState.resetVertexArray();
     }
 }

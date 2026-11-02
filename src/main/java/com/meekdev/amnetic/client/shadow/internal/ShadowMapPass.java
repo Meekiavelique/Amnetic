@@ -11,7 +11,7 @@ import com.meekdev.amnetic.client.model.internal.ModelRegistry;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
 import com.meekdev.amnetic.client.shadow.ShadowSettings;
 import com.meekdev.amnetic.client.shadow.Shadows;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
@@ -155,7 +155,18 @@ public final class ShadowMapPass {
     }
 
     public void render(CameraSnapshot cam) {
-        active = false;
+        //? if >=26.2 {
+        NativeLocalShadows.INSTANCE.render(cam);
+        active = NativeLocalShadows.INSTANCE.points > 0 || NativeLocalShadows.INSTANCE.spots > 0;
+        pointCount = NativeLocalShadows.INSTANCE.points; spotCount = NativeLocalShadows.INSTANCE.spots;
+        sunActive = NativeLocalShadows.INSTANCE.sunCascades>0;
+        sunCascadeCount = NativeLocalShadows.INSTANCE.sunCascades;
+        active = active || sunActive;
+        System.arraycopy(NativeLocalShadows.INSTANCE.sunMatrices,0,sunViewProj,0,sunViewProj.length);
+        System.arraycopy(NativeLocalShadows.INSTANCE.sunRadii,0,sunCascadeRadius,0,sunCascadeRadius.length);
+        return;
+        //? } else {
+        /*active = false;
         spotCount = 0;
         pointCount = 0;
         entityBoxes = 0;
@@ -210,7 +221,7 @@ public final class ShadowMapPass {
         // was captured once in beginFrame(), the world-pass viewport is always the main target's full size,
         // and the world never renders with scissor on (GlStateManager re-establishes it for the GUI)
         int savedFbo = GBufferTargets.INSTANCE.outerFboId();
-        var mainRt = mc.getMainRenderTarget();
+        var mainRt = mc.gameRenderer.mainRenderTarget();
         savedViewport[0] = 0;
         savedViewport[1] = 0;
         savedViewport[2] = mainRt.width;
@@ -222,7 +233,7 @@ public final class ShadowMapPass {
         long bakeStart = System.nanoTime();
 
         try {
-            GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
+            GlStateManager._disableBlend(0); GL11.glDisable(GL11.GL_BLEND);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(GL11.GL_LESS);
             GL11.glDepthMask(true);
@@ -283,11 +294,12 @@ public final class ShadowMapPass {
             GL11.glDepthMask(true);
             GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
             GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
+            GlStateManager._disableBlend(0); GL11.glDisable(GL11.GL_BLEND);
             GlStateManager._glUseProgram(0);
             lastBakeNanos = System.nanoTime() - bakeStart;
             if (governor.observe(lastBakeMs(), s.budgetMs())) settingsVersion = -1;
         }
+    *///? }
     }
 
     private void bakeSpot(Light l, CameraSnapshot cam, Level level, int tile, ShadowSettings s) {
@@ -612,6 +624,9 @@ public final class ShadowMapPass {
     };
 
     public void dispose() {
+        //? if >=26.2 {
+        NativeLocalShadows.INSTANCE.close();
+        //? }
         meshes.dispose();
         sunBlocks.clear();
         entities.dispose();

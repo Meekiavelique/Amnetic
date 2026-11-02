@@ -4,9 +4,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.LevelChunkSection;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.util.ArrayList;
@@ -14,6 +11,20 @@ import java.util.List;
 
 
 public final class OccluderCollector {
+
+    private record Section(java.lang.ref.WeakReference<Object> chunk, List<OccluderEntry> entries) {}
+    private static final java.util.Map<Long, Section> SECTIONS = new java.util.LinkedHashMap<>(64, .75f, true);
+    private static final int MAX_SECTIONS = 384;
+    private static Level cachedLevel;
+
+    public static void clear() { SECTIONS.clear(); cachedLevel = null; }
+
+    public static void invalidateAt(BlockPos pos) {
+        for (int x = (pos.getX()-1)>>4; x <= (pos.getX()+1)>>4; x++)
+            for (int y = (pos.getY()-1)>>4; y <= (pos.getY()+1)>>4; y++)
+                for (int z = (pos.getZ()-1)>>4; z <= (pos.getZ()+1)>>4; z++)
+                    SECTIONS.remove(net.minecraft.core.SectionPos.asLong(x,y,z));
+    }
 
     private OccluderCollector() {}
 
@@ -23,61 +34,87 @@ public final class OccluderCollector {
                                                       int hostX, int hostY, int hostZ) {
         List<OccluderEntry> out = new ArrayList<>();
         if (level == null || radius < 1e-3f) return out;
-
-        int minX = (int) Math.floor(lx - radius);
-        int minY = (int) Math.floor(ly - radius);
-        int minZ = (int) Math.floor(lz - radius);
-        int maxX = (int) Math.floor(lx + radius);
-        int maxY = (int) Math.floor(ly + radius);
-        int maxZ = (int) Math.floor(lz + radius);
+        if (cachedLevel != level) { clear(); cachedLevel = level; }
 
         float r2 = radius * radius;
-        BlockPos.MutableBlockPos mut = new BlockPos.MutableBlockPos();
-        //? if >=1.21.2 {
-        int minSectionY = level.getMinSectionY();
-        //?} else {
-        /*int minSectionY = level.getMinSection();
-        *///?}
-
-        for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
-            for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
-                ChunkAccess chunk = level.getChunk(cx, cz, ChunkStatus.FULL, false);
+        int minY = Math.max(level.getMinY(), (int)Math.floor(ly-radius));
+        int maxY = Math.min(level.getMaxY(), (int)Math.floor(ly+radius));
+        for (int sx=((int)Math.floor(lx-radius))>>4; sx<=((int)Math.floor(lx+radius))>>4; sx++)
+            for (int sz=((int)Math.floor(lz-radius))>>4; sz<=((int)Math.floor(lz+radius))>>4; sz++) {
+                var chunk = level.getChunk(sx,sz,net.minecraft.world.level.chunk.status.ChunkStatus.FULL,false);
                 if (chunk == null) continue;
-                LevelChunkSection[] sections = chunk.getSections();
-                for (int sy = minY >> 4; sy <= maxY >> 4; sy++) {
-                    int si = sy - minSectionY;
-                    if (si < 0 || si >= sections.length) continue;
-                    LevelChunkSection section = sections[si];
-                    if (section == null || section.hasOnlyAir()) continue;
-                    int x0 = Math.max(minX, cx << 4), x1 = Math.min(maxX, (cx << 4) + 15);
-                    int y0 = Math.max(minY, sy << 4), y1 = Math.min(maxY, (sy << 4) + 15);
-                    int z0 = Math.max(minZ, cz << 4), z1 = Math.min(maxZ, (cz << 4) + 15);
-                    for (int x = x0; x <= x1; x++) {
-                        float dx = (x + 0.5f) - lx;
-                        float dx2 = dx * dx;
-                        if (dx2 > r2) continue;
-                        for (int z = z0; z <= z1; z++) {
-                            float dz = (z + 0.5f) - lz;
-                            float dxz2 = dx2 + dz * dz;
-                            if (dxz2 > r2) continue;
-                            for (int y = y0; y <= y1; y++) {
-                                float dy = (y + 0.5f) - ly;
-                                if (dxz2 + dy * dy > r2) continue;
-
-                                BlockState state = section.getBlockState(x & 15, y & 15, z & 15);
-                                if (state.isAir()) continue;
-                                mut.set(x, y, z);
-                                if (x == hostX && y == hostY && z == hostZ && state.getLightEmission() > 0) continue;
-                                collect(level, state, mut, out);
-                            }
-                        }
+                for (int sy=minY>>4; sy<=maxY>>4; sy++) {
+                    long key = net.minecraft.core.SectionPos.asLong(sx,sy,sz);
+                    var section = chunk.getSection(chunk.getSectionIndex(sy<<4));
+                    if (section.hasOnlyAir()) { SECTIONS.remove(key); continue; }
+                    Section cached = SECTIONS.get(key);
+                    if (cached == null || cached.chunk.get() != chunk) {
+                        cached = new Section(new java.lang.ref.WeakReference<>(chunk), collectSection(level,sx,sy,sz,section));
+                        SECTIONS.put(key,cached);
+                        while (SECTIONS.size()>MAX_SECTIONS) SECTIONS.remove(SECTIONS.keySet().iterator().next());
                     }
+                    for (OccluderEntry entry : cached.entries) {
+                        BlockPos pos = entry.pos;
+                        float dx=pos.getX()+.5f-lx, dy=pos.getY()+.5f-ly, dz=pos.getZ()+.5f-lz;
+                        if (dx*dx+dy*dy+dz*dz > r2) continue;
+                        var state = chunk.getBlockState(pos);
+                        if (pos.getX()==hostX && pos.getY()==hostY && pos.getZ()==hostZ && state.getLightEmission()>0) continue;
+                        var provider = com.meekdev.amnetic.client.shadow.ShadowShapes.provider(state);
+                        if (provider != null) {
+                            if (!com.meekdev.amnetic.client.shadow.ShadowShapes.isTracked(level,pos))
+                                out.add(new OccluderEntry(pos,provider.shape(level,pos,state)));
+                        } else out.add(entry);
+                    }
+                }
+            }
+        return out;
+    }
+
+    private static List<OccluderEntry> collectSection(Level level, int sx, int sy, int sz,
+                                                    net.minecraft.world.level.chunk.LevelChunkSection section) {
+        List<OccluderEntry> out = new ArrayList<>();
+
+        int minX = sx<<4, minY = sy<<4, minZ = sz<<4;
+        int maxX = minX+15, maxY = minY+15, maxZ = minZ+15;
+
+        BlockPos.MutableBlockPos mut = new BlockPos.MutableBlockPos();
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int y = minY; y <= maxY; y++) {
+
+                    mut.set(x, y, z);
+                    BlockState state = section.getBlockState(x & 15, y & 15, z & 15);
+                    if (state.isAir()) continue;
+
+                    var dynamic = com.meekdev.amnetic.client.shadow.ShadowShapes.provider(state);
+                    if (dynamic != null) {
+                        out.add(new OccluderEntry(mut.immutable(), dynamic.shape(level, mut, state)));
+                        continue;
+                    }
+                    if (state.getRenderShape() == RenderShape.INVISIBLE && !state.hasBlockEntity()) continue;
+
+                    CutoutGeometry.Result quads = CutoutGeometry.extract(state);
+                    if (quads != null) {
+                        out.add(new OccluderEntry(mut.immutable(), quads.cutout, quads.translucent));
+                        continue;
+                    }
+
+                    VoxelShape shape;
+                    try {
+                        shape = state.getCollisionShape(level, mut);
+                        if (shape == null || shape.isEmpty()) shape = state.getShape(level, mut);
+                    } catch (Throwable t) {
+                        continue;
+                    }
+                    if (shape == null || shape.isEmpty()) continue;
+
+                    out.add(new OccluderEntry(mut.immutable(), shape));
                 }
             }
         }
         return out;
     }
-
     public static void collect(Level level, BlockState state, BlockPos.MutableBlockPos at, List<OccluderEntry> out) {
         if (state.getRenderShape() == RenderShape.INVISIBLE) return;
         CutoutGeometry.Result quads = CutoutGeometry.extract(state);

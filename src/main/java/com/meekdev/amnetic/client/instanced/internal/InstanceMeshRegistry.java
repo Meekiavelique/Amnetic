@@ -85,12 +85,16 @@ public final class InstanceMeshRegistry {
         InstanceRenderContext ctx = buildContext(cam);
         if (ctx == null) return;
 
-        int prevFbo = MainTargetFramebuffer.bind();
+        //? if >=26.2 {
+        dispatchAll(phase, ctx);
+        //?} else {
+        /*int prevFbo = MainTargetFramebuffer.bind();
         try {
             dispatchAll(phase, ctx);
         } finally {
             MainTargetFramebuffer.restore(prevFbo);
         }
+        *///?}
     }
 
     public void renderEmissive(InstancePhase phase, LevelCamera cam,
@@ -98,7 +102,12 @@ public final class InstanceMeshRegistry {
         InstanceRenderContext ctx = buildContext(cam);
         if (ctx == null) return;
 
-        target.begin();
+        //? if >=26.2 {
+        var previous = NativeInstanceRenderer.emissiveTarget;
+        NativeInstanceRenderer.emissiveTarget = target;
+        //?} else {
+        /*target.begin();
+        *///?}
         try {
             for (InstanceMeshEntry<?> entry : entries) {
                 if (entry.mesh().phase() != phase) continue;
@@ -111,9 +120,27 @@ public final class InstanceMeshRegistry {
                 }
             }
         } finally {
-            target.end();
+            //? if >=26.2 {
+            NativeInstanceRenderer.emissiveTarget = previous;
+            //?} else {
+            /*target.end();
+            *///?}
         }
     }
+
+    //? if >=26.2 {
+    public void renderNativeSources(LevelCamera camera, Framebuffer target) {
+        var context = buildContext(camera);
+        if(context == null || context.world() == null) return;
+        var previous = NativeInstanceRenderer.emissiveTarget;
+        NativeInstanceRenderer.emissiveTarget = target;
+        try {
+            com.meekdev.amnetic.client.emissive.EmissiveSources.emitAll(
+                    new com.meekdev.amnetic.client.emissive.EmissiveContext(context.world(), context.cameraPos(),
+                            context.viewMatrix(), context.projectionMatrix(), context.deltaTick(), target.width(), target.height()));
+        } finally { NativeInstanceRenderer.emissiveTarget = previous; }
+    }
+    //?}
 
     private InstanceRenderContext buildContext(LevelCamera cam) {
         if (cam == null) return null;

@@ -14,17 +14,24 @@ public final class OccluderCache {
 
     private static final long EMPTY = 0L;
     private static final float SNAP_PAD = 0.87f;
+    private static final float MOVEMENT_PAD = 2.0f;
 
     private static final class Entry {
         long hash;
         List<OccluderEntry> list;
+        List<OccluderEntry> baseList;
+        List<OccluderEntry> tracked = List.of();
+        int[] dynamicIndices = new int[0];
         long[] sectionKeys;
         float cx, cy, cz, cr;
         int anchorX, anchorY, anchorZ; // integer collection center, the mesh's local origin
+        int hostX, hostY, hostZ;
+        float range;
     }
 
     private static final Map<Long, Entry> byId = new HashMap<>();
     private static final Map<Long, Set<Long>> sectionToIds = new HashMap<>();
+    private static Level cachedLevel;
 
     private OccluderCache() {}
 
@@ -37,28 +44,79 @@ public final class OccluderCache {
     }
 
     public static Collected getOrCompute(long id, Level level, float lx, float ly, float lz, float radius) {
+        if (cachedLevel != level) { clear(); cachedLevel = level; }
         float cx = Math.round(lx), cy = Math.round(ly), cz = Math.round(lz);
-        float cr = (float) Math.ceil(radius) + SNAP_PAD;
+        float cr = (float) Math.ceil(radius) + SNAP_PAD + MOVEMENT_PAD;
         int hostX = (int) Math.floor(lx), hostY = (int) Math.floor(ly), hostZ = (int) Math.floor(lz);
 
         long h = hash(cx, cy, cz, cr);
         Entry e = byId.get(id);
-        if (e != null && e.hash == h && e.list != null) {
+        float dx=e==null?0:lx-e.cx, dy=e==null?0:ly-e.cy, dz=e==null?0:lz-e.cz;
+        boolean sameHost=e!=null && (e.hostX==hostX && e.hostY==hostY && e.hostZ==hostZ
+                || level.getBlockState(new BlockPos(e.hostX,e.hostY,e.hostZ)).getLightEmission()==0
+                && level.getBlockState(new BlockPos(hostX,hostY,hostZ)).getLightEmission()==0);
+        if (e != null && e.hash != EMPTY && e.range==radius && e.list != null && sameHost
+                && Math.sqrt(dx*dx+dy*dy+dz*dz)+radius+SNAP_PAD<=e.cr) {
+            refreshDynamic(e, level);
             return new Collected(e.list, e.anchorX, e.anchorY, e.anchorZ);
         }
 
         List<OccluderEntry> fresh = OccluderCollector.collectForLight(level, cx, cy, cz, cr, hostX, hostY, hostZ);
         if (e == null) { e = new Entry(); byId.put(id, e); }
-        e.list = fresh;
+        e.list = fresh; e.baseList = fresh; e.tracked = List.of();
+        e.dynamicIndices = java.util.stream.IntStream.range(0, fresh.size())
+                .filter(i -> com.meekdev.amnetic.client.shadow.ShadowShapes.provider(level.getBlockState(fresh.get(i).pos)) != null)
+                .toArray();
         e.hash = h;
+        e.hostX=hostX; e.hostY=hostY; e.hostZ=hostZ; e.range=radius;
         e.cx = cx; e.cy = cy; e.cz = cz; e.cr = cr;
         e.anchorX = Math.round(cx); e.anchorY = Math.round(cy); e.anchorZ = Math.round(cz);
         rebuildSectionIndex(id, e, cx, cy, cz, cr);
-        return new Collected(fresh, e.anchorX, e.anchorY, e.anchorZ);
+        refreshDynamic(e,level);
+        return new Collected(e.list, e.anchorX, e.anchorY, e.anchorZ);
+    }
+
+    private static void refreshDynamic(Entry entry, Level level) {
+        java.util.ArrayList<OccluderEntry> changed = null;
+        for (int index : entry.dynamicIndices) {
+            OccluderEntry previous = entry.baseList.get(index);
+            if (!level.hasChunkAt(previous.pos)) continue;
+            var state = level.getBlockState(previous.pos);
+            var provider = com.meekdev.amnetic.client.shadow.ShadowShapes.provider(state);
+            var next = provider == null ? net.minecraft.world.phys.shapes.Shapes.empty() : provider.shape(level, previous.pos, state);
+            if (next == null) next = net.minecraft.world.phys.shapes.Shapes.empty();
+            if (previous.shape==next || previous.shape != null && !net.minecraft.world.phys.shapes.Shapes.joinIsNotEmpty(previous.shape, next,
+                    net.minecraft.world.phys.shapes.BooleanOp.NOT_SAME)) continue;
+            if (changed == null) changed = new java.util.ArrayList<>(entry.baseList);
+            changed.set(index, new OccluderEntry(previous.pos, next));
+        }
+        boolean updated=changed!=null;
+        if (changed != null) entry.baseList = changed;
+        var tracked=com.meekdev.amnetic.client.shadow.ShadowShapes.nearby(level,entry.cx,entry.cy,entry.cz,entry.cr);
+        if(!sameGeometry(entry.tracked,tracked)){entry.tracked=tracked;updated=true;}
+        if(updated) {
+            if(entry.tracked.isEmpty())entry.list=entry.baseList;
+            else {var combined=new java.util.ArrayList<>(entry.baseList);combined.addAll(entry.tracked);entry.list=combined;}
+        }
+    }
+
+    private static boolean sameGeometry(List<OccluderEntry> a,List<OccluderEntry> b) {
+        if(a.size()!=b.size())return false;
+        for(int i=0;i<a.size();i++) {
+            var old=a.get(i);var next=b.get(i);
+            if(!old.pos.equals(next.pos))return false;
+            if(old.shape==next.shape)continue;
+            if(old.shape==null || next.shape==null || net.minecraft.world.phys.shapes.Shapes.joinIsNotEmpty(old.shape,next.shape,net.minecraft.world.phys.shapes.BooleanOp.NOT_SAME))return false;
+        }
+        return true;
     }
 
     public static void invalidateAt(BlockPos pos) {
         SunOccluders.blockChanged(pos);
+        OccluderCollector.invalidateAt(pos);
+        var level=net.minecraft.client.Minecraft.getInstance().level;
+        if(level!=null && com.meekdev.amnetic.client.shadow.ShadowShapes.provider(level.getBlockState(pos))!=null)
+            com.meekdev.amnetic.client.shadow.ShadowShapes.track(level,pos);
         long key = sectionKey(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
         Set<Long> ids = sectionToIds.get(key);
         if (ids == null || ids.isEmpty()) return;
@@ -85,6 +143,8 @@ public final class OccluderCache {
     }
 
     public static void clear() {
+        OccluderCollector.clear();
+        cachedLevel = null;
         byId.clear();
         sectionToIds.clear();
     }

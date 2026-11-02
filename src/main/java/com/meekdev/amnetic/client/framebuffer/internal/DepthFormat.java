@@ -15,8 +15,8 @@ public final class DepthFormat {
     private DepthFormat() {}
 
     public static int internalFormat() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-        int tex = main != null && main.useDepth ? VanillaCompat.depthTextureGlId(main) : 0;
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        int tex = main != null && main.hasDepth() ? VanillaCompat.depthTextureGlId(main) : 0;
         if (tex <= 0 || tex == queriedTexture) return internalFormat;
         int prev = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, tex);

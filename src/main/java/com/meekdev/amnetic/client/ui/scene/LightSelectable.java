@@ -55,6 +55,9 @@ public final class LightSelectable implements Selectable, Transformable {
         float[] col = {light.red(), light.green(), light.blue()};
         if (Widgets.color3("Color", col)) light.setColor(col[0], col[1], col[2]);
 
+        float[] kelvin = {light.temperature()};
+        if (Widgets.dragFloat("Temperature (K)", kelvin, 50f, 1000f, 40000f)) light.setTemperature(kelvin[0]);
+
         float[] intensity = {light.intensity()};
         if (Widgets.dragFloat("Intensity", intensity, 0.05f, 0f, 100f)) light.setIntensity(intensity[0]);
 

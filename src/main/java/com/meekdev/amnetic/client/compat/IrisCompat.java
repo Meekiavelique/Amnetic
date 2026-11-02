@@ -46,7 +46,8 @@ public final class IrisCompat {
 
     public static boolean shadersActive() { return INSTALLED && query(enabled, true); }
     public static boolean shadowPass() { return INSTALLED && query(shadow, false); }
-    public static boolean reverseDepth() { return query(reverse, false); }
+    public static boolean reverseDepth() { return !shadersActive() || query(reverse, false); }
+    public static boolean canComposite() { return api != null && !shadowPass(); }
     public static boolean compositing() { return compositing; }
     public static Matrix4f projection(Matrix4f out) { return out.set(PROJECTION); }
     public static Matrix4f view(Matrix4f out) { return out.set(VIEW); }

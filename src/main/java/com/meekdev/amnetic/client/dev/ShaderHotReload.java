@@ -40,11 +40,13 @@ public final class ShaderHotReload {
     private ShaderHotReload() {}
 
     public static synchronized void watchMod(String modId) {
+        if (!Boolean.getBoolean("amnetic.shaderHotReload") && !Boolean.getBoolean("tpp.shaderHotReload")) return;
         if (!Platform.isDevelopmentEnvironment()) return;
         watchRoots(modId, Platform.developmentResourceRoots());
     }
 
     public static synchronized void watchAllDevMods() {
+        if (!Boolean.getBoolean("amnetic.shaderHotReload") && !Boolean.getBoolean("tpp.shaderHotReload")) return;
         if (!Platform.isDevelopmentEnvironment()) return;
         watchRoots("development classpath", Platform.developmentResourceRoots());
     }
@@ -56,18 +58,29 @@ public final class ShaderHotReload {
                 Path src = sourceRootFor(root);
                 if (src != null && !ROOTS.containsKey(src)) {
                     ROOTS.put(src, root);
-                    registerTreeWatch(src);
+                    registerShaderWatches(src);
                     LOG.info("watching {} shader sources: {}", label, src);
                 }
                 Path runtime = root.toAbsolutePath().normalize();
                 if (src != null && !ROOTS.containsKey(runtime)) {
                     ROOTS.put(runtime, root);
-                    registerTreeWatch(runtime);
+                    registerShaderWatches(runtime);
                     LOG.info("watching {} runtime resources: {}", label, runtime);
                 }
             }
         } catch (Exception e) {
             LOG.warn("shader hot reload unavailable for {}: {}", label, e.toString());
+        }
+    }
+
+    private static void registerShaderWatches(Path root) throws IOException {
+        Path assets = root.resolve("assets");
+        if (!Files.isDirectory(assets)) return;
+        try (var namespaces = Files.list(assets)) {
+            for (Path namespace : namespaces.filter(Files::isDirectory).toList()) {
+                Path shaders = namespace.resolve("shaders");
+                if (Files.isDirectory(shaders)) registerTreeWatch(shaders);
+            }
         }
     }
 
@@ -79,8 +92,11 @@ public final class ShaderHotReload {
         Path p = buildResources.toAbsolutePath().normalize();
         if (!p.endsWith(Path.of("build", "resources", "main"))) return null;
         Path project = p.getParent().getParent().getParent();
-        Path src = project.resolve(Path.of("src", "main", "resources"));
-        return Files.isDirectory(src) ? src : null;
+        for (Path ancestor = project; ancestor != null; ancestor = ancestor.getParent()) {
+            Path src = ancestor.resolve(Path.of("src", "main", "resources"));
+            if (Files.isDirectory(src)) return src;
+        }
+        return null;
     }
 
     private static void registerTreeWatch(Path srcRoot) throws IOException {
@@ -119,7 +135,7 @@ public final class ShaderHotReload {
                         DIRTY.add(file);
                     }
                 }
-                if (!key.reset()) LOG.warn("watched directory gone: {}", dir);
+                key.reset();
             } catch (InterruptedException e) {
                 return;
             } catch (Exception e) {
@@ -129,6 +145,7 @@ public final class ShaderHotReload {
     }
 
     public static void tick() {
+        if (!Boolean.getBoolean("amnetic.shaderHotReload") && !Boolean.getBoolean("tpp.shaderHotReload")) return;
         tick++;
         Path p;
         while ((p = DIRTY.poll()) != null) PENDING.put(p, tick);
@@ -163,6 +180,7 @@ public final class ShaderHotReload {
             try {
                 Path rel = srcRoot.relativize(srcFile);
                 Path dst = e.getValue().resolve(rel.toString());
+                if (srcFile.toAbsolutePath().normalize().equals(dst.toAbsolutePath().normalize())) return dst;
                 Files.createDirectories(dst.getParent());
                 Files.copy(srcFile, dst, StandardCopyOption.REPLACE_EXISTING);
                 return dst;

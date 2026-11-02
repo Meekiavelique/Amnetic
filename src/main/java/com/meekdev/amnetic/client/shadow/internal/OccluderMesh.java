@@ -165,6 +165,10 @@ public final class OccluderMesh implements AutoCloseable {
         return full.contains(BlockPos.asLong(x, y, z)) || outside != null && outside.full(x, y, z);
     }
 
+    static void emitBox(FloatBuffer b, float x1, float y1, float z1, float x2, float y2, float z2) {
+        emitBox(b, x1, y1, z1, x2, y2, z2, ALL_FACES);
+    }
+
     private static void emitBox(FloatBuffer b,
                                 float x1, float y1, float z1, float x2, float y2, float z2, int open) {
         if ((open & 1) != 0) quad(b, x1,y1,z1, x1,y1,z2, x1,y2,z2, x1,y2,z1); // -X
