@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version "2.0.147"
+    id 'net.neoforged.moddev'
     id 'idea'
 }
 
@@ -44,7 +44,7 @@ repositories {
 sourceSets {
     main {
         java {
-            srcDir rootProject.file("src/main/java")
+            srcDir rootProject.file("versions/26.1.2-fabric/build/generated/stonecutter/main/java")
         }
         resources {
             srcDir rootProject.file("src/main/resources")
@@ -99,6 +99,7 @@ configurations {
 }
 
 dependencies {
+    testImplementation "org.lwjgl:lwjgl-glfw:3.4.1"
     implementation "org.sinytra.forgified-fabric-api:forgified-fabric-api:0.155.2+26.1.2+3.5.5"
 
     implementation "de.javagl:jgltf-model:2.0.4"
@@ -190,3 +191,19 @@ processResources {
         filter { line -> line.trim().replaceAll(',$', '') == '"accessor.LightTextureAccessor"' ? '' : line }
     }
 }
+
+def excludedRendererClasses = ["mixin/FirstPersonItemMixin","mixin/RenderPearlGameRendererMixin","mixin/accessor/GameRendererAccessor","client/framebuffer/internal/NativeFramebuffer","client/grade/internal/NativeColorGrade","client/ui/NativeEditorBackend","client/ssao/internal/NativeSsaoPass", "client/shadow/internal/NativeLocalShadows","client/light/internal/NativeDeferredLighting","client/gbuffer/internal/NativeNormalFill","client/render/NativeScreenProgram","client/render/NativePassDescriptors","client/render/NativeShaderSource262","client/instanced/internal/NativeInstanceRenderer","client/post/internal/NativePostPipeline","client/decal/internal/NativeDecalRenderer","client/light/internal/TiledLighting","client/light/internal/ScatteringLights","mixin/NativeTextureUnitsMixin","mixin/NativeCommandBatchMixin","mixin/NativeLevelStagesMixin","mixin/NativeMaterialBindMixin","mixin/NativeMaterialDisposeMixin","mixin/NativeMaterialPassMixin","mixin/NativeMaterialPipelinesMixin","client/gbuffer/internal/NativeWorldMaterials","client/pipeline/internal/NativeLayers","NeoForgeClientEvents","ForgeClientEvents","mixin/accessor/LightTextureAccessor","client/gbuffer/internal/TerrainNormalFill","client/gbuffer/internal/BlockPbrAtlas"]
+tasks.withType(JavaCompile).configureEach {
+    excludedRendererClasses.each { exclude("com/meekdev/amnetic/${it}.java") }
+}
+processResources {
+    filesMatching('amnetic.mixins.json') {
+        filter { line -> excludedRendererClasses.any { line.trim().replaceAll(',$', '') == '"' + it.replaceFirst('^mixin/', '').replace('/', '.') + '"' } ? '' : line }
+    }
+}
+
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
+tasks.withType(Test).configureEach { failOnNoDiscoveredTests = false }
+
+tasks.named('sourcesJar') { dependsOn(':26.1.2-fabric:stonecutterGenerate') }

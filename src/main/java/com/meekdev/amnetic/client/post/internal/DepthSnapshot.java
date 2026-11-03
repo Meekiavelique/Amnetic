@@ -15,7 +15,11 @@ final class DepthSnapshot {
     }
 
     void capture(RenderTarget source) {
-        if (VanillaCompat.depthTextureGlId(source) == 0) return;
+        //? if >=26.2 {
+        if (source == null || source.getDepthTexture() == null) return;
+        //?} else {
+        /*if (VanillaCompat.depthTextureGlId(source) == 0) return;
+        *///?}
 
         if (snapshot == null) {
             snapshot = VanillaCompat.textureTarget(name, source.width, source.height, true);
@@ -23,7 +27,9 @@ final class DepthSnapshot {
             VanillaCompat.resize(snapshot, source.width, source.height);
         }
 
-        if (VanillaCompat.depthTextureGlId(snapshot) == 0) return;
+        //? if <26.2 {
+        /*if (VanillaCompat.depthTextureGlId(snapshot) == 0) return;
+        *///?}
 
         snapshot.copyDepthFrom(source);
         pendingRestore = true;
@@ -34,7 +40,11 @@ final class DepthSnapshot {
         pendingRestore = false;
 
         if (snapshot == null) return false;
-        if (VanillaCompat.depthTextureGlId(snapshot) == 0 || VanillaCompat.depthTextureGlId(target) == 0) return false;
+        //? if >=26.2 {
+        if (snapshot.getDepthTexture() == null || target.getDepthTexture() == null) return false;
+        //?} else {
+        /*if (VanillaCompat.depthTextureGlId(snapshot) == 0 || VanillaCompat.depthTextureGlId(target) == 0) return false;
+        *///?}
         if (snapshot.width != target.width || snapshot.height != target.height) return false;
 
         target.copyDepthFrom(snapshot);

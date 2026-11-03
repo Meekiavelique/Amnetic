@@ -8,7 +8,7 @@ import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.model.internal.OffscreenModelRenderer;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
 import org.joml.Matrix4f;
@@ -133,7 +133,7 @@ public final class ModelView {
         GlState.textureBarrier();
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
-        GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
+        GlStateManager._disableBlend(0); GL11.glDisable(GL11.GL_BLEND);
         GL11.glColorMask(false, false, false, true);
         alphaResolve.begin();
         alphaResolve.setSampler("DepthSampler", 0);

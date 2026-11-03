@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.light;
 
 import net.minecraft.resources.Identifier;
+import java.util.Locale;
 
 public final class LightSettings {
     private static final LightSettings INSTANCE = new LightSettings();
@@ -23,6 +24,7 @@ public final class LightSettings {
     private boolean volumetricTemporal = true;
 
     private boolean contactShadows = false;
+    private float sceneAmbient = 1f;
     private int contactSteps = 12;
     private float contactDistance = 0.5f; // march length, blocks
     private float contactThickness = 0.5f; // occluder thickness tolerance
@@ -32,7 +34,7 @@ public final class LightSettings {
     private LightSettings() {}
 
     private static float initialSurfaceScale() {
-        return switch (System.getProperty("amnetic.lightingQuality", "balanced").toLowerCase(java.util.Locale.ROOT)) {
+        return switch (System.getProperty("amnetic.lightingQuality", "balanced").toLowerCase(Locale.ROOT)) {
             case "high" -> 1f;
             case "performance" -> 0.5f;
             default -> 0.75f;
@@ -109,6 +111,11 @@ public final class LightSettings {
 
     public LightSettings contactShadows(boolean on) {
         this.contactShadows = on;
+        return this;
+    }
+
+    public LightSettings sceneAmbient(float ambient) {
+        this.sceneAmbient = Math.max(0f, Math.min(1f, ambient));
         return this;
     }
 
@@ -191,6 +198,10 @@ public final class LightSettings {
 
     public boolean contactShadows() {
         return contactShadows;
+    }
+
+    public float sceneAmbient() {
+        return sceneAmbient;
     }
 
     public int contactSteps() {

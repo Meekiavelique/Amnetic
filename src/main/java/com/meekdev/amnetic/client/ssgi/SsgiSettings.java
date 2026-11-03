@@ -16,8 +16,6 @@ public final class SsgiSettings {
 
     public SsgiSettings historyBlend(float v) { this.historyBlend = Math.max(0f, Math.min(0.98f, v)); return this; }
 
-    /** caps how many frames the temporal ramp-up takes to reach historyBlend() after a
-     *  disocclusion/reset, so the first frames after a cut don't look under-converged forever */
     public SsgiSettings maxHistoryFrames(int v) { this.maxHistoryFrames = Math.max(1, v); return this; }
 
     public float radius() { return radius; }

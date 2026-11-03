@@ -2,7 +2,7 @@ package com.meekdev.amnetic.client.ibl.internal;
 
 import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.nio.ByteBuffer;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;

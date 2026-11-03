@@ -1,8 +1,11 @@
 package com.meekdev.amnetic.client.material.internal;
 
 import com.meekdev.amnetic.client.render.TexelBuffer;
-import java.nio.FloatBuffer;
 import org.lwjgl.BufferUtils;
+import java.nio.FloatBuffer;
+//? if >=26.2 {
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+//?}
 
 public final class MaterialParams {
 
@@ -56,6 +59,14 @@ public final class MaterialParams {
             texels.upload(scratch);
             dirty = false;
         }
-        texels.bind(UNIT);
+        //? if <26.2 {
+        /*texels.bind(UNIT);
+        *///?}
     }
+    //? if >=26.2 {
+    public synchronized GpuBufferSlice nativeSlice() {
+        bind();
+        return texels.nativeSlice();
+    }
+    //?}
 }

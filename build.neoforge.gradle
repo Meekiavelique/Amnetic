@@ -1,0 +1,102 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev'
+}
+stonecutter { properties.tags(current.project.substring(0, current.project.lastIndexOf('-'))) }
+version = "${findProperty('mod_version') ?: property('mod.version')}+${sc.current.version}-neoforge"
+group = property('mod.group')
+base.archivesName = 'amnetic-neoforge'
+def requiredJava = sc.current.parsed >= '26.1' ? 25 : 21
+java { toolchain.languageVersion = JavaLanguageVersion.of(requiredJava); withSourcesJar() }
+repositories { mavenCentral() }
+sourceSets.main.resources.srcDir rootProject.file('loader-resources/neoforge')
+neoForge {
+    version = property('deps.neoforge')
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('run')
+            systemProperty 'max.bg.threads', findProperty('client_worker_count') ?: '4'
+            if (findProperty('graphics_backend')) programArguments.addAll '--graphicsBackend', findProperty('graphics_backend')
+        }
+    }
+    mods { amnetic { sourceSet sourceSets.main } }
+}
+configurations { assimpNatives { transitive = false } }
+def lwjglVersion = property('deps.lwjgl')
+dependencies {
+    testImplementation "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
+    ['de.javagl:jgltf-model:2.0.4', 'de.javagl:jgltf-impl-v2:2.0.4',
+     'com.fasterxml.jackson.core:jackson-databind:2.13.4.2', 'com.fasterxml.jackson.core:jackson-core:2.13.4',
+     'com.fasterxml.jackson.core:jackson-annotations:2.13.4', 'io.github.spair:imgui-java-binding:1.92.0',
+     "org.lwjgl:lwjgl-assimp:${lwjglVersion}", "org.lwjgl:lwjgl-tinyfd:${lwjglVersion}"].each { dep ->
+        implementation dep
+        if (sc.current.parsed < '26.2' && dep.contains('lwjgl-tinyfd')) return
+        jarJar(dep) { version { strictly "[${dep.tokenize(':').last()}]" } }
+    }
+    implementation files(rootProject.file('libs/bb4j.jar'))
+    ['natives-windows', 'natives-linux', 'natives-macos', 'natives-macos-arm64'].each { platform ->
+        ['assimp', 'tinyfd'].each { module ->
+            runtimeOnly "org.lwjgl:lwjgl-${module}:${lwjglVersion}:${platform}"
+            assimpNatives "org.lwjgl:lwjgl-${module}:${lwjglVersion}:${platform}"
+        }
+    }
+    ['windows', 'linux', 'macos'].each { platform ->
+        runtimeOnly "io.github.spair:imgui-java-natives-${platform}:1.92.0"
+        jarJar("io.github.spair:imgui-java-natives-${platform}:1.92.0") { version { strictly '[1.92.0]' } }
+    }
+}
+def absentClasses = ['ForgeClientEvents', 'client/AmneticDataGenerator']
+if (sc.current.parsed >= '26.2') absentClasses.add('mixin/WindowGlContextMixin')
+if (sc.current.parsed < '26.2') {
+    absentClasses.addAll(['client/ui/AmneticEditor', 'client/ui/TexturePreview', 'client/ui/inspector/GBufferInspector',
+        'mixin/accessor/GameRendererAccessor', 'mixin/FirstPersonItemMixin', 'mixin/RenderPearlGameRendererMixin',
+        'client/framebuffer/internal/NativeFramebuffer', 'client/grade/internal/NativeColorGrade', 'client/ui/NativeEditorBackend',
+        'client/shadow/internal/NativeLocalShadows', 'client/light/internal/NativeDeferredLighting', 'client/gbuffer/internal/NativeNormalFill',
+        'client/render/NativeScreenProgram', 'client/render/NativePassDescriptors', 'client/render/NativeShaderSource262',
+        'client/instanced/internal/NativeInstanceRenderer', 'client/ssao/internal/NativeSsaoPass', 'client/post/internal/NativePostPipeline',
+        'client/decal/internal/NativeDecalRenderer', 'client/light/internal/TiledLighting', 'client/light/internal/ScatteringLights'])
+} else {
+    absentClasses.addAll(['mixin/IrisPipelineMixin', 'mixin/GameRendererMixin', 'mixin/GlCommandEncoderMixin', 'mixin/ItemInHandRendererMixin'])
+    if (sc.current.parsed < '26.3') absentClasses.add('mixin/FirstPersonItemMixin')
+    if (sc.current.parsed >= '26.3') absentClasses.addAll(['client/render/NativePassDescriptors', 'client/render/NativeShaderSource262'])
+}
+
+if (sc.current.parsed < '1.21.2') absentClasses.addAll(['mixin/EntityRenderStateMixin', 'mixin/EntityRendererMixin', 'mixin/WeatherEffectRendererMixin'])
+if (sc.current.parsed < '1.21.5') absentClasses.addAll(['mixin/GlCommandEncoderMixin', 'client/render/MeshPipeline',
+        'client/entityfx/internal/EntityEffectPipeline', 'client/framebuffer/internal/WrappedGlTexture', 'mixin/accessor/RenderTypeInvoker'])
+if (sc.current.parsed >= '1.21.5') absentClasses.addAll(['mixin/accessor/LightTextureAccessor', 'mixin/BufferUploaderMixin'])
+if (sc.current.parsed < '1.21' || sc.current.parsed >= '1.21.5') absentClasses.add('client/gbuffer/internal/TerrainNormalFill')
+if (sc.current.parsed < '1.21' || sc.current.parsed >= '1.21.5') absentClasses.add('client/gbuffer/internal/BlockPbrAtlas')
+if (sc.current.parsed < '26.3') absentClasses.addAll(["mixin/NativeTextureUnitsMixin", "mixin/NativeCommandBatchMixin","mixin/NativeLevelStagesMixin","mixin/NativeMaterialBindMixin","mixin/NativeMaterialDisposeMixin","mixin/NativeMaterialPassMixin","mixin/NativeMaterialPipelinesMixin","client/gbuffer/internal/NativeWorldMaterials","client/pipeline/internal/NativeLayers"])
+tasks.withType(JavaCompile).configureEach {
+    absentClasses.each { path -> exclude("com/meekdev/amnetic/${path}.java") }
+    options.encoding = 'UTF-8'
+    options.release = requiredJava
+}
+processResources {
+    exclude 'fabric.mod.json', 'META-INF/mods.toml'
+    inputs.property 'version', project.version
+    inputs.property 'absentClasses', absentClasses
+    inputs.property 'minecraftVersion', sc.current.version
+    inputs.property 'neoforgeVersion', project.property('deps.neoforge')
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand version: project.version, minecraft_version: sc.current.version, neoforge_version: project.property('deps.neoforge')
+    }
+    filesMatching('amnetic.mixins.json') {
+        expand java: 'JAVA_21'
+        filter { line -> absentClasses.any { line.trim().replaceAll(',$','') == "\"${it.replaceFirst('^mixin/','').replace('/','.')}\"" } ? '' : line }
+    }
+}
+jar {
+    from(zipTree(rootProject.file('libs/bb4j.jar'))) { exclude 'META-INF/**', 'org/lwjgl/**' }
+    from({ configurations.assimpNatives.collect { zipTree(it) } }) { exclude 'META-INF/**' }
+    from(rootProject.file('LICENSE.txt')) { rename { "${it}_amnetic" } }
+}
+
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
+tasks.withType(Test).configureEach { failOnNoDiscoveredTests = false }
+
+apply from: rootProject.file("gradle/client-runtime.gradle")

@@ -13,7 +13,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 //?}
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 
 public final class SurfaceScreen extends Screen {
 
@@ -120,9 +120,9 @@ public final class SurfaceScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        if (event.key() != GLFW.GLFW_KEY_ESCAPE) {
+        if (event.key() != KeyInput.KEY_ESCAPE) {
             if (owner.internalInput().keyPressed(event.key(), event.modifiers())) return true;
-            if (owner.internalInput().focused() != null && event.key() != GLFW.GLFW_KEY_TAB) return true;
+            if (owner.internalInput().focused() != null && event.key() != KeyInput.KEY_TAB) return true;
         }
         return super.keyPressed(event);
     }
@@ -135,9 +135,9 @@ public final class SurfaceScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scancode, int modifiers) {
-        if (key != GLFW.GLFW_KEY_ESCAPE) {
+        if (key != KeyInput.KEY_ESCAPE) {
             if (owner.internalInput().keyPressed(key, modifiers)) return true;
-            if (owner.internalInput().focused() != null && key != GLFW.GLFW_KEY_TAB) return true;
+            if (owner.internalInput().focused() != null && key != KeyInput.KEY_TAB) return true;
         }
         return super.keyPressed(key, scancode, modifiers);
     }

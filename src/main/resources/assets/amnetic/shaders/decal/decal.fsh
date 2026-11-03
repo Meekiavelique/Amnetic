@@ -12,8 +12,12 @@ uniform float Opacity;
 uniform float AngleFade;
 uniform vec3 DecalAxis;
 uniform vec3 Tint;
-uniform int Multiply; // 1 = multiply onto the surface (blend dst_color, zero), keeps its lighting
-uniform int FlipV; // 1 = image top row at the top of the box
+uniform int Multiply;
+uniform int FlipV;
+uniform int TppLitWater;
+uniform int TppWorldLit;
+uniform sampler2D TppLightmap;
+uniform vec2 TppLightUV;
 
 #include "amnetic:shaders/common/screen.glsl"
 
@@ -62,5 +66,7 @@ void main() {
         FragColor = vec4(mix(vec3(1.0), col, a), 1.0);
         return;
     }
+    if(TppLitWater==1 || TppWorldLit==1)col*=texture(TppLightmap,TppLightUV).rgb
+            * clamp((max(TppLightUV.x,TppLightUV.y)*16.0-.5),0.0,1.0);
     FragColor = vec4(col, a);
 }

@@ -8,8 +8,14 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.taa.TaaSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
+//? if >=26.2 {
+import com.mojang.renderpearl.api.commands.RenderPassDescriptor;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import net.minecraft.client.Minecraft;
+//? } else {
+//?}
 
 public final class CasPass extends ScreenPass {
 
@@ -20,12 +26,25 @@ public final class CasPass extends ScreenPass {
 
     private Framebuffer capture;
     private TaaSettings settings;
+    //? if >=26.2 {
+    private com.meekdev.amnetic.client.render.NativeScreenProgram nativeProgram;
+    //? }
 
     private CasPass() { super("CAS"); }
 
     public void render(TaaSettings s) {
         this.settings = s;
-        dispatch();
+        //? if >=26.2 {
+        dispatchNative(() -> {
+            if(capture==null)capture=Framebuffers.captureColor();capture.blitColorFromMain();
+            if(nativeProgram==null)nativeProgram=new com.meekdev.amnetic.client.render.NativeScreenProgram(FSH,ColorTargetState.DEFAULT);
+            nativeProgram.setTexture("ColorSampler",capture.colorTextureView(0));nativeProgram.setFloat("Sharpness",settings.sharpness());
+            nativeProgram.draw(RenderPassDescriptor.builder(()->"Amnetic CAS")
+                    .withColorAttachment(Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTextureView()).build());
+        });
+        //? } else {
+        /*dispatch();
+        *///? }
     }
 
     @Override
@@ -45,7 +64,7 @@ public final class CasPass extends ScreenPass {
 
         int prevFbo = MainTargetFramebuffer.bind();
         try {
-            GlStateManager._disableBlend();
+            GlStateManager._disableBlend(0);
             GlState.bindTexture(0, capture.colorTextureGlId(0));
             program.begin();
             program.setSampler("ColorSampler", 0);
@@ -59,6 +78,9 @@ public final class CasPass extends ScreenPass {
 
     @Override
     protected void onDispose() {
+        //? if >=26.2 {
+        if(nativeProgram!=null){nativeProgram.close();nativeProgram=null;}
+        //? }
         if (capture != null) { capture.dispose(); capture = null; }
     }
 }

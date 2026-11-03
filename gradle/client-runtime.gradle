@@ -1,0 +1,5 @@
+if (project.name.startsWith('26.2-') || project.name.startsWith('26.3-')) {
+    tasks.withType(JavaExec).matching { it.name == 'runClient' }.configureEach {
+        systemProperty 'max.bg.threads', providers.gradleProperty('client_worker_count').getOrElse('4')
+    }
+}

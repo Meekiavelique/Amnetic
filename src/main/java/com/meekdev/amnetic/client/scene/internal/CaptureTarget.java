@@ -14,7 +14,7 @@ public final class CaptureTarget {
     private CaptureColorTexture registered;
 
     public RenderTarget ensure(float scale) {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         int w = Math.max(1, Math.round(main.width * scale));
         int h = Math.max(1, Math.round(main.height * scale));
         if (target == null) {

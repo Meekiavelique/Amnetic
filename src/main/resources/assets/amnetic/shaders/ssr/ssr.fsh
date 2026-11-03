@@ -81,6 +81,7 @@ void main() {
 
     vec2 hitUV = vec2(-1.0);
     float hit = 0.0;
+    vec3 hitPoint = vec3(0.0);
 
     for (int i = 0; i < MaxSteps; i++) {
         prev = cur;
@@ -98,11 +99,11 @@ void main() {
         if (IS_SKY(sd)) continue;
 
         float dRay = linZ(cur);
-        float dScene = sceneZ(suv);
-        if (dRay > dScene) { // ray crossed behind a surface in linear depth
-            vec3 a = prev; // last point in front
-            vec3 b = cur; // first point behind
-            for (int r = 0; r < 8; r++) { // binary refine the crossing
+        float dScene = linZ(reconstruct(suv, sd));
+        if (dRay > dScene) {
+            vec3 a = prev;
+            vec3 b = cur;
+            for (int r = 0; r < 8; r++) {
                 vec3 mid = (a + b) * 0.5;
                 vec4 mc = ViewProj * vec4(mid, 1.0);
                 vec2 muv = (mc.xy / mc.w) * 0.5 + 0.5;
@@ -110,8 +111,9 @@ void main() {
             }
             vec4 hc = ViewProj * vec4(b, 1.0);
             hitUV = (hc.xy / hc.w) * 0.5 + 0.5;
-            float gap = linZ(b) - sceneZ(hitUV);
-            if (gap < Thickness) hit = 1.0; // reject overshoot into empty space behind thin geo
+            hitPoint = reconstruct(hitUV, texture(DepthSampler, hitUV).r);
+            float gap = linZ(b) - linZ(hitPoint);
+            if (gap < Thickness) hit = 1.0;
             break;
         }
     }
@@ -125,7 +127,7 @@ void main() {
         vec2 e = smoothstep(vec2(0.0), vec2(EdgeFade), hitUV)
                * (1.0 - smoothstep(vec2(1.0) - vec2(EdgeFade), vec2(1.0), hitUV));
         float edge = e.x * e.y;
-        float distFade = 1.0 - clamp(length(reconstruct(hitUV, texture(DepthSampler, hitUV).r) - P) / MaxDistance, 0.0, 1.0);
+        float distFade = 1.0 - clamp(length(hitPoint - P) / MaxDistance, 0.0, 1.0);
         hitColor = mix(sky, ssrColor, edge * distFade);
     } else {
         hitColor = sky;

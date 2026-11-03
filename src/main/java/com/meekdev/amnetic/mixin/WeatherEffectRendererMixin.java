@@ -18,9 +18,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class WeatherEffectRendererMixin {
 
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
-    //? if >=26.1 {
-    private void amnetic$skipWeatherInCapture(Vec3 cameraPos, WeatherRenderState state, CallbackInfo ci) {
-    //?} else {
+    //? if >=26.2 {
+    private void amnetic$skipWeatherInCapture(CallbackInfo ci) {
+    //?} else if >=26.1 {
+    /*private void amnetic$skipWeatherInCapture(Vec3 cameraPos, WeatherRenderState state, CallbackInfo ci) {
+    *///?} else {
     /*private void amnetic$skipWeatherInCapture(MultiBufferSource buffers, Vec3 cameraPos, WeatherRenderState state, CallbackInfo ci) {
     *///?}
         if (CaptureManager.INSTANCE.isCapturing()) ci.cancel();

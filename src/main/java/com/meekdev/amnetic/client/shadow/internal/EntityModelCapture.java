@@ -16,8 +16,14 @@ import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 /*import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 *///?}
+//? if >=26.2 {
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.player.PlayerModel;
+//?}
 
 public final class EntityModelCapture {
+    private static final int FULL_BRIGHT = 15728880;
+    private static final double MODEL_Y_OFFSET = -1.501;
 
     private EntityModelCapture() {}
 
@@ -49,10 +55,14 @@ public final class EntityModelCapture {
             Vec3 p = entity.getPosition(partialTick);
             PoseStack pose = new PoseStack();
             pose.translate(p.x - anchorX, p.y - anchorY, p.z - anchorZ);
-            pose.mulPose(Axis.YP.rotationDegrees(180.0f - bodyRot));
+            //? if >=26.3 {
+            pose.rotate(Axis.YP.rotationDegrees(180.0f - bodyRot));
+            //?} else {
+            /*pose.mulPose(Axis.YP.rotationDegrees(180.0f - bodyRot));
+            *///?}
             float s = scale <= 0f ? 1f : scale;
             pose.scale(-s, -s, s);
-            pose.translate(0.0, -1.501, 0.0);
+            pose.translate(0.0, MODEL_Y_OFFSET, 0.0);
 
             //? if >=1.21.2 {
             model.setupAnim(lrs);
@@ -69,16 +79,39 @@ public final class EntityModelCapture {
             model.setupAnim(living, limbPos, limbSpeed, living.tickCount + partialTick,
                     Mth.wrapDegrees(headRot - bodyRot), pitch);
             *///?}
+            //? if >=1.21 {
             //? if >=26.2 {
-            /*model.renderToBuffer(pose, consumer, 15728880, OverlayTexture.NO_OVERLAY, -1);
-            *///?} else if >=1.21 {
-            model.renderToBuffer(pose, consumer, 15728880, OverlayTexture.NO_OVERLAY);
+            renderOpaqueSkin(model, pose, consumer);
             //?} else {
-            /*model.renderToBuffer(pose, consumer, 15728880, OverlayTexture.NO_OVERLAY, 1f, 1f, 1f, 1f);
+            /*model.renderToBuffer(pose, consumer, FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+            *///?}
+            //?} else {
+            /*model.renderToBuffer(pose, consumer, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 1f, 1f, 1f, 1f);
             *///?}
             return true;
         } catch (Throwable t) {
             return false;
         }
     }
+
+    //? if >=26.2 {
+    private static void renderOpaqueSkin(EntityModel<?> model, PoseStack pose, CaptureConsumer vertices) {
+        if (!(model instanceof PlayerModel player)) {
+            model.renderToBuffer(pose, vertices, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, -1);
+            return;
+        }
+        var layers = new ModelPart[]{player.hat, player.jacket, player.leftSleeve,
+                player.rightSleeve, player.leftPants, player.rightPants};
+        var saved = new boolean[layers.length];
+        try {
+            for (int i = 0; i < layers.length; i++) {
+                saved[i] = layers[i].skipDraw;
+                layers[i].skipDraw = true;
+            }
+            model.renderToBuffer(pose, vertices, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, -1);
+        } finally {
+            for (int i = 0; i < layers.length; i++) layers[i].skipDraw = saved[i];
+        }
+    }
+    //?}
 }

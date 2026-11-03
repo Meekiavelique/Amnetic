@@ -17,6 +17,7 @@ mod.mc_compat = "1.21.1"
 deps.fabric_api = "0.116.17+1.21.1"
 deps.lwjgl = "3.3.3"
 deps.forge = "52.1.16"
+deps.neoforge = "21.1.265"
 
 ["1.21.11"]
 mod.mc_compat = "1.21.11"
@@ -32,7 +33,15 @@ deps.lwjgl = "3.4.1"
 deps.forge = "64.1.3"
 
 ["26.2"]
-mod.mc_compat = "~26.2"
+mod.mc_compat = "26.2"
 deps.fabric_api = "0.161.0+26.2"
 deps.lwjgl = "3.4.1"
-loomx.loom_version = "1.18-SNAPSHOT"
+deps.forge = "65.1.5"
+deps.neoforge = "26.2.0.93"
+
+["26.3"]
+mod.mc_compat = "26.3"
+deps.fabric_api = "0.161.0+26.3"
+deps.lwjgl = "3.4.3"
+deps.forge = "66.0.9"
+deps.neoforge = "26.3.0.48-beta"

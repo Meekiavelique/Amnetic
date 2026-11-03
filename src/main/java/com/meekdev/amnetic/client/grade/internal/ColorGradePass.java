@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.grade.internal;
 
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
@@ -10,10 +11,10 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ImportedTextures;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import java.util.HashSet;
-import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class ColorGradePass extends ScreenPass {
 
@@ -25,12 +26,22 @@ public final class ColorGradePass extends ScreenPass {
     private Framebuffer capture;
     private final Set<Identifier> loadedLuts = new HashSet<>();
     private ColorGradeSettings settings;
+    //? if >=26.2 {
+    private NativeColorGrade nativePass;
+    //?}
 
     private ColorGradePass() { super("ColorGrade"); }
 
     public void render(ColorGradeSettings s) {
         this.settings = s;
-        dispatch();
+        //? if >=26.2 {
+        if (!s.isEnabled() || s.isIdentity() || CameraSnapshot.current() == null) return;
+        if (IrisCompat.shadersActive()) return;
+        if (nativePass == null) nativePass = new NativeColorGrade();
+        nativePass.render(s);
+        //?} else {
+        /*dispatch();
+        *///?}
     }
 
     @Override protected boolean enabled() { return settings != null && settings.isEnabled(); }
@@ -75,6 +86,9 @@ public final class ColorGradePass extends ScreenPass {
 
     @Override
     protected void onDispose() {
+        //? if >=26.2 {
+        if (nativePass != null) { nativePass.close(); nativePass = null; }
+        //?}
         if (capture != null) { capture.dispose(); capture = null; }
     }
 

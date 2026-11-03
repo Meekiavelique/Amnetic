@@ -1,23 +1,23 @@
 package com.meekdev.amnetic.client.entityfx.internal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.particle.SceneDepth;
-import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
 //? if >=26.1 {
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.platform.CompareOp;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
 //?} else {
 /*import com.mojang.blaze3d.platform.DepthTestFunction;
 *///?}
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
 //? if >=26.2 {
-/*import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import net.minecraft.client.renderer.BindGroupLayouts;
-*///?}
-import com.mojang.blaze3d.shaders.UniformType;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+//?}
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import java.util.Map;
 import com.meekdev.amnetic.mixin.accessor.RenderTypeInvoker;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
@@ -32,44 +32,45 @@ public final class EntityEffectPipeline {
                                    Identifier uniformTexId, Identifier skinId,
                                    boolean needsSceneColor, boolean needsDepth,
                                    Map<String, Identifier> extraSamplers) {
-        //? if >=26.2 {
-        /*BindGroupLayout.Builder samplers = BindGroupLayout.builder().withSampler("UniformSampler");
-        if (needsSceneColor) samplers.withSampler("SceneColorSampler");
-        if (skinId != null) samplers.withSampler("Sampler0");
-        if (needsDepth) samplers.withSampler("DepthSampler");
-        for (String name : extraSamplers.keySet()) samplers.withSampler(name);
-        RenderPipeline pipeline = RenderPipeline.builder()
-                .withLocation(Identifier.fromNamespaceAndPath(fsh.getNamespace(), "entityfx_pipeline/" + fsh.getPath()))
-                .withVertexShader(vsh)
-                .withFragmentShader(fsh)
-                .withBindGroupLayout(samplers.build())
-                .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
-                .withBindGroupLayout(BindGroupLayouts.GLOBALS)
-                .withVertexBinding(0, DefaultVertexFormat.ENTITY)
-                .withPrimitiveTopology(PrimitiveTopology.QUADS)
-                .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-                // 26.2 renders with reversed depth
-                .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
-        *///?} else {
         RenderPipeline.Builder builder = RenderPipeline.builder()
                 .withLocation(Identifier.fromNamespaceAndPath(fsh.getNamespace(), "entityfx_pipeline/" + fsh.getPath()))
                 .withVertexShader(vsh)
                 .withFragmentShader(fsh)
-                .withSampler("UniformSampler");
+                //? if >=26.2 {
+                ;
+        var bindings = BindGroupLayout.builder()
+                .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+                .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+                .withUniform("Globals", UniformType.UNIFORM_BUFFER)
+                .withUniform("UniformSampler", UniformType.COMBINED_IMAGE_SAMPLER);
+        if (needsSceneColor) bindings.withUniform("SceneColorSampler", UniformType.COMBINED_IMAGE_SAMPLER);
+        if (skinId != null) bindings.withUniform("Sampler0", UniformType.COMBINED_IMAGE_SAMPLER);
+        if (needsDepth) bindings.withUniform("DepthSampler", UniformType.COMBINED_IMAGE_SAMPLER);
+        for (String name : extraSamplers.keySet()) bindings.withUniform(name, UniformType.COMBINED_IMAGE_SAMPLER);
+        builder.withBindGroupLayout(bindings.build());
+                //?} else {
+                /*.withSampler("UniformSampler");
         if (needsSceneColor) builder.withSampler("SceneColorSampler");
         if (skinId != null) builder.withSampler("Sampler0");
         if (needsDepth) builder.withSampler("DepthSampler");
         for (String name : extraSamplers.keySet()) builder.withSampler(name);
+        *///?}
         RenderPipeline pipeline = builder
-                .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+                //? if >=26.2 {
+                .withVertexBinding(0, DefaultVertexFormat.ENTITY)
+                .withPrimitiveTopology(PrimitiveTopology.QUADS)
+                //?} else {
+                /*.withUniform("Projection", UniformType.UNIFORM_BUFFER)
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
                 .withUniform("Globals", UniformType.UNIFORM_BUFFER)
-        //?}
-                //? if >=26.1 <26.2 {
+                //? if >=26.1 {
                 .withVertexFormat(DefaultVertexFormat.ENTITY, VertexFormat.Mode.QUADS)
+                //?}
+                *///?}
+                //? if >=26.1 {
                 .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-                .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
-                //?} else if <26.1 {
+                .withDepthStencilState(new DepthStencilState(VanillaCompat.reversedDepth() ? CompareOp.GREATER_THAN_OR_EQUAL : CompareOp.LESS_THAN_OR_EQUAL, true))
+                //?} else {
                 /*.withVertexFormat(DefaultVertexFormat.NEW_ENTITY, VertexFormat.Mode.QUADS)
                 .withBlend(BlendFunction.TRANSLUCENT)
                 .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)

@@ -39,11 +39,7 @@ public final class SpawnTarget {
         if (hit != null && hit.getType() == HitResult.Type.BLOCK) {
             return hit.getLocation();
         }
-        //? if >=26.2 {
-        /*Camera cam = mc.gameRenderer.mainCamera();
-        *///?} else {
-        Camera cam = mc.gameRenderer.getMainCamera();
-        //?}
+        Camera cam = mc.gameRenderer.mainCamera();
         //? if >=1.21.2 {
         Vec3 pos = cam.position();
         Vector3fc look = cam.forwardVector();
