@@ -1,12 +1,12 @@
 package com.meekdev.amnetic.mixin;
 
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-@Mixin(targets = "com.mojang.blaze3d.opengl.GlCommandEncoder")
+@Mixin(targets = "com.mojang.renderpearl.backend.opengl.GlCommandEncoder")
 public class GlCommandEncoderMixin {
 
     @Redirect(

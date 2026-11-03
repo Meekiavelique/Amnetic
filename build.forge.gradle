@@ -65,13 +65,16 @@ minecraft {
             if (!requiresProductionRemap) args "--mixin.config=amnetic.mixins.json"
             extraLibraries configurations.forgeDevLibraries, configurations.assimpNatives
             systemProperty 'forge.enabledGameTestNamespaces', property('mod.id')
+            args '--mixin.config=amnetic.mixins.json'
             mods {
                 amnetic {
                     source sourceSets.main
                 }
             }
         }
-        register('client')
+        register('client') {
+            if (sc.current.parsed >= '26.2') systemProperty 'max.bg.threads', findProperty('client_worker_count') ?: '4'
+        }
         register('server') {
             args '--nogui'
         }
@@ -79,6 +82,12 @@ minecraft {
 }
 
 dependencies {
+    if (sc.current.parsed < '1.21.9') {
+        compileOnly 'io.github.llamalad7:mixinextras-common:0.5.5'
+        if (requiresProductionRemap) annotationProcessor 'io.github.llamalad7:mixinextras-common:0.5.5'
+        implementation 'io.github.llamalad7:mixinextras-forge:0.5.5'
+        jarJar 'io.github.llamalad7:mixinextras-forge:0.5.5'
+    }
     add('implementation', minecraft.dependency("net.minecraftforge:forge:${sc.current.version}-${forgeVersion}"))
 
     add('jarJar', 'de.javagl:jgltf-model:2.0.4')
@@ -104,6 +113,21 @@ dependencies {
     add('assimpNatives', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-macos")
     add('assimpNatives', "org.lwjgl:lwjgl-assimp:${lwjglVersion}:natives-macos-arm64")
     add('compileOnly', 'io.github.spair:imgui-java-binding:1.92.0')
+    if (sc.current.parsed >= '26.2') {
+        add('implementation', 'io.github.spair:imgui-java-binding:1.92.0')
+        add('jarJar', 'io.github.spair:imgui-java-binding:1.92.0')
+        add('implementation', "org.lwjgl:lwjgl-tinyfd:${lwjglVersion}")
+        add('jarJar', "org.lwjgl:lwjgl-tinyfd:${lwjglVersion}")
+        ['windows', 'linux', 'macos'].each { platform ->
+            add('jarJar', "io.github.spair:imgui-java-natives-${platform}:1.92.0")
+            add('runtimeOnly', "io.github.spair:imgui-java-natives-${platform}:1.92.0")
+        }
+        ['natives-windows', 'natives-linux', 'natives-macos', 'natives-macos-arm64'].each { platform ->
+            add('runtimeOnly', "org.lwjgl:lwjgl-tinyfd:${lwjglVersion}:${platform}")
+            add('assimpNatives', "org.lwjgl:lwjgl-tinyfd:${lwjglVersion}:${platform}")
+        }
+    }
+    testImplementation "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
 
     if (requiresProductionRemap) {
         add('annotationProcessor', 'org.spongepowered:mixin:0.8.7:processor')
@@ -121,8 +145,12 @@ if (requiresProductionRemap) {
     renamer.mappings(minecraft.dependency.toSrg)
 }
 
-def absentClasses = ['client/ui/AmneticEditor', 'client/ui/TexturePreview', 'client/ui/inspector/GBufferInspector',
-        'mixin/WindowGlContextMixin']
+def absentClasses = ['mixin/WindowGlContextMixin', 'NeoForgeClientEvents']
+if (sc.current.parsed < '26.2') absentClasses.addAll(["mixin/FirstPersonItemMixin","mixin/RenderPearlGameRendererMixin","mixin/accessor/GameRendererAccessor","client/framebuffer/internal/NativeFramebuffer","client/grade/internal/NativeColorGrade","client/ui/NativeEditorBackend","client/ssao/internal/NativeSsaoPass", "client/shadow/internal/NativeLocalShadows","client/light/internal/NativeDeferredLighting","client/gbuffer/internal/NativeNormalFill","client/render/NativeScreenProgram","client/render/NativePassDescriptors","client/render/NativeShaderSource262","client/instanced/internal/NativeInstanceRenderer","client/post/internal/NativePostPipeline","client/decal/internal/NativeDecalRenderer","client/light/internal/TiledLighting","client/light/internal/ScatteringLights","client/ui/AmneticEditor","client/ui/TexturePreview","client/ui/inspector/GBufferInspector"])
+if (sc.current.parsed < '26.3') absentClasses.addAll(["mixin/NativeTextureUnitsMixin", "mixin/NativeCommandBatchMixin","mixin/NativeLevelStagesMixin","mixin/NativeMaterialBindMixin","mixin/NativeMaterialDisposeMixin","mixin/NativeMaterialPassMixin","mixin/NativeMaterialPipelinesMixin","client/gbuffer/internal/NativeWorldMaterials","client/pipeline/internal/NativeLayers"])
+if (sc.current.parsed >= '26.2') absentClasses.addAll(['mixin/IrisPipelineMixin', 'mixin/GameRendererMixin', 'mixin/GlCommandEncoderMixin', 'mixin/ItemInHandRendererMixin'])
+if (sc.current.version == '26.2') absentClasses.add('mixin/FirstPersonItemMixin')
+if (sc.current.parsed >= '26.3') absentClasses.addAll(['client/render/NativePassDescriptors', 'client/render/NativeShaderSource262'])
 if (sc.current.parsed < '1.20.2') absentClasses.add('mixin/accessor/LevelRendererAccessor')
 if (sc.current.parsed < '1.21.2') absentClasses.addAll(['mixin/EntityRenderStateMixin', 'mixin/EntityRendererMixin', 'mixin/WeatherEffectRendererMixin'])
 if (sc.current.parsed < '1.21.5') absentClasses.addAll(['mixin/GlCommandEncoderMixin', 'client/render/MeshPipeline',
@@ -130,6 +158,8 @@ if (sc.current.parsed < '1.21.5') absentClasses.addAll(['mixin/GlCommandEncoderM
         'mixin/accessor/RenderTypeInvoker'])
 if (sc.current.parsed >= '1.21.5') absentClasses.add('mixin/accessor/LightTextureAccessor')
 if (sc.current.parsed < '26.2') absentClasses.add('mixin/accessor/GameRendererAccessor')
+if (sc.current.parsed < '1.21' || sc.current.parsed >= '1.21.5') absentClasses.add('client/gbuffer/internal/TerrainNormalFill')
+if (sc.current.parsed < '1.21' || sc.current.parsed >= '1.21.5') absentClasses.add('client/gbuffer/internal/BlockPbrAtlas')
 
 tasks.withType(JavaCompile).configureEach {
     absentClasses.each { path -> exclude("com/meekdev/amnetic/${path}.java") }
@@ -154,10 +184,14 @@ processResources {
                 forge_version: forgeVersion
     }
     doLast {
-        def format = sc.current.parsed < '1.20.5' ? 15 : (sc.current.parsed < '26.1' ? 34 : 75)
-        new File(destinationDir, 'pack.mcmeta').text = groovy.json.JsonOutput.toJson([
-                pack: [description: 'Amnetic resources', pack_format: format]
-        ])
+        def format = sc.current.parsed >= '26.3' ? 121 : (sc.current.parsed >= '26.2' ? 88 : (sc.current.parsed < '1.20.5' ? 15 : (sc.current.parsed < '26.1' ? 34 : 75)))
+        def pack = [description: 'Amnetic resources', pack_format: format]
+        if (sc.current.parsed >= '1.21.9') {
+            def range = sc.current.parsed >= '26.3' ? [[97, 1], [121, 0]] : (sc.current.parsed >= '26.2' ? [[88, 0], [107, 1]] : (sc.current.parsed >= '26.1' ? [[84, 0], [101, 1]] : [[75, 0], [94, 1]]))
+            pack.min_format = range[0]
+            pack.max_format = range[1]
+        }
+        new File(destinationDir, 'pack.mcmeta').text = groovy.json.JsonOutput.toJson([pack: pack])
     }
 }
 
@@ -191,3 +225,8 @@ tasks.withType(JavaExec).matching { it.name.startsWith('run') }.configureEach {
         languageVersion = JavaLanguageVersion.of(requiredJava)
     }
 }
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
+tasks.withType(Test).configureEach { failOnNoDiscoveredTests = false }
+
+apply from: rootProject.file("gradle/client-runtime.gradle")

@@ -7,15 +7,16 @@ import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
 import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.model.TextureFilter;
+import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ImportedTextures;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
-import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.opengl.GL40;
 import org.lwjgl.opengl.GL43;
@@ -43,6 +44,9 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private final InstanceBatch<T> batch;
 
     private int vao;
+    //? if >=26.2 {
+    private NativeInstanceRenderer nativeRenderer;
+    //?}
     private int geometryVbo;
     private int ibo;
     private InstanceBuffer instanceBuffer;
@@ -81,7 +85,21 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     public InstancedMesh<T> mesh() { return mesh; }
 
     public void render(InstanceRenderContext ctx) {
-        ensureVao();
+        //? if >=26.2 {
+        {
+            batch.reset();
+            var camera = ctx.cameraPos();
+            projViewScratch.set(ctx.projectionMatrix()).mul(ctx.viewMatrix());
+            batch.beginFrame(projViewScratch, camera.x, camera.y, camera.z);
+            mesh.onRender().accept(ctx, batch);
+            lastInstanceCount = batch.count();
+            if (lastInstanceCount == 0) return;
+        }
+        if (nativeRenderer == null) nativeRenderer = new NativeInstanceRenderer(mesh);
+        nativeRenderer.render(ctx, batch.flip(), lastInstanceCount);
+        return;
+        //?} else {
+        /*ensureVao();
         ensureShader();
         // nothing draws until the driver is done with the shader, no frame waits on it
         if (!shader.ready()) return;
@@ -109,6 +127,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         } else {
             renderCpu(ctx);
         }
+        *///?}
     }
 
     private boolean gpuCullEnabled() {
@@ -221,7 +240,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             }
         } finally {
             if (fullSet) pointInstanceAttributes(instanceBuffer.id());
-            GlStateManager._glBindVertexArray(0);
+            GlState.resetVertexArray();
             GlStateManager._glUseProgram(0);
         }
     }
@@ -272,7 +291,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
                 GL31.glDrawArraysInstanced(GL11.GL_TRIANGLES, 0, mesh.geometry().vertexCount(), instanceCount);
             }
         } finally {
-            GlStateManager._glBindVertexArray(0);
+            GlState.resetVertexArray();
             GlStateManager._glUseProgram(0);
         }
     }
@@ -306,7 +325,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
 
             GL15.glBindBuffer(GL40.GL_DRAW_INDIRECT_BUFFER, 0);
         } finally {
-            GlStateManager._glBindVertexArray(0);
+            GlState.resetVertexArray();
             GlStateManager._glUseProgram(0);
         }
     }
@@ -411,7 +430,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
-    private static Vector3f sunDirection() {
+    static Vector3f sunDirection() {
         ModelLighting lighting = ModelLighting.INSTANCE;
         if (lighting.sunSet()) {
             return SUN.set(lighting.sunX(), lighting.sunY(), lighting.sunZ()).normalize();
@@ -426,6 +445,9 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     }
 
     public void invalidateShader() {
+        //? if >=26.2 {
+        if (nativeRenderer != null) nativeRenderer.invalidateShader();
+        //?}
         if (shader != null) {
             shader.close();
             shader = null;
@@ -482,7 +504,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         mesh.layout().setupVaoAttributes();
 
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
     }
 
     private void ensureShader() {
@@ -505,11 +527,14 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             GL15.glBufferSubData(GL15.GL_ELEMENT_ARRAY_BUFFER, 0L, geometry.indicesAsBuffer());
         }
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
     }
 
     @Override
     public void close() {
+        //? if >=26.2 {
+        if (nativeRenderer != null) { nativeRenderer.close(); nativeRenderer = null; }
+        //?}
         batch.free();
 
         if (shader != null) shader.close();

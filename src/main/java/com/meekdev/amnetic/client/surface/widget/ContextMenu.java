@@ -9,7 +9,7 @@ import com.meekdev.amnetic.client.surface.text.Fonts;
 import com.meekdev.amnetic.client.surface.text.SdfFont;
 import java.util.List;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +28,7 @@ public final class ContextMenu {
     }
 
     public static boolean onMouseDown(Stack overlayLayer, float mx, float my, int button, List<Item> items) {
-        if (button != GLFW.GLFW_MOUSE_BUTTON_RIGHT) return false;
+        if (button != KeyInput.MOUSE_BUTTON_RIGHT) return false;
         open(overlayLayer, mx, my, items);
         return true;
     }

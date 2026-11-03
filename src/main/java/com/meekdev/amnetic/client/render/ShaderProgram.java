@@ -1,23 +1,7 @@
 package com.meekdev.amnetic.client.render;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.mojang.blaze3d.opengl.GlStateManager;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.FloatBuffer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
@@ -26,6 +10,23 @@ import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
+import org.slf4j.LoggerFactory;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.FloatBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 public final class ShaderProgram implements AutoCloseable {
 
@@ -82,7 +83,12 @@ public final class ShaderProgram implements AutoCloseable {
     private static final Map<ShaderProgram, Boolean> LIVE =
             Collections.synchronizedMap(new WeakHashMap<>());
 
+    private static volatile long revision;
+
+    public static long revision() { return revision; }
+
     public static void invalidateAll() {
+        revision++;
         synchronized (LIVE) {
             for (ShaderProgram sp : LIVE.keySet()) sp.invalidate();
         }
@@ -94,21 +100,17 @@ public final class ShaderProgram implements AutoCloseable {
         LIVE.put(this, Boolean.TRUE);
     }
 
+    private boolean dirty;
+    private long retryAfter;
+
     public void invalidate() {
         if (link != null) {
             link.delete();
             link = null;
         }
         warmFailed = false;
-        if (program != 0) {
-            GlStateManager.glDeleteProgram(program);
-            program = 0;
-        }
-        if (vao != 0) {
-            GL30.glDeleteVertexArrays(vao);
-            vao = 0;
-        }
-        uniformLocations.clear();
+        dirty = true;
+        retryAfter = 0;
     }
 
     private void start() {
@@ -120,19 +122,28 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     private void ensure() {
-        if (program != 0) return;
+        if (program != 0 && (!dirty || System.nanoTime() < retryAfter)) return;
         if (link == null) start();
         ProgramLink linking = link;
+        if (program != 0 && !linking.ready()) return;
         link = null;
         if (linking.failed()) {
+            if (program != 0) {
+                retryAfter = System.nanoTime() + 1_000_000_000L;
+                LoggerFactory.getLogger("Amnetic/Shader").debug("Shader reload deferred for {}", fshId);
+                return;
+            }
             int stage = linking.failedStage();
             Identifier id = stage == 0 ? vshId : fshId;
             String dump = stage < 0 ? null : dumpSource(id, loadWithIncludes(id), linking.problem());
             throw new RuntimeException("Failed to " + (stage < 0 ? "link" : "compile") + " shader (" + vshId + "/" + fshId + "): "
                     + linking.problem() + (dump == null ? "" : "\nfull source written to " + dump));
         }
+        if (program != 0) GlStateManager.glDeleteProgram(program);
         program = linking.program();
-        vao = GlStateManager._glGenVertexArrays();
+        if (vao == 0) vao = GlStateManager._glGenVertexArrays();
+        uniformLocations.clear();
+        dirty = false;
     }
 
     public void begin() {
@@ -274,7 +285,13 @@ public final class ShaderProgram implements AutoCloseable {
         if (!seen.add(id)) return;
         for (String line : loadRaw(id).split("\n", -1)) {
             String trimmed = line.trim();
-            if (trimmed.startsWith("#include")) {
+            if (trimmed.startsWith("#include") || trimmed.startsWith("#moj_import")) {
+                int left = trimmed.indexOf('<'), right = trimmed.indexOf('>');
+                if (left >= 0 && right > left) {
+                    Identifier include = Identifier.parse(trimmed.substring(left + 1, right));
+                    resolve(include.withPath(path -> "shaders/include/" + path), out, seen);
+                    continue;
+                }
                 int a = trimmed.indexOf('"');
                 int b = trimmed.lastIndexOf('"');
                 if (a >= 0 && b > a) {
@@ -288,6 +305,10 @@ public final class ShaderProgram implements AutoCloseable {
 
     public static String readSource(Identifier id) {
         return loadWithIncludes(id);
+    }
+
+    public static String readRaw(Identifier id) {
+        return loadRaw(id);
     }
 
     private static String loadRaw(Identifier id) {

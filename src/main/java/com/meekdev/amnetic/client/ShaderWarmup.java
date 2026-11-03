@@ -6,26 +6,31 @@ import com.meekdev.amnetic.client.gbuffer.internal.GBufferNormalFill;
 import com.meekdev.amnetic.client.grade.internal.ColorGradePass;
 import com.meekdev.amnetic.client.light.internal.DeferredLightingPass;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
-import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ProgramLink;
+import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+//? if >=26.2 {
+//?} else {
+/*import net.minecraft.client.Minecraft;
+*///?}
 
 // starts every shader the engine knows about from the first ticks on and takes them in as the driver finishes,
 // so nothing links mid game. a first link can take seconds without a driver cache, which used to show up as a freeze
 public final class ShaderWarmup {
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Amnetic/ShaderWarmup");
+    private static final Logger LOG = LoggerFactory.getLogger("Amnetic/ShaderWarmup");
     private static int ticks, warmed;
     private static boolean touched, announced;
 
     private ShaderWarmup() {}
 
     public static void tick() {
-        // resources are not readable while the loading overlay is up
         //? if >=26.2 {
-        /*if (net.minecraft.client.Minecraft.getInstance().gui.overlay() != null) return;
-        *///?} else {
-        if (net.minecraft.client.Minecraft.getInstance().getOverlay() != null) return;
-        //?}
+        return;
+        //?} else {
+        /*
+        if (Minecraft.getInstance().gui.overlay() != null) return;
         if (!touched) {
             touched = true;
             Decals.touch();
@@ -49,5 +54,6 @@ public final class ShaderWarmup {
             announced = true;
             LOG.info("linked shader programs ahead of use: {}", ProgramLink.stats());
         }
+        *///?}
     }
 }

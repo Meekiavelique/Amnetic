@@ -1,13 +1,14 @@
 package com.meekdev.amnetic.mixin;
 
-import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.meekdev.amnetic.client.camera.internal.Orthographic;
+import com.meekdev.amnetic.client.AmneticClient;
 import com.meekdev.amnetic.client.camera.internal.FrameView;
+import com.meekdev.amnetic.client.camera.internal.Orthographic;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
+import com.meekdev.amnetic.client.model.HandModels;
+import com.meekdev.amnetic.client.model.ViewModels;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderLayer;
 import com.meekdev.amnetic.client.pipeline.RenderStage;
-import com.meekdev.amnetic.client.model.HandModels;
-import com.meekdev.amnetic.client.model.ViewModels;
 import com.meekdev.amnetic.client.pipeline.internal.LayerSystem;
 import com.meekdev.amnetic.client.post.RenderPhase;
 import com.meekdev.amnetic.client.post.internal.PostEffectRegistry;
@@ -18,18 +19,20 @@ import com.meekdev.amnetic.client.taa.internal.TaaJitter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 //? if >=26.1 {
 import net.minecraft.client.renderer.Projection;
 //?}
 //? if >=26.1 {
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import org.joml.Matrix4fc;
 //?} else if >=1.21.5 {
 /*import com.meekdev.amnetic.client.camera.internal.CameraController;
 import com.meekdev.amnetic.client.compat.NaturalFov;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
 *///?} else {
@@ -60,9 +63,9 @@ public abstract class GameRendererMixin {
 /*public abstract class GameRendererMixin implements NaturalFov {
 *///?}
 
-    //? if forge {
-    @Unique private static int amnetic$handVertexArray;
-    //?}
+    //? if forge || neoforge {
+    /*@Unique private static int amnetic$handVertexArray;
+    *///?}
 
     //? if >=26.1 {
     @Shadow @Final private Projection hudProjection;
@@ -148,12 +151,12 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void amnetic$skipHandInCapture(Camera camera, float partialTick, Matrix4f viewRotation, CallbackInfo ci) {
-        //? if forge {
-        if (org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL30.GL_VERTEX_ARRAY_BINDING) == 0) {
+        //? if forge || neoforge {
+        if (GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING) == 0) {
             if (amnetic$handVertexArray == 0
-                    || !org.lwjgl.opengl.GL30.glIsVertexArray(amnetic$handVertexArray))
-                amnetic$handVertexArray = org.lwjgl.opengl.GL30.glGenVertexArrays();
-            org.lwjgl.opengl.GL30.glBindVertexArray(amnetic$handVertexArray);
+                    || !GL30.glIsVertexArray(amnetic$handVertexArray))
+                amnetic$handVertexArray = GL30.glGenVertexArrays();
+            GL30.glBindVertexArray(amnetic$handVertexArray);
         }
         //?}
         if (CaptureManager.INSTANCE.isCapturing()) {
@@ -252,7 +255,7 @@ public abstract class GameRendererMixin {
         if (!CaptureManager.INSTANCE.isCapturing()) {
             if (Orthographic.active()) Orthographic.matrix(projectionMatrix);
             if (Taa.jitterActive()) {
-                var target = Minecraft.getInstance().getMainRenderTarget();
+                var target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
                 TaaJitter.INSTANCE.beginFrame(target.width, target.height);
                 TaaJitter.INSTANCE.applyTo(projectionMatrix);
             } else {
@@ -311,10 +314,11 @@ public abstract class GameRendererMixin {
             )
     )
     private void amnetic$onPostWorldRender(CallbackInfo ci) {
+        if (!AmneticClient.isMainFrame()) return;
         Minecraft mc = Minecraft.getInstance();
         if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.PRE_GUI)
                 || PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
-            PostEffectRegistry.INSTANCE.captureWorldDepthSnapshot(mc.getMainRenderTarget());
+            PostEffectRegistry.INSTANCE.captureWorldDepthSnapshot(mc.gameRenderer.mainRenderTarget());
         }
         PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_WORLD, VanillaCompat.partialTick(true));
         AfterWorldRender.fire();
@@ -343,7 +347,7 @@ public abstract class GameRendererMixin {
 
         Minecraft mc = Minecraft.getInstance();
         if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
-            PostEffectRegistry.INSTANCE.capturePostRenderDepthSnapshot(mc.getMainRenderTarget());
+            PostEffectRegistry.INSTANCE.capturePostRenderDepthSnapshot(mc.gameRenderer.mainRenderTarget());
         }
         PostEffectRegistry.INSTANCE.applyAll(RenderPhase.PRE_GUI, VanillaCompat.partialTick(true));
         Pipeline.runStage(RenderStage.BEFORE_GUI);
@@ -359,7 +363,7 @@ public abstract class GameRendererMixin {
         LayerSystem.INSTANCE.end(RenderLayer.GUI);
         Minecraft mc = Minecraft.getInstance();
         if (PostEffectRegistry.INSTANCE.hasEnabledEffectInPhase(RenderPhase.POST_RENDER)) {
-            PostEffectRegistry.INSTANCE.restorePostRenderDepthSnapshotInto(mc.getMainRenderTarget());
+            PostEffectRegistry.INSTANCE.restorePostRenderDepthSnapshotInto(mc.gameRenderer.mainRenderTarget());
         }
         PostEffectRegistry.INSTANCE.applyAll(RenderPhase.POST_RENDER, VanillaCompat.partialTick(true));
         Pipeline.runStage(RenderStage.AFTER_GUI);

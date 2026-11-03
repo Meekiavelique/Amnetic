@@ -12,6 +12,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
+//? if >=26.2 {
+import net.minecraft.client.renderer.LevelTargetBundle;
+//?} else {
+//?}
 
 @Mixin(LevelRenderer.class)
 public interface LevelRendererAccessor {
@@ -33,10 +37,10 @@ public interface LevelRendererAccessor {
     //?}
 
     //? if >=26.2 {
+    @Accessor("targets")
+    LevelTargetBundle amnetic$getTargets();
+    //?} else {
     /*@Invoker("compileSections")
-    void amnetic$compileSections(CameraRenderState camera);
-    *///?} else {
-    @Invoker("compileSections")
     void amnetic$compileSections(Camera camera);
-    //?}
+    *///?}
 }

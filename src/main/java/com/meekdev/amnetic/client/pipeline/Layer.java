@@ -1,4 +1,8 @@
 package com.meekdev.amnetic.client.pipeline;
+//? if >=26.2 {
+import com.mojang.renderpearl.api.commands.RenderPassDescriptor;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+//?}
 
 /** the isolated layer handed to a LayerPass. inputTexture() is the captured layer, read-only for this
  *  pass; draw the processed result into the framebuffer the pipeline has already bound (same size).
@@ -9,7 +13,18 @@ public final class Layer {
     private final int inputTexture;
     private final int width;
     private final int height;
+    //? if >=26.2 {
+    private GpuTextureView nativeInput;
+    private RenderPassDescriptor nativeOutput;
 
+    public Layer(RenderLayer kind, GpuTextureView input,
+                 RenderPassDescriptor output,int width,int height) {
+        this(kind,0,width,height);nativeInput=input;nativeOutput=output;
+    }
+    public GpuTextureView nativeInput() {return nativeInput;}
+    public RenderPassDescriptor nativeOutput() {return nativeOutput;}
+
+    //?}
     public Layer(RenderLayer kind, int inputTexture, int width, int height) {
         this.kind = kind;
         this.inputTexture = inputTexture;

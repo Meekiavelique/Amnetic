@@ -7,7 +7,7 @@ public final class ShadowSettings {
 
     public static final int SPOT_GRID = 4;
     public static final int MAX_SPOT = SPOT_GRID * SPOT_GRID;
-    public static final int MAX_POINT = 16;
+    public static final int MAX_POINT = 32;
     public static final int MAX_CASCADES = 4;
 
     private static final ShadowSettings INSTANCE = new ShadowSettings();

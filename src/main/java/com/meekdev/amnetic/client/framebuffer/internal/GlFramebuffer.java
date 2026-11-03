@@ -6,7 +6,7 @@ import com.meekdev.amnetic.client.framebuffer.DepthMode;
 import com.meekdev.amnetic.client.framebuffer.FramebufferException;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
 import com.meekdev.amnetic.client.render.GlState;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
@@ -158,7 +158,7 @@ public final class GlFramebuffer {
     }
 
     private void saveOuterViewport() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main != null) {
             savedViewport[0] = 0;
             savedViewport[1] = 0;
@@ -189,7 +189,7 @@ public final class GlFramebuffer {
     }
 
     public void blitColorFromMain() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return;
         int srcId = VanillaCompat.colorTextureGlId(main);
         if (srcId <= 0) return;
@@ -197,8 +197,8 @@ public final class GlFramebuffer {
     }
 
     public void blitDepthFromMain() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-        if (main == null || !main.useDepth) return;
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        if (main == null || !main.hasDepth()) return;
         int srcId = VanillaCompat.depthTextureGlId(main);
         if (srcId <= 0) return;
         blitFromMain(srcId, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST, main);
@@ -237,7 +237,7 @@ public final class GlFramebuffer {
     }
 
     public void blitColorToMain() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return;
         int dstId = VanillaCompat.colorTextureGlId(main);
         if (dstId <= 0) return;

@@ -3,6 +3,10 @@ package com.meekdev.amnetic.client.render;
 import com.meekdev.amnetic.client.compat.IrisCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 public abstract class ScreenPass {
 
@@ -10,7 +14,7 @@ public abstract class ScreenPass {
     private final FailureGuard guard;
     private ShaderProgram program;
 
-    private static final java.util.Set<ScreenPass> ALL = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    private static final Set<ScreenPass> ALL = Collections.newSetFromMap(new WeakHashMap<>());
 
     protected ScreenPass(String name) {
         this.log = LoggerFactory.getLogger("Amnetic/" + name);
@@ -20,7 +24,7 @@ public abstract class ScreenPass {
 
     // builds the program objects of every pass made so far, the actual links happen in ShaderProgram.warm
     public static void prepareAll() {
-        for (ScreenPass pass : new java.util.ArrayList<>(ALL)) {
+        for (ScreenPass pass : new ArrayList<>(ALL)) {
             if (pass.program != null) continue;
             try {
                 pass.program = pass.createProgram();
@@ -36,6 +40,17 @@ public abstract class ScreenPass {
     protected boolean enabled() { return true; }
 
     protected boolean skipUnderIris() { return true; }
+
+
+    protected final void dispatchNative(Runnable render) {
+        if (!guard.alive() || !enabled()) return;
+        if (skipUnderIris() && IrisCompat.shadersActive()) return;
+        if (CameraSnapshot.current() == null) return;
+        try {
+            render.run();
+            guard.success();
+        } catch (Throwable failure) { guard.fail(log, failure); }
+    }
 
     protected final void dispatch() {
         if (!guard.alive() || !enabled()) return;

@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
 import com.meekdev.amnetic.client.render.ProgramLink;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
@@ -13,8 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 public final class ShadowDepthProgram implements AutoCloseable {
-
-    private final Identifier vsh, fsh;
+    private final Identifier vsh;
+    private final Identifier fsh;
     private int program;
     private int viewProjLoc = -1;
     private final float[] mat = new float[16];
@@ -54,7 +54,10 @@ public final class ShadowDepthProgram implements AutoCloseable {
 
     @Override
     public void close() {
-        if (program != 0) { GlStateManager.glDeleteProgram(program); program = 0; }
+        if (program != 0) {
+            GlStateManager.glDeleteProgram(program);
+            program = 0;
+        }
     }
 
     private static String load(Identifier id) {

@@ -11,13 +11,21 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.ssr.SsrSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+//? if >=26.2 {
+import com.meekdev.amnetic.client.render.NativeScreenProgram;
+import com.mojang.renderpearl.api.commands.RenderPassDescriptor;
+import com.mojang.renderpearl.api.pipeline.BlendFactor;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+import net.minecraft.client.Minecraft;
+//?}
 
 public final class SsrPass extends ScreenPass {
-
     public static final SsrPass INSTANCE = new SsrPass();
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/ssr/ssr.vsh");
@@ -27,23 +35,128 @@ public final class SsrPass extends ScreenPass {
 
     private ShaderProgram composite;
     private ShaderProgram temporal;
-    private Framebuffer capture; // full-res scene color + depth
-    private Framebuffer reflection; // scaled reflection result (rgb = color, a = strength)
-    private Framebuffer historyA, historyB;
+    private Framebuffer capture;
+    private Framebuffer reflection;
+    private Framebuffer historyA;
+    private Framebuffer historyB;
     private boolean usingA;
     private float reflectionScale = -1f;
     private SsrSettings settings;
 
     private final Matrix4f prevViewProj = new Matrix4f();
-    private double prevEyeX, prevEyeY, prevEyeZ;
+    private double prevEyeX;
+    private double prevEyeY;
+    private double prevEyeZ;
     private boolean historyValid;
     private long frameCounter;
+
+    //? if >=26.2 {
+    private static final float HISTORY_RESET_DISTANCE_SQUARED = 256;
+    private static final long FRAME_PATTERN_MASK = 63;
+    private NativeScreenProgram nativeMarch;
+    private NativeScreenProgram nativeTemporal;
+    private NativeScreenProgram nativeComposite;
+    private int nativeWidth;
+    private int nativeHeight;
+
+    private NativeScreenProgram nativeProgram(Identifier id) {
+        return new NativeScreenProgram(id, ColorTargetState.DEFAULT);
+    }
+
+    private void renderNative(CameraSnapshot cam) {
+        if (capture == null) {
+            capture = Framebuffers.screen("SSR Capture", FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
+        }
+        ensureReflection(settings.resolution());
+        capture.blitColorFromMain();
+        capture.blitDepthFromMain();
+        reflection.colorTextureView(0);
+        if (nativeWidth != reflection.width() || nativeHeight != reflection.height()) historyValid = false;
+        nativeWidth = reflection.width();
+        nativeHeight = reflection.height();
+        ensureNativePrograms();
+        var depth = capture.depthTextureView();
+        bindMarch(cam, depth);
+        nativeMarch.draw(reflection.renderPassDescriptor());
+        var resolved = reflection;
+        float x = (float) (cam.eye.x - prevEyeX);
+        float y = (float) (cam.eye.y - prevEyeY);
+        float z = (float) (cam.eye.z - prevEyeZ);
+        if (x * x + y * y + z * z > HISTORY_RESET_DISTANCE_SQUARED) historyValid = false;
+        if (settings.temporal()) {
+            resolved = resolveNative(cam, depth, x, y, z);
+        } else {
+            historyValid = false;
+        }
+        prevViewProj.set(cam.viewProj);
+        prevEyeX = cam.eye.x;
+        prevEyeY = cam.eye.y;
+        prevEyeZ = cam.eye.z;
+        nativeComposite.setTexture("ReflectionSampler", resolved.colorTextureView(0));
+        var mainColor = Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTextureView();
+        nativeComposite.draw(RenderPassDescriptor.builder(() -> "Amnetic SSR composite").withColorAttachment(mainColor).build());
+    }
+
+    private void ensureNativePrograms() {
+        if (nativeMarch == null) nativeMarch = nativeProgram(FSH);
+        if (nativeTemporal == null) nativeTemporal = nativeProgram(TEMPORAL_FSH);
+        if (nativeComposite == null) {
+            nativeComposite = new NativeScreenProgram(COMPOSITE_FSH,
+                    new ColorTargetState(new BlendFunction(
+                            BlendFactor.SRC_ALPHA, BlendFactor.ONE_MINUS_SRC_ALPHA,
+                            BlendFactor.ZERO, BlendFactor.ONE)));
+        }
+    }
+
+    private void bindMarch(CameraSnapshot cam, GpuTextureView depth) {
+        var g = GBufferTargets.INSTANCE;
+        nativeMarch.setTexture("ColorSampler", capture.colorTextureView(0));
+        nativeMarch.setTexture("DepthSampler", depth);
+        nativeMarch.setTexture("GNormalSampler", g.isPopulated() ? g.nativeColorView(0) : depth);
+        nativeMarch.setTexture("GMaterialSampler", g.isPopulated() ? g.nativeColorView(1) : depth);
+        nativeMarch.setInt("HasGBuffer", g.isPopulated() ? 1 : 0);
+        nativeMarch.setMatrix("ViewProj", cam.viewProj);
+        nativeMarch.setMatrix("InvViewProj", cam.invViewProj);
+        nativeMarch.setMatrix("View", cam.view);
+        nativeMarch.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
+        nativeMarch.setFloat("Intensity", settings.intensity());
+        nativeMarch.setInt("MaxSteps", settings.maxSteps());
+        nativeMarch.setFloat("Stride", settings.stride());
+        nativeMarch.setFloat("MaxDistance", settings.maxDistance());
+        nativeMarch.setFloat("Thickness", settings.thickness());
+        nativeMarch.setFloat("EdgeFade", settings.edgeFade());
+        nativeMarch.setFloat("Reflectivity", settings.reflectivity());
+        nativeMarch.setFloat("Frame", (float) (frameCounter++ & FRAME_PATTERN_MASK));
+    }
+
+    private Framebuffer resolveNative(CameraSnapshot cam, GpuTextureView depth, float x, float y, float z) {
+        var previous = usingA ? historyA : historyB;
+        var current = usingA ? historyB : historyA;
+        nativeTemporal.setTexture("Raw", reflection.colorTextureView(0));
+        nativeTemporal.setTexture("History", historyValid ? previous.colorTextureView(0) : reflection.colorTextureView(0));
+        nativeTemporal.setTexture("DepthSampler", depth);
+        nativeTemporal.setMatrix("PrevViewProj", prevViewProj);
+        nativeTemporal.setMatrix("InvViewProj", cam.invViewProj);
+        nativeTemporal.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
+        nativeTemporal.setVector("EyeDelta", x, y, z);
+        nativeTemporal.setFloat("Feedback", historyValid ? settings.feedback() : 0);
+        nativeTemporal.draw(current.renderPassDescriptor());
+        usingA = !usingA;
+        historyValid = true;
+        return current;
+    }
+    //? }
 
     private SsrPass() { super("SSR"); }
 
     public void render(SsrSettings s) {
         this.settings = s;
-        dispatch();
+        if (!s.isEnabled()) historyValid = false;
+        //? if >=26.2 {
+        dispatchNative(() -> renderNative(CameraSnapshot.current()));
+        //? } else {
+        /*dispatch();
+        *///? }
     }
 
     @Override protected boolean enabled() { return settings != null && settings.isEnabled(); }
@@ -53,7 +166,7 @@ public final class SsrPass extends ScreenPass {
         composite = new ShaderProgram(VSH, COMPOSITE_FSH);
         temporal = new ShaderProgram(VSH, TEMPORAL_FSH);
         capture = Framebuffers.screen("SSR Capture", FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
-        return new ShaderProgram(VSH, FSH); // the ray-march program
+        return new ShaderProgram(VSH, FSH);
     }
 
     @Override
@@ -122,12 +235,14 @@ public final class SsrPass extends ScreenPass {
             historyValid = false;
         }
         prevViewProj.set(cam.viewProj);
-        prevEyeX = cam.eye.x; prevEyeY = cam.eye.y; prevEyeZ = cam.eye.z;
+        prevEyeX = cam.eye.x;
+        prevEyeY = cam.eye.y;
+        prevEyeZ = cam.eye.z;
 
         int prevFbo = MainTargetFramebuffer.bind();
         try {
             GlState.bindTexture(0, resolved.colorTextureGlId(0));
-            GlStateManager._enableBlend();
+            GlStateManager._enableBlend(0);
             GlStateManager._blendFuncSeparate(
                     GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             composite.begin();
@@ -141,12 +256,26 @@ public final class SsrPass extends ScreenPass {
 
     @Override
     protected void onDispose() {
-        if (composite != null) { composite.close(); composite = null; }
-        if (temporal != null) { temporal.close(); temporal = null; }
-        if (capture != null) { capture.dispose(); capture = null; }
-        if (reflection != null) { reflection.dispose(); reflection = null; }
-        if (historyA != null) { historyA.dispose(); historyA = null; }
-        if (historyB != null) { historyB.dispose(); historyB = null; }
+        //? if >=26.2 {
+        if (nativeMarch != null) nativeMarch.close();
+        nativeMarch = null;
+        if (nativeTemporal != null) nativeTemporal.close();
+        nativeTemporal = null;
+        if (nativeComposite != null) nativeComposite.close();
+        nativeComposite = null;
+        //? }
+        if (composite != null) composite.close();
+        composite = null;
+        if (temporal != null) temporal.close();
+        temporal = null;
+        if (capture != null) capture.dispose();
+        capture = null;
+        if (reflection != null) reflection.dispose();
+        reflection = null;
+        if (historyA != null) historyA.dispose();
+        historyA = null;
+        if (historyB != null) historyB.dispose();
+        historyB = null;
         reflectionScale = -1f;
         historyValid = false;
     }

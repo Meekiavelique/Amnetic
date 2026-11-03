@@ -1,24 +1,31 @@
 package com.meekdev.amnetic.client.render;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.ARBTextureBarrier;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.opengl.GL45;
+import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.NVTextureBarrier;
+import java.util.ArrayDeque;
+//? if <1.21.5 {
+/*import com.mojang.blaze3d.vertex.BufferUploader;
+*///?}
+//? if >=26.2 {
+import com.mojang.blaze3d.systems.RenderSystem;
+//?}
 
 public final class GlState {
 
     private static final int MAX_UNIT = 3;
 
     private static volatile int geometryPolygonMode = GL11.GL_FILL;
-    private static final ThreadLocal<java.util.ArrayDeque<Integer>> PREVIOUS_VERTEX_ARRAYS =
-            ThreadLocal.withInitial(java.util.ArrayDeque::new);
+    private static final ThreadLocal<ArrayDeque<Integer>> PREVIOUS_VERTEX_ARRAYS =
+            ThreadLocal.withInitial(ArrayDeque::new);
 
     private GlState() {}
 
@@ -31,10 +38,17 @@ public final class GlState {
         return geometryPolygonMode;
     }
 
+    public static void resetVertexArray() {
+        GlStateManager._glBindVertexArray(0);
+        //? if <1.21.5 {
+        /*BufferUploader.invalidate();
+        *///?}
+    }
+
     public static void beginFullscreen() {
         PREVIOUS_VERTEX_ARRAYS.get().push(GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING));
         GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
-        GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
+        GlStateManager._disableBlend(0); GL11.glDisable(GL11.GL_BLEND);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
         GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
@@ -72,6 +86,9 @@ public final class GlState {
     }
 
     public static void endFullscreen() {
+        //? if >=26.2 {
+        if (!"OpenGL".equalsIgnoreCase(RenderSystem.getDevice().getDeviceInfo().backendName())) return;
+        //?}
         for (int u = MAX_UNIT; u >= 0; u--) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + u);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + u);
@@ -83,13 +100,14 @@ public final class GlState {
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         GlStateManager._glUseProgram(0);
         var previousVertexArrays = PREVIOUS_VERTEX_ARRAYS.get();
-        GlStateManager._glBindVertexArray(previousVertexArrays.isEmpty() ? 0 : previousVertexArrays.pop());
+        int vao=previousVertexArrays.isEmpty()?0:previousVertexArrays.pop();
+        GlStateManager._glBindVertexArray(vao==0 || GL30.glIsVertexArray(vao)?vao:0);
         GlStateManager._depthMask(true); GL11.glDepthMask(true);
         GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
         GlStateManager._enableCull(); GL11.glEnable(GL11.GL_CULL_FACE);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GlStateManager._disableBlend(); GL11.glDisable(GL11.GL_BLEND);
+        GlStateManager._disableBlend(0); GL11.glDisable(GL11.GL_BLEND);
         GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, geometryPolygonMode);
     }
 }

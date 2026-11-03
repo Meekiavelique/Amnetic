@@ -8,15 +8,23 @@ uniform sampler2D Scatter; // half-res: rgb = scatter, a = scene depth
 uniform sampler2D DepthSampler; // full-res scene depth
 
 void main() {
-    float d = texture(DepthSampler, vUV).r;
     vec2 ts = 1.0 / vec2(textureSize(Scatter, 0));
+    vec4 neighborhood[9];
+    bool empty = true;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+        vec4 sampleValue = texture(Scatter, vUV + vec2(float(x), float(y)) * ts);
+        neighborhood[(y+1)*3+x+1] = sampleValue;
+        empty = empty && all(equal(sampleValue.rgb, vec3(0.0)));
+    }
+    if (empty) { FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+    float d = texture(DepthSampler, vUV).r;
 
     vec3 sum = vec3(0.0);
     float wsum = 0.0;
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
             vec2 uv = vUV + vec2(float(x), float(y)) * ts;
-            vec4 s = texture(Scatter, uv);
+            vec4 s = neighborhood[(y+1)*3+x+1];
             float dz = abs(s.a - d);
             float w = exp(-dz * 512.0) * exp(-float(x * x + y * y) * 0.5);
             sum += s.rgb * w;

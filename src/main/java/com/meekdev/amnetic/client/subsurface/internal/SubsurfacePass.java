@@ -13,10 +13,17 @@ import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.render.TexelBuffer;
 import com.meekdev.amnetic.client.subsurface.SubsurfaceSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
+import java.util.Optional;
+//? if >=26.2 {
+import com.meekdev.amnetic.client.render.NativeScreenProgram;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.commands.RenderPassDescriptor;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+//?}
 
 public final class SubsurfacePass extends ScreenPass {
 
@@ -35,13 +42,58 @@ public final class SubsurfacePass extends ScreenPass {
     private Framebuffer vertical;
     private SubsurfaceSettings settings;
 
+    //? if >=26.2 {
+    private static final int WRITE_ALL = 15;
+    private NativeScreenProgram nativeBlur;
+    private NativeScreenProgram nativeComposite;
+
+    private void renderNative(CameraSnapshot cam) {
+        ensureBuffers();
+        capture.blitColorFromMain();
+        capture.blitDepthFromMain();
+        if (nativeBlur == null) {
+            nativeBlur = new NativeScreenProgram(BLUR_FSH,
+                    new ColorTargetState(Optional.empty(), GpuFormat.RGBA16_FLOAT, WRITE_ALL));
+        }
+        if (nativeComposite == null) nativeComposite = new NativeScreenProgram(COMPOSITE_FSH, ColorTargetState.DEFAULT);
+        bindBlur(cam);
+        nativeBlur.setTexture("ColorSampler", capture.colorTextureView(0));
+        nativeBlur.setVector("Direction", 1, 0);
+        nativeBlur.draw(horizontal.renderPassDescriptor());
+        nativeBlur.setTexture("ColorSampler", horizontal.colorTextureView(0));
+        nativeBlur.setVector("Direction", 0, 1);
+        nativeBlur.draw(vertical.renderPassDescriptor());
+        nativeComposite.setTexture("OriginalSampler", capture.colorTextureView(0));
+        nativeComposite.setTexture("DiffusedSampler", vertical.colorTextureView(0));
+        nativeComposite.setTexture("GMaterialSampler", GBufferTargets.INSTANCE.nativeColorView(1));
+        nativeComposite.setTexels("MaterialTexels", MaterialParams.INSTANCE.nativeSlice());
+        var mainColor = Minecraft.getInstance().gameRenderer.mainRenderTarget().getColorTextureView();
+        nativeComposite.draw(RenderPassDescriptor.builder(() -> "Amnetic subsurface composite").withColorAttachment(mainColor).build());
+    }
+
+    private void bindBlur(CameraSnapshot cam) {
+        nativeBlur.setTexture("DepthSampler", capture.depthTextureView());
+        nativeBlur.setTexture("GMaterialSampler", GBufferTargets.INSTANCE.nativeColorView(1));
+        nativeBlur.setTexels("MaterialTexels", MaterialParams.INSTANCE.nativeSlice());
+        nativeBlur.setMatrix("InvViewProj", cam.invViewProj);
+        nativeBlur.setMatrix("View", cam.view);
+        nativeBlur.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
+        nativeBlur.setVector("ScreenSize", capture.width(), capture.height());
+        nativeBlur.setFloat("ProjScale", .5f * cam.projection.m11() * capture.height());
+    }
+    //? }
+
     private SubsurfacePass() {
         super("Subsurface");
     }
 
     public void render(SubsurfaceSettings s) {
         this.settings = s;
-        dispatch();
+        //? if >=26.2 {
+        dispatchNative(() -> renderNative(CameraSnapshot.current()));
+        //? } else {
+        /*dispatch();
+        *///? }
     }
 
     @Override
@@ -109,7 +161,7 @@ public final class SubsurfacePass extends ScreenPass {
 
         int prevFbo = MainTargetFramebuffer.bind();
         try {
-            GlStateManager._disableBlend();
+            GlStateManager._disableBlend(0);
             GL11.glDisable(GL11.GL_BLEND);
             GlState.bindTexture(0, capture.colorTextureGlId(0));
             GlState.bindTexture(1, vertical.colorTextureGlId(0));
@@ -129,10 +181,20 @@ public final class SubsurfacePass extends ScreenPass {
 
     @Override
     protected void onDispose() {
-        if (composite != null) { composite.close(); composite = null; }
-        if (capture != null) { capture.dispose(); capture = null; }
-        if (horizontal != null) { horizontal.dispose(); horizontal = null; }
-        if (vertical != null) { vertical.dispose(); vertical = null; }
+        //? if >=26.2 {
+        if (nativeBlur != null) nativeBlur.close();
+        nativeBlur = null;
+        if (nativeComposite != null) nativeComposite.close();
+        nativeComposite = null;
+        //? }
+        if (composite != null) composite.close();
+        composite = null;
+        if (capture != null) capture.dispose();
+        capture = null;
+        if (horizontal != null) horizontal.dispose();
+        horizontal = null;
+        if (vertical != null) vertical.dispose();
+        vertical = null;
     }
 
     private void ensureBuffers() {

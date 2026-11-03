@@ -18,6 +18,7 @@ public final class Light {
     private float tx = 1f, ty, tz; // area "right" axis, up = cross(dir, tangent)
 
     private float r = 1f, g = 1f, b = 1f;
+    private float temperature = 6500f;
     private float range = 12f;
     private float intensity = 1f;
 
@@ -33,6 +34,7 @@ public final class Light {
     private boolean castsShadow;
     private float shadowStrength = 1f; // 0 = no darkening, 1 = full
     private int shadowRef = -1;
+    private float shadowBlend = 1f;
 
     private boolean cookie; // project the global cookie texture (spot only)
     private int iesProfile; // 0 = none, 1-5 = analytic angular curves
@@ -97,7 +99,9 @@ public final class Light {
     }
 
     public Light setTemperature(float kelvin) {
-        float t = Math.max(1000f, Math.min(40000f, kelvin)) / 100f;
+        if (!Float.isFinite(kelvin)) throw new IllegalArgumentException("Temperature must be finite");
+        temperature = Math.max(1000f, Math.min(40000f, kelvin));
+        float t = temperature / 100f;
         float rr, gg, bb;
         if (t <= 66f) {
             rr = 255f;
@@ -111,6 +115,9 @@ public final class Light {
         else bb = clamp255(138.52f * (float) Math.log(t - 10f) - 305.04f);
         return setColor(rr / 255f, gg / 255f, bb / 255f);
     }
+
+
+    public float temperature() { return temperature; }
 
     private static float clamp255(float v) {
         return Math.max(0f, Math.min(255f, v));
@@ -368,5 +375,13 @@ public final class Light {
 
     public void setShadowRef(int ref) {
         this.shadowRef = ref;
+    }
+
+    public float shadowBlend() {
+        return shadowBlend;
+    }
+
+    public void setShadowBlend(float blend) {
+        this.shadowBlend = blend;
     }
 }

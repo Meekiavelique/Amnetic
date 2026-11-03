@@ -1,10 +1,12 @@
 package com.meekdev.amnetic.client.surface.internal;
 
+import com.meekdev.amnetic.client.compat.KeyInput;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
-import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
+import com.meekdev.amnetic.client.framebuffer.Framebuffers;
+import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import com.meekdev.amnetic.client.pipeline.FrameContext;
 import com.meekdev.amnetic.client.pipeline.Pipeline;
 import com.meekdev.amnetic.client.pipeline.RenderStage;
@@ -13,21 +15,15 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.surface.WorldSurface;
 import com.meekdev.amnetic.client.surface.draw.UiDraw;
-import com.mojang.blaze3d.opengl.GlStateManager;
-import java.nio.FloatBuffer;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
-import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.BufferUtils;
-import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
@@ -35,6 +31,10 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.nio.FloatBuffer;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class WorldSurfaceRenderer {
 
@@ -147,7 +147,7 @@ public final class WorldSurfaceRenderer {
         fb.begin();
         GL11.glClearColor(0f, 0f, 0f, 0f);
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
-        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -272,7 +272,7 @@ public final class WorldSurfaceRenderer {
         program.setFloat("Opacity", 1f);
         GlState.bindTexture(0, fb.colorTextureGlId(0));
 
-        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
@@ -289,7 +289,7 @@ public final class WorldSurfaceRenderer {
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, grid, GL15.GL_STREAM_DRAW);
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, segs * 6);
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
         GlStateManager._glUseProgram(0);
         GlStateManager._depthMask(true); GL11.glDepthMask(true);
         GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
@@ -316,7 +316,7 @@ public final class WorldSurfaceRenderer {
                 ox, oy, oz, 1);
         Matrix4f projection = new Matrix4f(viewProjection).mul(plane);
 
-        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
@@ -347,11 +347,7 @@ public final class WorldSurfaceRenderer {
 
     public void tick(Minecraft mc) {
         pointerOverSurface = false;
-        //? if >=26.2 {
-        /*if (mc.player == null || mc.gui.screen() != null || surfaces.isEmpty()) return;
-        *///?} else {
-        if (mc.player == null || mc.screen != null || surfaces.isEmpty()) return;
-        //?}
+        if (mc.player == null || mc.gui.screen() != null || surfaces.isEmpty()) return;
         Vec3 eye = mc.player.getEyePosition();
         Vec3 look = mc.player.getLookAngle();
         CameraSnapshot camera = CameraSnapshot.current();
@@ -401,7 +397,7 @@ public final class WorldSurfaceRenderer {
         }
 
         pointerOverSurface = best != null;
-        boolean attack = GLFW.glfwGetMouseButton(VanillaCompat.windowHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        boolean attack = KeyInput.mouseButton(VanillaCompat.windowHandle(), KeyInput.MOUSE_BUTTON_LEFT) == KeyInput.PRESS;
         if (best != null) {
             float mx = bestU * best.canvasW();
             float my = (1f - bestV) * best.canvasH();
@@ -483,6 +479,6 @@ public final class WorldSurfaceRenderer {
         GL20.glVertexAttribPointer(0, 3, GL11.GL_FLOAT, false, 20, 0);
         GL20.glEnableVertexAttribArray(1);
         GL20.glVertexAttribPointer(1, 2, GL11.GL_FLOAT, false, 20, 12);
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
     }
 }

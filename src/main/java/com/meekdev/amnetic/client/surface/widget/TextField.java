@@ -11,7 +11,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
+import com.meekdev.amnetic.client.compat.KeyInput;
 
 public class TextField extends Widget {
 
@@ -125,8 +125,8 @@ public class TextField extends Widget {
         //?} else {
         /*long window = Minecraft.getInstance().getWindow().getWindow();
         *///?}
-        return InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_SHIFT)
-                || InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
+        return KeyInput.keyDown(KeyInput.KEY_LEFT_SHIFT)
+                || KeyInput.keyDown(KeyInput.KEY_RIGHT_SHIFT);
     }
 
     @Override
@@ -189,30 +189,30 @@ public class TextField extends Widget {
     @Override
     public boolean onKey(int key, int modifiers) {
         String s = value.peek();
-        boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
-        boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+        boolean shift = (modifiers & KeyInput.MOD_SHIFT) != 0;
+        boolean ctrl = (modifiers & KeyInput.MOD_CONTROL) != 0;
 
         if (ctrl) {
             switch (key) {
-                case GLFW.GLFW_KEY_A -> {
+                case KeyInput.KEY_A -> {
                     selAnchor = 0;
                     caret = s.length();
                     return true;
                 }
-                case GLFW.GLFW_KEY_C -> {
+                case KeyInput.KEY_C -> {
                     if (hasSelection()) {
                         Minecraft.getInstance().keyboardHandler.setClipboard(s.substring(selStart(), selEnd()));
                     }
                     return true;
                 }
-                case GLFW.GLFW_KEY_X -> {
+                case KeyInput.KEY_X -> {
                     if (hasSelection()) {
                         Minecraft.getInstance().keyboardHandler.setClipboard(s.substring(selStart(), selEnd()));
                         value.set(deleteSelection(s));
                     }
                     return true;
                 }
-                case GLFW.GLFW_KEY_V -> {
+                case KeyInput.KEY_V -> {
                     String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
                     if (clip != null && !clip.isEmpty()) {
                         insert(clip.replace("\r", "").replace('\n', ' '));
@@ -223,7 +223,7 @@ public class TextField extends Widget {
         }
 
         switch (key) {
-            case GLFW.GLFW_KEY_BACKSPACE -> {
+            case KeyInput.KEY_BACKSPACE -> {
                 if (hasSelection()) {
                     value.set(deleteSelection(s));
                 } else if (caret > 0) {
@@ -233,7 +233,7 @@ public class TextField extends Widget {
                 }
                 return true;
             }
-            case GLFW.GLFW_KEY_DELETE -> {
+            case KeyInput.KEY_DELETE -> {
                 if (hasSelection()) {
                     value.set(deleteSelection(s));
                 } else if (caret < s.length()) {
@@ -242,21 +242,21 @@ public class TextField extends Widget {
                 }
                 return true;
             }
-            case GLFW.GLFW_KEY_LEFT -> {
+            case KeyInput.KEY_LEFT -> {
                 int to = caret > 0 ? caret - Character.charCount(s.codePointBefore(caret)) : 0;
                 if (!shift && hasSelection()) to = selStart();
                 moveCaret(to, shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_RIGHT -> {
+            case KeyInput.KEY_RIGHT -> {
                 int to = caret < s.length() ? caret + Character.charCount(s.codePointAt(caret)) : caret;
                 if (!shift && hasSelection()) to = selEnd();
                 moveCaret(to, shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_HOME -> { moveCaret(0, shift); return true; }
-            case GLFW.GLFW_KEY_END -> { moveCaret(s.length(), shift); return true; }
-            case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
+            case KeyInput.KEY_HOME -> { moveCaret(0, shift); return true; }
+            case KeyInput.KEY_END -> { moveCaret(s.length(), shift); return true; }
+            case KeyInput.KEY_ENTER, KeyInput.KEY_KP_ENTER -> {
                 if (onSubmit != null) onSubmit.accept(s);
                 return true;
             }

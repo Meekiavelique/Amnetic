@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.render;
 
+import com.meekdev.amnetic.client.render.GlState;
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
@@ -9,7 +10,7 @@ import java.util.Optional;
 
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import com.meekdev.amnetic.client.instanced.MeshData;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
@@ -63,7 +64,7 @@ public final class Geometry {
         } else {
             GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, gpu.count);
         }
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
         GlStateManager._glUseProgram(0);
     }
 
@@ -99,7 +100,7 @@ public final class Geometry {
         }
 
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
         return gpu;
     }
 

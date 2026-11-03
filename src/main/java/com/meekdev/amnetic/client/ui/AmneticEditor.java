@@ -12,10 +12,13 @@ import com.meekdev.amnetic.client.ui.inspector.ProfilerInspector;
 import com.meekdev.amnetic.client.ui.inspector.ShadowsInspector;
 import com.meekdev.amnetic.client.ui.inspector.SsaoInspector;
 import com.meekdev.amnetic.client.ui.inspector.SsgiInspector;
-import com.meekdev.amnetic.client.ui.inspector.TaaInspector;
 import com.meekdev.amnetic.client.ui.inspector.StatsInspector;
-import foundry.imgui.api.ImGuiMC;
+import com.meekdev.amnetic.client.ui.inspector.TaaInspector;
+import net.minecraft.client.Minecraft;
+//? if <26.2 {
+/*import foundry.imgui.api.ImGuiMC;
 import foundry.imgui.api.ImGuiMCEvents;
+*///?}
 import imgui.ImFont;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
@@ -65,7 +68,11 @@ public final class AmneticEditor {
             LOGGER.info("adopted {} inspectors registered before the editor existed", PENDING.size());
             PENDING.clear();
         }
-        ImGuiMCEvents.INSTANCE.postRenderImGuiEvent(instance::render);
+        //? if >=26.2 {
+        NativeEditorBackend.init(instance::render);
+        //?} else {
+        /*ImGuiMCEvents.INSTANCE.postRenderImGuiEvent(instance::render);
+        *///?}
         LOGGER.info("Amnetic editor ready (toggle with the configured keybind)");
     }
 
@@ -79,8 +86,16 @@ public final class AmneticEditor {
     }
 
     public static void toggle() {
+        if(!isEnabled() && Minecraft.getInstance().gui.screen()!=null)return;
         if (instance != null) instance.enabled = !instance.enabled;
+        //? if >=26.2 {
+        NativeEditorBackend.setOpen(isEnabled());
+        //?}
     }
+
+    //? if >=26.2 {
+    static void closed() { if (instance != null) instance.enabled = false; }
+    //?}
 
     public static boolean isEnabled() {
         return instance != null && instance.enabled;
@@ -110,7 +125,11 @@ public final class AmneticEditor {
 
     private ImFont font() {
         if (font == null) {
-            font = ImGuiMC.getFont(ImGuiMC.FONT_DEFAULT, false, false);
+            //? if >=26.2 {
+            font = ImGui.getIO().getFontDefault();
+            //?} else {
+            /*font = ImGuiMC.getFont(ImGuiMC.FONT_DEFAULT, false, false);
+            *///?}
         }
         return font;
     }

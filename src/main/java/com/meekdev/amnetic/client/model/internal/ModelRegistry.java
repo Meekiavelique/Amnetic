@@ -1,8 +1,9 @@
 package com.meekdev.amnetic.client.model.internal;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.meekdev.amnetic.client.render.LevelCamera;
 import com.meekdev.amnetic.client.material.internal.ShadingModelRegistry;
+import com.meekdev.amnetic.client.render.GlState;
+import com.meekdev.amnetic.client.render.LevelCamera;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +23,7 @@ import com.meekdev.amnetic.client.model.Model;
 import com.meekdev.amnetic.client.model.ModelConfig;
 import com.meekdev.amnetic.client.ibl.internal.EnvProbe;
 import com.meekdev.amnetic.client.model.ModelLighting;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL13;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -87,6 +88,7 @@ public final class ModelRegistry {
     }
 
     public void warmup() {
+        if (models.isEmpty()) return;
         if (shader == null) {
             try {
                 shader = ModelShader.load();
@@ -704,7 +706,7 @@ public final class ModelRegistry {
             }
         } finally {
             GlStateManager._glUseProgram(0);
-            GlStateManager._glBindVertexArray(0);
+            GlState.resetVertexArray();
         }
     }
 

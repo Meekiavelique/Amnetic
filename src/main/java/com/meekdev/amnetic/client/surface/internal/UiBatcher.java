@@ -8,7 +8,7 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.surface.material.SurfaceMaterial;
 import com.meekdev.amnetic.client.surface.reactive.Reactive;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -20,6 +20,7 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
+import java.util.function.Consumer;
 
 import java.nio.FloatBuffer;
 import java.util.HashMap;
@@ -410,7 +411,7 @@ public final class UiBatcher {
     // instead of the surface's own shader. the program gets Ortho, Tex, ScreenSize and whatever
     // uniforms sets; each vertex carries its uv rect in Params, so a shader can tell where inside a
     // glyph it is
-    public void withProgram(ShaderProgram custom, java.util.function.Consumer<ShaderProgram> uniforms, Runnable draw) {
+    public void withProgram(ShaderProgram custom, Consumer<ShaderProgram> uniforms, Runnable draw) {
         flush();
         draw.run();
         if (segments == 0 || verts.position() == 0) return;
@@ -490,14 +491,14 @@ public final class UiBatcher {
         // left bound, the sampler would override whatever the game draws on unit zero next
         GL33.glBindSampler(0, 0);
 
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
         verts.clear();
         segments = 0;
     }
 
     public void restorePassState() {
         GlStateManager._disableScissorTest(); GL11.glDisable(GL11.GL_SCISSOR_TEST);
-        GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+        GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
         applyBlend(SurfaceMaterial.Blend.MIX);
         GlStateManager._disableDepthTest(); GL11.glDisable(GL11.GL_DEPTH_TEST);
         GlStateManager._depthMask(false); GL11.glDepthMask(false);
@@ -546,6 +547,6 @@ public final class UiBatcher {
         GL20.glVertexAttribPointer(4, 2, GL11.GL_FLOAT, false, stride, 48);
         GL20.glEnableVertexAttribArray(5);
         GL20.glVertexAttribPointer(5, 4, GL11.GL_FLOAT, false, stride, 56);
-        GlStateManager._glBindVertexArray(0);
+        GlState.resetVertexArray();
     }
 }

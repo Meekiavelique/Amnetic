@@ -8,17 +8,8 @@ import com.meekdev.amnetic.client.framebuffer.internal.DepthFormat;
 import com.meekdev.amnetic.client.post.UniformValue;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ProgramLink;
-import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
@@ -28,18 +19,27 @@ import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
+import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 final class PostPipeline implements AutoCloseable {
 
     static final Identifier MAIN = Identifier.fromNamespaceAndPath("minecraft", "main");
 
-    private record Input(String sampler, Identifier target, Identifier texture, boolean depth, boolean bilinear) {}
+    record Input(String sampler, Identifier target, Identifier texture, boolean depth, boolean bilinear) {}
 
-    private record Pass(Identifier vertexShader, Identifier fragmentShader, List<Input> inputs, Identifier output,
-                        Map<String, List<UniformValue>> blockUniforms, Map<String, UniformValue> memberUniforms) {}
+    record Pass(Identifier vertexShader, Identifier fragmentShader, List<Input> inputs, Identifier output,
+                        Map<String, List<UniformValue>> blockUniforms, Map<String, UniformValue> memberUniforms, boolean blend) {}
 
-    // scale sizes the target relative to the main target, for cheap half res passes
-    private record TargetSpec(Integer width, Integer height, boolean persistent, int clearColor, Float scale) {}
+    record TargetSpec(Integer width, Integer height, boolean persistent, int clearColor, Float scale) {}
 
     private static final class Surface {
         int color;
@@ -55,6 +55,9 @@ final class PostPipeline implements AutoCloseable {
     private final Map<Identifier, Surface> internal = new HashMap<>();
     private final List<PostProgram> programs = new ArrayList<>();
     private final List<ProgramLink> links = new ArrayList<>();
+    //? if >=26.2 {
+    private NativePostPipeline nativePipeline;
+    //?}
     private int fbo;
     private int scratchColor;
     private int scratchWidth;
@@ -86,7 +89,7 @@ final class PostPipeline implements AutoCloseable {
                         t.has("width") ? t.get("width").getAsInt() : null,
                         t.has("height") ? t.get("height").getAsInt() : null,
                         t.has("persistent") && t.get("persistent").getAsBoolean(),
-                        t.has("clear_color") ? t.get("clear_color").getAsInt() : 0,
+                        parseClearColor(t.get("clear_color")),
                         t.has("scale") ? t.get("scale").getAsFloat() : null));
             }
         }
@@ -127,9 +130,19 @@ final class PostPipeline implements AutoCloseable {
                     Identifier.parse(p.get("fragment_shader").getAsString()),
                     inputs,
                     Identifier.parse(p.get("output").getAsString()),
-                    blocks, members));
+                    blocks, members, p.has("blend") && p.get("blend").getAsBoolean()));
         }
         return new PostPipeline(id, targets, passes);
+    }
+
+    private static int parseClearColor(JsonElement color) {
+        if (color == null || color.isJsonNull()) return 0;
+        if (!color.isJsonArray()) return color.getAsInt();
+        var rgba = color.getAsJsonArray();
+        if (rgba.size() != 4) throw new IllegalArgumentException("clear_color requires four RGBA components");
+        int[] channels = new int[4];
+        for (int i = 0; i < 4; i++) channels[i] = Math.round(Math.max(0F, Math.min(1F, rgba.get(i).getAsFloat())) * 255F);
+        return channels[3] << 24 | channels[0] << 16 | channels[1] << 8 | channels[2];
     }
 
     // starts the links this effect needs and takes in the finished ones in order, true while some are left
@@ -175,9 +188,14 @@ final class PostPipeline implements AutoCloseable {
 
     void run(Map<String, List<UniformValue>> slots, Function<Identifier, RenderTarget> external) {
         Minecraft mc = Minecraft.getInstance();
-        RenderTarget main = mc.getMainRenderTarget();
+        RenderTarget main = mc.gameRenderer.mainRenderTarget();
         if (main == null) return;
-        ensureResources();
+        //? if >=26.2 {
+        if (nativePipeline == null) nativePipeline = new NativePostPipeline(id, targetSpecs, passes);
+        nativePipeline.run(slots, external);
+        return;
+        //?} else {
+        /*ensureResources();
         while (programs.size() < passes.size()) {
             startLinks();
             adopt();
@@ -206,6 +224,7 @@ final class PostPipeline implements AutoCloseable {
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prevFbo);
             GlStateManager._viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
         }
+        *///?}
     }
 
     private void runPass(Pass pass, PostProgram program, Surface out, Map<Identifier, Surface> frame,
@@ -266,7 +285,7 @@ final class PostPipeline implements AutoCloseable {
 
     private void writeGlobals(PostProgram program, Surface out) {
         Minecraft mc = Minecraft.getInstance();
-        RenderTarget main = mc.getMainRenderTarget();
+        RenderTarget main = mc.gameRenderer.mainRenderTarget();
         program.set("ScreenSize", new UniformValue.Vec2Uniform(new Vector2f(main.width, main.height)));
         float partial = VanillaCompat.partialTick(false);
         long gameTime = mc.level != null ? mc.level.getGameTime() : 0L;
@@ -280,7 +299,7 @@ final class PostPipeline implements AutoCloseable {
     private Surface resolve(Identifier target, Map<Identifier, Surface> frame, Function<Identifier, RenderTarget> external) {
         Surface own = frame.get(target);
         if (own != null) return own;
-        RenderTarget rt = MAIN.equals(target) ? Minecraft.getInstance().getMainRenderTarget() : external.apply(target);
+        RenderTarget rt = MAIN.equals(target) ? Minecraft.getInstance().gameRenderer.mainRenderTarget() : external.apply(target);
         if (rt == null) return null;
         Surface s = new Surface();
         s.color = VanillaCompat.colorTextureGlId(rt);
@@ -365,7 +384,7 @@ final class PostPipeline implements AutoCloseable {
     private static int texture(int internalFormat, int format, int type, int w, int h) {
         int tex = GL11.glGenTextures();
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, tex);
-        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, internalFormat, w, h, 0, format, type, (java.nio.ByteBuffer) null);
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, internalFormat, w, h, 0, format, type, (ByteBuffer) null);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
@@ -385,6 +404,9 @@ final class PostPipeline implements AutoCloseable {
 
     @Override
     public void close() {
+    //? if >=26.2 {
+    if (nativePipeline != null) { nativePipeline.close(); nativePipeline = null; }
+    //?}
         dropLinks();
         for (PostProgram p : programs) p.close();
         programs.clear();

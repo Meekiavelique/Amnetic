@@ -16,7 +16,7 @@ import com.meekdev.amnetic.client.render.FailureGuard;
 import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -81,7 +81,7 @@ public final class OutlinePass {
             // empty batches linger a while for reuse, skipping on them would composite last frame's stale mask
             if (queuedFloats() == 0 || !guard.alive() || CaptureManager.INSTANCE.isCapturing()) return;
             CameraSnapshot cam = CameraSnapshot.current();
-            RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+            RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
             if (cam == null || main == null) return;
             try {
                 GlState.beginFullscreen();
@@ -176,7 +176,7 @@ public final class OutlinePass {
         try {
             // main depth gets sampled below, so it can't stay attached
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, 0, 0);
-            GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
+            GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
             // keeps the main target's alpha untouched
             GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);

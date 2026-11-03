@@ -1,22 +1,21 @@
 package com.meekdev.amnetic.client.decal;
 
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.decal.internal.DecalBounds;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.framebuffer.Framebuffers;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.internal.MainTargetFramebuffer;
-import com.meekdev.amnetic.client.render.CameraSnapshot;
-import com.meekdev.amnetic.client.render.GlState;
-import com.meekdev.amnetic.client.render.ScreenPass;
-import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.mojang.blaze3d.opengl.GlStateManager;
 import com.meekdev.amnetic.client.light.Light;
 import com.meekdev.amnetic.client.light.LightType;
 import com.meekdev.amnetic.client.light.internal.LightRegistry;
-import java.nio.IntBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import com.meekdev.amnetic.client.render.CameraSnapshot;
+import com.meekdev.amnetic.client.render.GlState;
+import com.meekdev.amnetic.client.render.ImportedTextures;
+import com.meekdev.amnetic.client.render.ScreenPass;
+import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
@@ -27,16 +26,23 @@ import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryStack;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-// draws film decals: one scissored fullscreen triangle per film, colour through dual source blending
-// (added light, multiplied transmittance), then a gbuffer pass so deferred lights and ssr see the wet surface
 final class FilmPass extends ScreenPass {
-
     static final FilmPass INSTANCE = new FilmPass();
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/decal.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/film.fsh");
     private static final Identifier GBUFFER_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/decal/film_gbuffer.fsh");
+
+    private static final int PALETTE_COLORS = 8;
+    private static final int MAX_LIGHTS = 4;
+    private static final long TEXEL_WRAP = 1024L;
 
     private final DecalBounds bounds = new DecalBounds();
     private final List<Light> nearest = new ArrayList<>();
@@ -45,15 +51,15 @@ final class FilmPass extends ScreenPass {
     private ShaderProgram gbufferProgram;
     private List<FilmDecal> films;
     private final long startNanos = System.nanoTime();
-    // pixels shaded last frame, for the editor and profiling
     long lastPixels;
     int lastDrawn;
 
-    private FilmPass() { super("FilmDecal"); }
+    private FilmPass() {
+        super("FilmDecal");
+    }
 
     void render(List<FilmDecal> films) {
         this.films = films;
-        // frees the gl side of removed films even when nothing gets drawn
         for (FilmDecal f : films) {
             if (f.removed) release(f);
         }
@@ -64,7 +70,9 @@ final class FilmPass extends ScreenPass {
     @Override
     protected boolean enabled() {
         if (films == null) return false;
-        for (FilmDecal f : films) if (!f.isEmpty()) return true;
+        for (FilmDecal f : films) {
+            if (!f.isEmpty()) return true;
+        }
         return false;
     }
 
@@ -80,9 +88,9 @@ final class FilmPass extends ScreenPass {
         int mcFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         int[] viewport = new int[4];
         GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
-        // the scissor lives in the main target's pixels, an earlier pass can leave the viewport at some other size
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-        int width = main.width, height = main.height;
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        int width = main.width;
+        int height = main.height;
         Vec3 eye = cam.eye;
         float time = (System.nanoTime() - startNanos) * 1e-9f;
         float[] env = Decals.filmEnvironment();
@@ -90,7 +98,6 @@ final class FilmPass extends ScreenPass {
         for (FilmDecal f : films) upload(f);
 
         depthCapture.blitDepthFromMain();
-        // the scene colour only gets copied when a film actually mirrors it
         for (FilmDecal f : films) {
             if (!f.isEmpty() && !f.look.pixelArt && f.look.screenReflect > 0f) {
                 depthCapture.blitColorFromMain();
@@ -104,8 +111,8 @@ final class FilmPass extends ScreenPass {
         if (prev < 0) return false;
         bounds.begin();
         try {
-            GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
-            // rgb = added light + destination * transmittance, alpha untouched
+            GlStateManager._enableBlend(0);
+            GL11.glEnable(GL11.GL_BLEND);
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL33.GL_SRC1_COLOR, GL11.GL_ZERO, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_ONE, GL33.GL_SRC1_COLOR, GL11.GL_ZERO, GL11.GL_ONE);
             program.begin();
@@ -130,7 +137,6 @@ final class FilmPass extends ScreenPass {
         return true;
     }
 
-    // writes normal and roughness where it's wet, so deferred lights (a camera flash, a torch) glint on it and ssr reflects
     private void renderGBuffer(CameraSnapshot cam, Vec3 eye, float time, float[] env, int mcFbo, int[] viewport, int width, int height) {
         GBufferTargets g = GBufferTargets.INSTANCE;
         if (!g.isPopulated() || gbufferProgram == null) return;
@@ -143,8 +149,8 @@ final class FilmPass extends ScreenPass {
                 IntBuffer bufs = s.ints(GL30.GL_NONE, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_COLOR_ATTACHMENT2, GL30.GL_NONE);
                 GL30.glDrawBuffers(bufs);
             }
-            GlStateManager._enableBlend(); GL11.glEnable(GL11.GL_BLEND);
-            // coverage weighted, destination alpha kept since it carries the gbuffer markers
+            GlStateManager._enableBlend(0);
+            GL11.glEnable(GL11.GL_BLEND);
             GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             gbufferProgram.begin();
@@ -218,10 +224,12 @@ final class FilmPass extends ScreenPass {
         p.setInt("PixelArt", l.pixelArt ? 1 : 0);
         p.setFloat("TexelsPerUnit", l.texelsPerUnit);
         if (l.pixelArt) {
-            for (int i = 0; i < 8; i++) p.setVec3("Palette[" + i + "]", l.palette[i * 3], l.palette[i * 3 + 1], l.palette[i * 3 + 2]);
-            // world texel of the film's corner, wrapped so the per texel hash stays exact in floats
-            p.setVec2("OriginTexel", (float) Math.floorMod((long) Math.floor(f.originX * l.texelsPerUnit), 1024L),
-                    (float) Math.floorMod((long) Math.floor(f.originZ * l.texelsPerUnit), 1024L));
+            for (int i = 0; i < PALETTE_COLORS; i++) {
+                p.setVec3("Palette[" + i + "]", l.palette[i * 3], l.palette[i * 3 + 1], l.palette[i * 3 + 2]);
+            }
+            float texelX = (float) Math.floorMod((long) Math.floor(f.originX * l.texelsPerUnit), TEXEL_WRAP);
+            float texelZ = (float) Math.floorMod((long) Math.floor(f.originZ * l.texelsPerUnit), TEXEL_WRAP);
+            p.setVec2("OriginTexel", texelX, texelZ);
             p.setFloat("PixelJitter", l.jitter);
             p.setFloat("PixelOutline", l.outline);
             p.setFloat("PixelCore", l.core ? 1f : 0f);
@@ -236,7 +244,6 @@ final class FilmPass extends ScreenPass {
         }
     }
 
-    // the few lights nearest the camera, pixel films turn them into glints
     private void lights(ShaderProgram p, Vec3 eye) {
         List<Light> all = LightRegistry.INSTANCE.all();
         nearest.clear();
@@ -245,28 +252,34 @@ final class FilmPass extends ScreenPass {
             nearest.add(l);
         }
         nearest.sort((a, b) -> Double.compare(dist2(a, eye), dist2(b, eye)));
-        int n = Math.min(4, nearest.size());
+        int n = Math.min(MAX_LIGHTS, nearest.size());
         for (int i = 0; i < n; i++) {
             Light l = nearest.get(i);
             boolean spot = l.type() == LightType.SPOT;
-            p.setVec4("LightPos[" + i + "]", (float) (l.x() - eye.x), (float) (l.y() - eye.y), (float) (l.z() - eye.z), l.range());
-            p.setVec4("LightCol[" + i + "]", l.red() * l.intensity(), l.green() * l.intensity(), l.blue() * l.intensity(), spot ? l.cosOuter() : -1f);
+            float x = (float) (l.x() - eye.x);
+            float y = (float) (l.y() - eye.y);
+            float z = (float) (l.z() - eye.z);
+            p.setVec4("LightPos[" + i + "]", x, y, z, l.range());
+            float red = l.red() * l.intensity();
+            float green = l.green() * l.intensity();
+            float blue = l.blue() * l.intensity();
+            p.setVec4("LightCol[" + i + "]", red, green, blue, spot ? l.cosOuter() : -1f);
             p.setVec4("LightDir[" + i + "]", l.dirX(), l.dirY(), l.dirZ(), spot ? 1f : 0f);
         }
         p.setInt("LightCount", n);
     }
 
     private static double dist2(Light l, Vec3 eye) {
-        double dx = l.x() - eye.x, dy = l.y() - eye.y, dz = l.z() - eye.z;
+        double dx = l.x() - eye.x;
+        double dy = l.y() - eye.y;
+        double dz = l.z() - eye.z;
         return dx * dx + dy * dy + dz * dz;
     }
 
-    // only the rows that changed go up to the gpu
     private void upload(FilmDecal f) {
         if (f.fieldA == null) return;
         if (f.texA == 0) {
             f.texA = create(f.resX, f.resZ, GL11.GL_LINEAR);
-            // linear too, the floor height is read with texelFetch so filtering never blends it
             f.texB = create(f.resX, f.resZ, GL11.GL_LINEAR);
             f.dirtyMin = 0;
             f.dirtyMax = f.resZ - 1;
@@ -279,11 +292,12 @@ final class FilmPass extends ScreenPass {
         GL11.glPixelStorei(GL12.GL_UNPACK_SKIP_ROWS, 0);
         GL11.glPixelStorei(GL12.GL_UNPACK_SKIP_PIXELS, 0);
         GlState.bindTexture(0, f.texA);
+        int end = offset + rows * f.resX * 4;
         GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, f.dirtyMin, f.resX, rows, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE,
-                f.fieldA.position(offset).limit(offset + rows * f.resX * 4));
+                f.fieldA.position(offset).limit(end));
         GlState.bindTexture(0, f.texB);
         GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, f.dirtyMin, f.resX, rows, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE,
-                f.fieldB.position(offset).limit(offset + rows * f.resX * 4));
+                f.fieldB.position(offset).limit(end));
         f.fieldA.clear();
         f.fieldB.clear();
         GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 4);
@@ -292,15 +306,14 @@ final class FilmPass extends ScreenPass {
         f.dirtyMax = -1;
     }
 
-    private final java.util.Set<Identifier> loadedTextures = new java.util.HashSet<>();
+    private final Set<Identifier> loadedTextures = new HashSet<>();
 
-    // resource textures for patterns, loaded through the texture manager once
     private int textureGlId(Identifier id) {
         var tm = Minecraft.getInstance().getTextureManager();
-        if (!com.meekdev.amnetic.client.render.ImportedTextures.isImported(id) && loadedTextures.add(id)) {
-            com.meekdev.amnetic.client.compat.VanillaCompat.loadTexture(tm, id);
+        if (!ImportedTextures.isImported(id) && loadedTextures.add(id)) {
+            VanillaCompat.loadTexture(tm, id);
         }
-        return com.meekdev.amnetic.client.compat.VanillaCompat.glId(tm.getTexture(id));
+        return VanillaCompat.glId(tm.getTexture(id));
     }
 
     private static int create(int w, int h, int filter) {
@@ -311,21 +324,35 @@ final class FilmPass extends ScreenPass {
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 0);
-        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, w, h, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (java.nio.ByteBuffer) null);
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, w, h, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null);
         GlState.bindTexture(0, 0);
         return id;
     }
 
     private static void release(FilmDecal f) {
-        if (f.texA != 0) { GL11.glDeleteTextures(f.texA); f.texA = 0; }
-        if (f.texB != 0) { GL11.glDeleteTextures(f.texB); f.texB = 0; }
+        if (f.texA != 0) {
+            GL11.glDeleteTextures(f.texA);
+            f.texA = 0;
+        }
+        if (f.texB != 0) {
+            GL11.glDeleteTextures(f.texB);
+            f.texB = 0;
+        }
         f.freeCpu();
     }
 
     @Override
     protected void onDispose() {
-        if (films != null) for (FilmDecal f : films) release(f);
-        if (depthCapture != null) { depthCapture.dispose(); depthCapture = null; }
-        if (gbufferProgram != null) { gbufferProgram.close(); gbufferProgram = null; }
+        if (films != null) {
+            for (FilmDecal f : films) release(f);
+        }
+        if (depthCapture != null) {
+            depthCapture.dispose();
+            depthCapture = null;
+        }
+        if (gbufferProgram != null) {
+            gbufferProgram.close();
+            gbufferProgram = null;
+        }
     }
 }

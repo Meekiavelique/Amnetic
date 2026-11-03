@@ -1,15 +1,17 @@
 package com.meekdev.amnetic.client.instanced.internal;
 
-import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.meekdev.amnetic.client.render.LevelCamera;
 import com.meekdev.amnetic.client.camera.internal.FrameView;
+import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.dev.ShaderHotReload;
+import com.meekdev.amnetic.client.emissive.EmissiveContext;
+import com.meekdev.amnetic.client.emissive.EmissiveSources;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import com.meekdev.amnetic.client.gbuffer.GBuffer;
 import com.meekdev.amnetic.client.gbuffer.internal.GBufferTargets;
 import com.meekdev.amnetic.client.instanced.InstancePhase;
 import com.meekdev.amnetic.client.instanced.InstanceRenderContext;
 import com.meekdev.amnetic.client.instanced.InstancedMesh;
+import com.meekdev.amnetic.client.render.LevelCamera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
@@ -85,12 +87,16 @@ public final class InstanceMeshRegistry {
         InstanceRenderContext ctx = buildContext(cam);
         if (ctx == null) return;
 
-        int prevFbo = MainTargetFramebuffer.bind();
+        //? if >=26.2 {
+        dispatchAll(phase, ctx);
+        //?} else {
+        /*int prevFbo = MainTargetFramebuffer.bind();
         try {
             dispatchAll(phase, ctx);
         } finally {
             MainTargetFramebuffer.restore(prevFbo);
         }
+        *///?}
     }
 
     public void renderEmissive(InstancePhase phase, LevelCamera cam,
@@ -98,7 +104,12 @@ public final class InstanceMeshRegistry {
         InstanceRenderContext ctx = buildContext(cam);
         if (ctx == null) return;
 
-        target.begin();
+        //? if >=26.2 {
+        var previous = NativeInstanceRenderer.emissiveTarget;
+        NativeInstanceRenderer.emissiveTarget = target;
+        //?} else {
+        /*target.begin();
+        *///?}
         try {
             for (InstanceMeshEntry<?> entry : entries) {
                 if (entry.mesh().phase() != phase) continue;
@@ -111,9 +122,27 @@ public final class InstanceMeshRegistry {
                 }
             }
         } finally {
-            target.end();
+            //? if >=26.2 {
+            NativeInstanceRenderer.emissiveTarget = previous;
+            //?} else {
+            /*target.end();
+            *///?}
         }
     }
+
+    //? if >=26.2 {
+    public void renderNativeSources(LevelCamera camera, Framebuffer target) {
+        var context = buildContext(camera);
+        if(context == null || context.world() == null) return;
+        var previous = NativeInstanceRenderer.emissiveTarget;
+        NativeInstanceRenderer.emissiveTarget = target;
+        try {
+            EmissiveSources.emitAll(
+                    new EmissiveContext(context.world(), context.cameraPos(),
+                            context.viewMatrix(), context.projectionMatrix(), context.deltaTick(), target.width(), target.height()));
+        } finally { NativeInstanceRenderer.emissiveTarget = previous; }
+    }
+    //?}
 
     private InstanceRenderContext buildContext(LevelCamera cam) {
         if (cam == null) return null;

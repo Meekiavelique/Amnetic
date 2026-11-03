@@ -1,12 +1,13 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.render.GlState;
 import java.util.List;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.instanced.RenderState;
 import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.model.ModelLook;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -52,7 +53,7 @@ public final class OffscreenModelRenderer implements AutoCloseable {
         GlStateManager._disableDepthTest();
         GlStateManager._depthMask(false);
         GlStateManager._disableCull();
-        GlStateManager._enableBlend();
+        GlStateManager._enableBlend(0);
         GlStateManager._activeTexture(GL13.GL_TEXTURE1);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
         RenderState.DEFAULT.apply();
@@ -72,7 +73,7 @@ public final class OffscreenModelRenderer implements AutoCloseable {
             return true;
         } finally {
             GlStateManager._glUseProgram(0);
-            GlStateManager._glBindVertexArray(0);
+            GlState.resetVertexArray();
             RenderState.DEFAULT.restore();
         }
     }

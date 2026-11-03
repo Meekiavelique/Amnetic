@@ -1,12 +1,14 @@
 package com.meekdev.amnetic.client.model.internal;
 
 
+import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.render.ProgramLink;
 import com.meekdev.amnetic.client.render.ShaderProgram;
-import com.meekdev.amnetic.client.model.ModelLighting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.nio.FloatBuffer;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
@@ -18,7 +20,7 @@ import org.lwjgl.system.MemoryStack;
 
 final class ModelShader implements AutoCloseable {
 
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Amnetic/Model");
+    private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Model");
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/model.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/model.fsh");

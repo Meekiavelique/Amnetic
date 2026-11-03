@@ -1,7 +1,7 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
 import com.meekdev.amnetic.client.shadow.ShadowSettings;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;
@@ -11,15 +11,22 @@ import org.lwjgl.opengl.GL40;
 import java.nio.ByteBuffer;
 
 public final class PointShadowArray {
-
     private static final int GL_TEXTURE_CUBE_MAP_SEAMLESS = 0x884F;
-
-    private static int textureId, fboId, faceSize, slots;
+    private static final int FACES = 6;
+    private static int textureId;
+    private static int fboId;
+    private static int faceSize;
+    private static int slots;
 
     private PointShadowArray() {}
 
-    public static int glTextureId() { return textureId; }
-    public static int faceSize() { return faceSize; }
+    public static int glTextureId() {
+        return textureId;
+    }
+
+    public static int faceSize() {
+        return faceSize;
+    }
 
     public static void ensure(int requestedFaceSize, int requestedSlots) {
         requestedSlots = Math.max(1, Math.min(ShadowSettings.MAX_POINT, requestedSlots));
@@ -27,15 +34,14 @@ public final class PointShadowArray {
         delete();
         faceSize = requestedFaceSize;
         slots = requestedSlots;
-        int layerCount = 6 * slots;
+        int layerCount = FACES * slots;
 
         int prevFbo = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
         int prevCubeArray = GL11.glGetInteger(GL40.GL_TEXTURE_BINDING_CUBE_MAP_ARRAY);
 
         textureId = GlStateManager._genTexture();
         GL11.glBindTexture(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, textureId);
-        GL12.glTexImage3D(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, 0, GL30.GL_DEPTH_COMPONENT32F,
-                faceSize, faceSize, layerCount, 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, (ByteBuffer) null);
+        allocateFaces(layerCount);
         GL11.glTexParameteri(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, GL12.GL_TEXTURE_BASE_LEVEL, 0);
         GL11.glTexParameteri(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, GL12.GL_TEXTURE_MAX_LEVEL, 0);
         GL11.glTexParameteri(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
@@ -60,14 +66,25 @@ public final class PointShadowArray {
         GL11.glBindTexture(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, prevCubeArray);
     }
 
+    private static void allocateFaces(int layerCount) {
+        GL12.glTexImage3D(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, 0, GL30.GL_DEPTH_COMPONENT32F,
+                faceSize, faceSize, layerCount, 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, (ByteBuffer) null);
+    }
+
     public static void bindFaceForRender(int slot, int face) {
         GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, fboId);
-        GL30.glFramebufferTextureLayer(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, textureId, 0, slot * 6 + face);
+        GL30.glFramebufferTextureLayer(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, textureId, 0, slot * FACES + face);
     }
 
     public static void delete() {
-        if (textureId != 0) { GL11.glDeleteTextures(textureId); textureId = 0; }
-        if (fboId != 0) { GL30.glDeleteFramebuffers(fboId); fboId = 0; }
+        if (textureId != 0) {
+            GL11.glDeleteTextures(textureId);
+            textureId = 0;
+        }
+        if (fboId != 0) {
+            GL30.glDeleteFramebuffers(fboId);
+            fboId = 0;
+        }
         faceSize = 0;
         slots = 0;
     }

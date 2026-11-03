@@ -2,7 +2,7 @@ package com.meekdev.amnetic.client.post.internal;
 
 import com.meekdev.amnetic.client.post.UniformValue;
 import com.meekdev.amnetic.client.render.ProgramLink;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -66,7 +66,9 @@ final class PostProgram implements AutoCloseable {
     // starts compiling and linking the pass in the background
     static ProgramLink start(Identifier vertexShader, Identifier fragmentShader) {
         String vsh = SCREENQUAD.equals(vertexShader) ? read(SCREENQUAD_FILE) : load(vertexShader, "vsh");
-        String fsh = load(fragmentShader, "fsh");
+        String fsh = fragmentShader.equals(Identifier.fromNamespaceAndPath("minecraft", "post/blit"))
+                ? read(Identifier.fromNamespaceAndPath("amnetic", "shaders/post/blit.fsh"))
+                : load(fragmentShader, "fsh");
         return ProgramLink.builder("post program " + vertexShader + " / " + fragmentShader)
                 .vertex(vsh, vertexShader)
                 .fragment(fsh, fragmentShader)

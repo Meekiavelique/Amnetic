@@ -5,7 +5,11 @@ import com.meekdev.amnetic.client.AmneticClient;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
-//?} else {
+//?} else if neoforge {
+/*import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.bus.api.IEventBus;
+*///?} else {
 /*import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -14,8 +18,12 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-//? forge {
-/*@Mod(Amnetic.MOD_ID)
+//? forge || neoforge {
+/*//? if neoforge {
+@Mod(value = Amnetic.MOD_ID, dist = Dist.CLIENT)
+//?} else {
+@Mod(Amnetic.MOD_ID)
+//?}
 *///?}
 //? fabric {
 public class Amnetic implements ModInitializer {
@@ -32,13 +40,15 @@ public class Amnetic implements ModInitializer {
     public void onInitialize() {
         warnIfNested();
     }
-    //?} else {
-    /*//? if <1.21 {
-    public Amnetic() {
-        this(FMLJavaModLoadingContext.get());
+    //?} else if neoforge {
+    /*public Amnetic(IEventBus modBus) {
+        NeoForgeClientEvents.install(modBus);
+        AmneticClient.initialize();
     }
+    *///?} else {
+    /*//? if <1.21 {
+    public Amnetic() { this(FMLJavaModLoadingContext.get()); }
     //?}
-
     public Amnetic(FMLJavaModLoadingContext context) {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ForgeClientEvents.install(context);

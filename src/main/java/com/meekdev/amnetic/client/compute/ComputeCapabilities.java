@@ -1,13 +1,16 @@
 package com.meekdev.amnetic.client.compute;
 
 import com.mojang.logging.LogUtils;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL43;
+import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GLCapabilities;
 import org.slf4j.Logger;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+//? if >=26.2 {
+import com.mojang.blaze3d.systems.RenderSystem;
+//?}
 
 public final class ComputeCapabilities {
 
@@ -18,6 +21,19 @@ public final class ComputeCapabilities {
     private ComputeCapabilities() {}
 
     public static void probeOnce() {
+        //? if >=26.2 {
+        var device = RenderSystem.tryGetDevice();
+        if (device == null) return;
+        var info = device.getDeviceInfo();
+        if (!"OpenGL".equalsIgnoreCase(info.backendName())) {
+            if (probed.compareAndSet(false, true)) {
+                LOGGER.info("[Amnetic] Graphics backend={}, device={}, driver={}",
+                        info.backendName(), info.name(), info.driverInfo());
+                LOGGER.info("[Amnetic] OpenGL compute interop unavailable on this backend");
+            }
+            return;
+        }
+        //?}
         if (!probed.compareAndSet(false, true)) {
             return;
         }

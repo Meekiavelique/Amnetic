@@ -20,6 +20,8 @@ public final class ColorGradeSettings {
 
     public ColorGradeSettings enabled(boolean v) { this.enabled = v; return this; }
     public boolean isEnabled() { return enabled; }
+    public boolean isIdentity() {return exposure==1 && contrast==1 && saturation==1 && brightness==0
+            && temperature==0 && tint==0 && gamma==1 && (lut==null || lutIntensity==0);}
 
     public ColorGradeSettings exposure(float v) { this.exposure = Math.max(0f, v); return this; }
     public float exposure() { return exposure; }

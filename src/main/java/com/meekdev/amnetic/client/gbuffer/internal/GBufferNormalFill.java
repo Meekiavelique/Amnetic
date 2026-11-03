@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.gbuffer.internal;
 
+import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.gbuffer.GBuffer;
 import com.meekdev.amnetic.client.light.internal.LightRegistry;
 import com.meekdev.amnetic.client.render.CameraSnapshot;
@@ -7,11 +8,11 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ScreenPass;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.ssr.Ssr;
-import java.nio.IntBuffer;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
+import java.nio.IntBuffer;
 
 public final class GBufferNormalFill extends ScreenPass {
 
@@ -21,8 +22,30 @@ public final class GBufferNormalFill extends ScreenPass {
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/gbuffer/normal_fill.fsh");
 
     private GBufferNormalFill() { super("GBufferFill"); }
+    //? if >=26.2 {
+    private NativeNormalFill nativePass;
+    //?}
 
-    public void render() { dispatch(); }
+    public void render() {
+        //? if >=26.2 {
+        if (!enabled() || IrisCompat.shadersActive()) return;
+        dispatchNative(() -> {
+            if (nativePass == null) nativePass = new NativeNormalFill();
+            nativePass.render(CameraSnapshot.current());
+        });
+        //?} else {
+        /*dispatch();
+        *///?}
+    }
+
+    @Override protected void onDispose() {
+        //? if >=1.21 && <1.21.5 {
+        /*TerrainNormalFill.dispose();
+        *///?}
+        //? if >=26.2 {
+        if (nativePass != null) { nativePass.close(); nativePass = null; }
+        //?}
+    }
 
     @Override
     protected boolean enabled() {
@@ -53,6 +76,10 @@ public final class GBufferNormalFill extends ScreenPass {
             program.setInt("ZeroToOne", cam.zeroToOne ? 1 : 0);
             program.setFloat("DefaultRoughness", 1.0f);
             program.draw();
+            //? if >=1.21 && <1.21.5 {
+            /*GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, depthId, 0);
+            TerrainNormalFill.render(cam);
+            *///?}
 
             g.setPopulated(true);
         } finally {

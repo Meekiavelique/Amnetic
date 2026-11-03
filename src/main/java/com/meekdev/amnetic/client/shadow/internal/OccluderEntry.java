@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 public final class OccluderEntry {
@@ -10,6 +11,10 @@ public final class OccluderEntry {
     public final boolean full;
     public final float[] cutoutVerts;
     public final float[] translucentVerts;
+
+    public OccluderEntry(BlockPos pos, VoxelShape shape) {
+        this(pos, shape, !shape.isEmpty() && shape.equals(Shapes.block()));
+    }
 
     public OccluderEntry(BlockPos pos, VoxelShape shape, boolean full) {
         this.pos = pos;

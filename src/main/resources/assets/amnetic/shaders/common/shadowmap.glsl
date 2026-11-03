@@ -1,7 +1,35 @@
 
 uniform sampler2D SpotShadowAtlas;
 uniform sampler2D SpotShadowColor; // nearest-occluder tint for colored shadows
+#ifdef AMNETIC_NATIVE
+uniform sampler2D PointShadowArray;
+uniform int PointShadowRows;
+float amneticPointDepth(vec3 d, int slot) {
+    vec3 a = abs(d); vec2 uv; int face;
+    if (a.x >= a.y && a.x >= a.z) {
+        face = d.x >= 0.0 ? 0 : 1;
+        uv = vec2(d.x >= 0.0 ? -d.z : d.z, -d.y) / max(a.x, 1e-6);
+    } else if (a.y >= a.z) {
+        face = d.y >= 0.0 ? 2 : 3;
+        uv = vec2(d.x, d.y >= 0.0 ? d.z : -d.z) / max(a.y, 1e-6);
+    } else {
+        face = d.z >= 0.0 ? 4 : 5;
+        uv = vec2(d.z >= 0.0 ? d.x : -d.x, -d.y) / max(a.z, 1e-6);
+    }
+    uv = uv * 0.5 + 0.5;
+    vec2 size = vec2(textureSize(PointShadowArray, 0));
+    vec2 grid = vec2(6.0, float(max(PointShadowRows, 1)));
+    vec2 tileSize = size / grid;
+    uv = clamp(uv, 0.5 / tileSize, 1.0 - 0.5 / tileSize);
+    return texture(PointShadowArray, (uv + vec2(float(face), float(slot))) / grid).r;
+}
+#define AMNETIC_POINT_DEPTH(d, slot) amneticPointDepth(d, slot)
+#define AMNETIC_POINT_TEXEL (2.0 / max(float(textureSize(PointShadowArray, 0).x) / 6.0, 1.0))
+#else
 uniform samplerCubeArray PointShadowArray;
+#define AMNETIC_POINT_DEPTH(d, slot) texture(PointShadowArray, vec4(d, float(slot))).r
+#define AMNETIC_POINT_TEXEL 0.0025
+#endif
 uniform mat4 SpotViewProj[16]; // camera-relative spot view-projection per atlas tile
 uniform float ShadowAtlasSize; // atlas edge, px
 uniform float ShadowTileSize; // spot tile edge, px
@@ -45,6 +73,21 @@ float amnetic_ign() {
     return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
 }
 
+float amnetic_spotCompare(vec2 tileOrigin, vec2 tilePixel, float receiver) {
+    vec2 p=tilePixel-0.5;
+    vec2 cell=floor(p), blend=fract(p);
+    vec2 hi=vec2(ShadowTileSize-1.0);
+    ivec2 a=ivec2(tileOrigin+clamp(cell,vec2(0.0),hi));
+    ivec2 b=ivec2(tileOrigin+clamp(cell+vec2(1,0),vec2(0.0),hi));
+    ivec2 c=ivec2(tileOrigin+clamp(cell+vec2(0,1),vec2(0.0),hi));
+    ivec2 d=ivec2(tileOrigin+clamp(cell+vec2(1,1),vec2(0.0),hi));
+    float va=step(receiver,texelFetch(SpotShadowAtlas,a,0).r);
+    float vb=step(receiver,texelFetch(SpotShadowAtlas,b,0).r);
+    float vc=step(receiver,texelFetch(SpotShadowAtlas,c,0).r);
+    float vd=step(receiver,texelFetch(SpotShadowAtlas,d,0).r);
+    return mix(mix(va,vb,blend.x),mix(vc,vd,blend.x),blend.y);
+}
+
 vec3 amnetic_sampleSpot(int tile, vec3 fragPos, vec3 N) {
     vec4 c = SpotViewProj[tile] * vec4(fragPos + N * ShadowNormalBias, 1.0);
     if (c.w <= 0.0) return vec3(1.0);
@@ -53,6 +96,7 @@ vec3 amnetic_sampleSpot(int tile, vec3 fragPos, vec3 N) {
 
     vec2 uv = ndc.xy * 0.5 + 0.5;
     float fragDepth = ndc.z * 0.5 + 0.5;
+    float spotBias = ShadowBias * min(1.0, 5.0 / max(c.w * c.w, 1e-4));
 
     float ox = float(tile % ShadowGridX) * ShadowTileSize;
     float oy = float(tile / ShadowGridX) * ShadowTileSize;
@@ -66,7 +110,7 @@ vec3 amnetic_sampleSpot(int tile, vec3 fragPos, vec3 N) {
             vec2 off = AMNETIC_POISSON[i] * ShadowLightSize;
             vec2 tilePx = clamp(uv * ShadowTileSize + off, vec2(0.5), vec2(ShadowTileSize - 0.5));
             float d = texture(SpotShadowAtlas, (vec2(ox, oy) + tilePx) * texel).r;
-            if (d < fragDepth - ShadowBias) { blockerSum += d; blockers++; }
+            if (d < fragDepth - spotBias) { blockerSum += d; blockers++; }
         }
         if (blockers == 0) return vec3(1.0); // nothing in front, fully lit
         float avgBlocker = blockerSum / float(blockers);
@@ -74,22 +118,26 @@ vec3 amnetic_sampleSpot(int tile, vec3 fragPos, vec3 N) {
         radius = clamp(penumbra * ShadowLightSize * 8.0, 0.5, ShadowLightSize * 3.0);
     }
 
-    float a = amnetic_ign() * 6.2831853;
-    float ca = cos(a), sa = sin(a);
-    mat2 rot = mat2(ca, -sa, sa, ca);
+    mat2 rot = mat2(0.8660254, -0.5, 0.5, 0.8660254);
 
     float lit = 0.0;
     for (int i = 0; i < 16; i++) {
         vec2 off = rot * AMNETIC_POISSON[i] * radius;
         vec2 tilePx = clamp(uv * ShadowTileSize + off, vec2(0.5), vec2(ShadowTileSize - 0.5));
-        vec2 atlasUV = (vec2(ox, oy) + tilePx) * texel;
-        float stored = texture(SpotShadowAtlas, atlasUV).r;
-        lit += (fragDepth - ShadowBias <= stored) ? 1.0 : 0.0;
+        lit += amnetic_spotCompare(vec2(ox,oy),tilePx,fragDepth-spotBias);
     }
     float v = lit / 16.0;
     vec2 centerPx = clamp(uv * ShadowTileSize, vec2(0.5), vec2(ShadowTileSize - 0.5));
     vec3 col = texture(SpotShadowColor, (vec2(ox, oy) + centerPx) * texel).rgb;
     return mix(col, vec3(1.0), v);
+}
+
+float amnetic_worldNoise(vec3 p) {
+    return fract(sin(dot(floor(p * 48.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+}
+
+float amnetic_pointLinear(float stored, float n, float f) {
+    return 2.0 * f * n / ((f + n) - (stored * 2.0 - 1.0) * (f - n));
 }
 
 vec3 amnetic_samplePoint(int slot, vec3 fragPos, vec3 lightPosRel, float range) {
@@ -99,24 +147,43 @@ vec3 amnetic_samplePoint(int slot, vec3 fragPos, vec3 lightPosRel, float range) 
     float f = max(range, n + 0.1);
     float ndcZ = (f + n) / (f - n) - (2.0 * f * n) / ((f - n) * max(ze, 1e-4));
     float fragDepth = ndcZ * 0.5 + 0.5;
+    float pointBias = ShadowBias * min(1.0, 100.0 * f * n / ((f - n) * max(ze * ze, 1e-4)));
 
     vec3 dir = normalize(d);
     vec3 up = abs(dir.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
     vec3 t = normalize(cross(up, dir));
     vec3 b = cross(dir, t);
 
-    float radius = max(ShadowSoftnessTexels, 0.0) * 0.0025 * ze;
+    float radius = max(ShadowSoftnessTexels, 0.0) * AMNETIC_POINT_TEXEL * ze;
 
-    float a = amnetic_ign() * 6.2831853;
+    float a = amnetic_worldNoise(d) * 6.2831853;
     float ca = cos(a), sa = sin(a);
+
+    if (ShadowPcss == 1) {
+        float lightRadius = ShadowLightSize * 0.02;
+        float blockerSum = 0.0;
+        int blockers = 0;
+        for (int i = 0; i < 16; i++) {
+            vec2 p = AMNETIC_POISSON[i];
+            vec2 r2 = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
+            float stored = texture(PointShadowArray, vec4(d + (t * r2.x + b * r2.y) * lightRadius, float(slot))).r;
+            if (stored < fragDepth - pointBias) {
+                blockerSum += amnetic_pointLinear(stored, n, f);
+                blockers++;
+            }
+        }
+        if (blockers == 0) return vec3(1.0);
+        float blocker = blockerSum / float(blockers);
+        radius = clamp(lightRadius * (ze - blocker) / max(blocker, 0.05), radius, lightRadius * 1.5);
+    }
 
     float lit = 0.0;
     for (int i = 0; i < 16; i++) {
         vec2 p = AMNETIC_POISSON[i];
         vec2 r2 = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
         vec3 sampleDir = d + (t * r2.x + b * r2.y) * radius;
-        float stored = texture(PointShadowArray, vec4(sampleDir, float(slot))).r;
-        lit += (fragDepth - ShadowBias <= stored) ? 1.0 : 0.0;
+        float stored = AMNETIC_POINT_DEPTH(sampleDir, slot);
+        lit += (fragDepth - pointBias <= stored) ? 1.0 : 0.0;
     }
     return vec3(lit / 16.0); // point shadows are grayscale, no color map for the cube array yet
 }
@@ -152,7 +219,7 @@ float amnetic_sampleSun(vec3 fragPos, vec3 N) {
 vec3 shadowVisibility(int shadowRef, vec3 fragPos, vec3 N, vec3 lightPosRel, float range) {
     if (ShadowActive == 0 || shadowRef < 0) return vec3(1.0);
     if (shadowRef >= 2000) return vec3(amnetic_sampleSun(fragPos, N));
-    if (shadowRef >= 1000) return amnetic_samplePoint(shadowRef - 1000, fragPos, lightPosRel, range);
+    if (shadowRef >= 1000) return amnetic_samplePoint(shadowRef - 1000, fragPos + N * ShadowNormalBias, lightPosRel, range);
     return amnetic_sampleSpot(shadowRef, fragPos, N);
 }
 
@@ -174,7 +241,8 @@ float shadowVisibilityCheap(int shadowRef, vec3 fragPos, vec3 lightPosRel, float
         float ze = max(max(abs(d.x), abs(d.y)), abs(d.z));
         float n = 0.05, f = max(range, n + 0.1);
         float fd = ((f + n) / (f - n) - (2.0 * f * n) / ((f - n) * max(ze, 1e-4))) * 0.5 + 0.5;
-        return (fd - ShadowBias <= texture(PointShadowArray, vec4(d, float(slot))).r) ? 1.0 : 0.0;
+        float pointBias = ShadowBias * min(1.0, 100.0 * f * n / ((f - n) * max(ze * ze, 1e-4)));
+        return (fd - pointBias <= AMNETIC_POINT_DEPTH(d, slot)) ? 1.0 : 0.0;
     }
     vec4 c = SpotViewProj[shadowRef] * vec4(fragPos, 1.0);
     if (c.w <= 0.0) return 1.0;
@@ -184,6 +252,7 @@ float shadowVisibilityCheap(int shadowRef, vec3 fragPos, vec3 lightPosRel, float
     float fd = ndc.z * 0.5 + 0.5;
     float ox = float(shadowRef % ShadowGridX) * ShadowTileSize;
     float oy = float(shadowRef / ShadowGridX) * ShadowTileSize;
-    float stored = texture(SpotShadowAtlas, (vec2(ox, oy) + uv * ShadowTileSize) / ShadowAtlasSize).r;
-    return (fd - ShadowBias <= stored) ? 1.0 : 0.0;
+    float stored = texture(SpotShadowAtlas, (vec2(ox, oy) + clamp(uv * ShadowTileSize, vec2(0.5), vec2(ShadowTileSize - 0.5))) / ShadowAtlasSize).r;
+    float spotBias = ShadowBias * min(1.0, 5.0 / max(c.w * c.w, 1e-4));
+    return (fd - spotBias <= stored) ? 1.0 : 0.0;
 }

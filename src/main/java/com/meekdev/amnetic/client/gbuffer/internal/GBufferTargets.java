@@ -1,17 +1,23 @@
 package com.meekdev.amnetic.client.gbuffer.internal;
 
 import com.meekdev.amnetic.client.compat.VanillaCompat;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.meekdev.amnetic.client.framebuffer.ColorFormat;
+import com.meekdev.amnetic.client.framebuffer.FramebufferSpec;
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import it.unimi.dsi.fastutil.ints.Int2BooleanOpenHashMap;
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+//? if >=26.2 {
+import com.meekdev.amnetic.client.framebuffer.internal.NativeFramebuffer;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+//?}
 
 public final class GBufferTargets {
 
@@ -39,10 +45,23 @@ public final class GBufferTargets {
     private long frame;
     private boolean bound;
     private final int[] savedViewport = new int[4];
-    // Capture once per frame, then reuse it for every object in that frame.
     private int outerFbo;
+    private int savedReadFbo;
     private boolean attachedThisFrame;
     private boolean populated;
+    //? if >=26.2 {
+    private final NativeFramebuffer nativeTargets =
+            new NativeFramebuffer(
+                    FramebufferSpec.builder()
+                            .color(ColorFormat.RGBA16F)
+                            .color(ColorFormat.RGBA8)
+                            .color(ColorFormat.RGBA16F)
+                            .color(ColorFormat.RGBA8).build(), "Amnetic GBuffer");
+
+    public GpuTextureView nativeColorView(int index) {
+        return nativeTargets.colorView(index);
+    }
+    //?}
 
     private GBufferTargets() {}
 
@@ -61,17 +80,18 @@ public final class GBufferTargets {
     public int depthGlId() { return cachedDepth; }
 
     public int bind() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return -1;
         int colorId = VanillaCompat.colorTextureGlId(main);
         if (colorId <= 0) return -1;
         int depthId = VanillaCompat.depthTextureGlId(main);
 
+        outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        savedReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        GL11.glGetIntegerv(GL11.GL_VIEWPORT, savedViewport);
         ensureTextures(main.width, main.height);
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
 
-        // outer FBO/viewport were captured once this frame in captureOuterState, reusing them avoids a
-        // glGetInteger driver sync on every per-object bind
         int prevFbo = outerFbo;
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
 
@@ -143,7 +163,8 @@ public final class GBufferTargets {
             GL30.glColorMaski(6, true, true, true, true);
         }
         bound = false;
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prevFbo);
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, savedReadFbo);
+        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, prevFbo);
         GlStateManager._viewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
     }
 
@@ -153,31 +174,40 @@ public final class GBufferTargets {
     }
 
     public void captureOuterState() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return;
         // new frame: force one FBO re-attach for resize safety, then skip it for later binds
         attachedThisFrame = false;
-        // viewport at bind() time is always the main target's full size, derive it instead of querying GL
-        savedViewport[0] = 0;
-        savedViewport[1] = 0;
-        savedViewport[2] = main.width;
-        savedViewport[3] = main.height;
-        // Iris can replace its FBOs without replacing Minecraft's color texture.
         outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        savedReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        GL11.glGetIntegerv(GL11.GL_VIEWPORT, savedViewport);
     }
 
     public void beginFrame() {
         frame++;
-        captureOuterState();
+        //? if >=26.2 {
+        var main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        ensureTextures(main.width, main.height);
+        nativeTargets.clear(0, 0, 0, 0);
+        if (VanillaCompat.colorTextureGlId(main) > 0) captureOuterState();
+        populated = false;
+        emissiveWritten = false;
+        //?} else {
+        /*captureOuterState();
         int prev = bind();
         if (prev == -1) { populated = false; return; }
         clearSideTargets();
         restore(prev);
         populated = false;
         emissiveWritten = false;
+        *///?}
     }
 
     public void dispose() {
+        //? if >=26.2 {
+        nativeTargets.close();
+        normalTex = materialTex = emissiveTex = albedoTex = 0;
+        //?}
         if (fbo != 0) { GL30.glDeleteFramebuffers(fbo); fbo = 0; }
         if (normalTex != 0) { GlStateManager._deleteTexture(normalTex); normalTex = 0; }
         if (materialTex != 0) { GlStateManager._deleteTexture(materialTex); materialTex = 0; }
@@ -193,7 +223,15 @@ public final class GBufferTargets {
     }
 
     private void ensureTextures(int w, int h) {
-        if (normalTex != 0 && w == width && h == height) return;
+        //? if >=26.2 {
+        nativeTargets.allocate(w, h);
+        normalTex = VanillaCompat.glId(nativeTargets.color(0));
+        materialTex = VanillaCompat.glId(nativeTargets.color(1));
+        emissiveTex = VanillaCompat.glId(nativeTargets.color(2));
+        albedoTex = VanillaCompat.glId(nativeTargets.color(3));
+        width = w; height = h;
+        //?} else {
+        /*if (normalTex != 0 && w == width && h == height) return;
         width = w;
         height = h;
         if (normalTex == 0) normalTex = GlStateManager._genTexture();
@@ -211,6 +249,7 @@ public final class GBufferTargets {
         allocTexture(velocityTex, GL30.GL_RGBA16F, GL11.GL_RGBA, GL11.GL_FLOAT, w, h);
         allocTexture(shadeTex, GL11.GL_RGBA8, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, w, h);
         GlStateManager._bindTexture(0);
+        *///?}
     }
 
     private static void allocTexture(int tex, int internalFormat, int format, int type, int w, int h) {

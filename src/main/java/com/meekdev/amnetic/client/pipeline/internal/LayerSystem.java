@@ -1,4 +1,20 @@
 package com.meekdev.amnetic.client.pipeline.internal;
+//? if >=26.3 {
+
+
+import com.meekdev.amnetic.client.pipeline.RenderLayer;
+
+
+public final class LayerSystem {
+    public static final LayerSystem INSTANCE=new LayerSystem();
+    private final NativeLayers layers=new NativeLayers();
+    private LayerSystem() {}
+    public boolean begin(RenderLayer layer) {return layers.begin(layer);}
+    public void end(RenderLayer layer) {layers.end(layer);}
+    public void dispose() {layers.close();}
+}
+//?} else {
+/*
 
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
 import com.meekdev.amnetic.client.framebuffer.Framebuffer;
@@ -15,7 +31,7 @@ import com.meekdev.amnetic.client.render.GlState;
 import com.meekdev.amnetic.client.render.ShaderProgram;
 import com.meekdev.amnetic.client.scene.internal.CaptureManager;
 import com.meekdev.amnetic.client.scene.internal.CaptureTarget;
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
@@ -100,7 +116,7 @@ public final class LayerSystem {
             int prev = MainTargetFramebuffer.bind();
             try {
                 GlState.bindTexture(0, curTex);
-                GlStateManager._enableBlend();
+                GlStateManager._enableBlend(0);
                 GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
                 GL11.glEnable(GL11.GL_BLEND);
                 GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
@@ -148,3 +164,5 @@ public final class LayerSystem {
         active.clear();
     }
 }
+
+*///?}

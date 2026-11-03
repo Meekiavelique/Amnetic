@@ -23,9 +23,14 @@ stonecutter {
             target(minecraft, "fabric", "build.gradle.kts")
             target(minecraft, "forge", "build.forge.gradle")
         }
-        // no forge release for 26.2 yet
-        target("26.2", "fabric", "build.gradle.kts")
-        vcsVersion = "26.1.2-fabric"
+        for (minecraft in listOf("26.2", "26.3")) {
+            target(minecraft, "fabric", "build.gradle.kts")
+            target(minecraft, "forge", "build.forge.gradle")
+            target(minecraft, "neoforge", "build.neoforge.gradle")
+        }
+        target("26.3", "quilt", "build.gradle.kts")
+        target("1.21.1", "neoforge", "build.neoforge.gradle")
+        vcsVersion = "26.3-fabric"
     }
 }
 

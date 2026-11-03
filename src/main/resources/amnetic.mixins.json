@@ -25,6 +25,16 @@
     "accessor.LevelRendererAccessor",
     "accessor.LightTextureAccessor",
     "accessor.RenderTypeInvoker",
+    "NativeTextureUnitsMixin",
+    "NativeCommandBatchMixin",
+    "NativeMaterialPipelinesMixin",
+    "NativeMaterialPassMixin",
+    "NativeMaterialBindMixin",
+    "NativeMaterialDisposeMixin",
+    "NativeLevelStagesMixin",
+    "RenderPearlGameRendererMixin",
+    "FirstPersonItemMixin",
+    "accessor.GameRendererAccessor",
     "FrustumMixin"
   ],
   "injectors": {
