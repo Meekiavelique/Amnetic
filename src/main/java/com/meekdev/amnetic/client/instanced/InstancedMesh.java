@@ -39,6 +39,7 @@ public final class InstancedMesh<T> {
     final boolean shadowDepthOnly;
     final boolean perInstanceShadow;
     final boolean staticInstances;
+    final boolean depthPrepass;
     final boolean gpuCull;
     final boolean worldSpace;
     final boolean manual;
@@ -70,6 +71,7 @@ public final class InstancedMesh<T> {
         this.shadowDepthOnly = b.shadowDepthOnly;
         this.perInstanceShadow = b.perInstanceShadow;
         this.staticInstances = b.staticInstances;
+        this.depthPrepass = b.depthPrepass;
         this.gpuCull = b.gpuCull;
         this.worldSpace = b.worldSpace;
         this.manual = b.manual;
@@ -113,6 +115,7 @@ public final class InstancedMesh<T> {
     public boolean shadowDepthOnly() { return shadowDepthOnly; }
     public boolean perInstanceShadow() { return perInstanceShadow; }
     public boolean staticInstances() { return staticInstances; }
+    public boolean depthPrepass() { return depthPrepass && staticInstances && writeGBuffer; }
     public boolean gpuCull() { return gpuCull; }
     public boolean worldSpace() { return worldSpace; }
     public boolean manual() { return manual; }
@@ -153,6 +156,7 @@ public final class InstancedMesh<T> {
         private boolean shadowDepthOnly = false;
         private boolean perInstanceShadow = false;
         private boolean staticInstances = false;
+        private boolean depthPrepass = false;
         private boolean gpuCull = false;
         private boolean worldSpace = false;
         private boolean manual = false;
@@ -288,6 +292,11 @@ public final class InstancedMesh<T> {
 
         public Builder<T> staticInstances() {
             this.staticInstances = true;
+            return this;
+        }
+
+        public Builder<T> depthPrepass() {
+            this.depthPrepass = true;
             return this;
         }
 
