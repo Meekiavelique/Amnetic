@@ -3,6 +3,7 @@ uniform sampler2D SpotShadowColor;
 #ifdef AMNETIC_NATIVE
 uniform sampler2D PointShadowArray;
 uniform int PointShadowRows;
+uniform int PointShadowColumns;
 float amneticPointDepth(vec3 d, int slot) {
     vec3 a = abs(d);
     vec2 uv;
@@ -19,16 +20,18 @@ float amneticPointDepth(vec3 d, int slot) {
     }
     uv = uv * 0.5 + 0.5;
     vec2 size = vec2(textureSize(PointShadowArray, 0));
-    vec2 grid = vec2(6.0, float(max(PointShadowRows, 1)));
+    int columns = max(PointShadowColumns, 1);
+    vec2 grid = vec2(6.0 * float(columns), float(max(PointShadowRows, 1)));
     vec2 tileSize = size / grid;
     uv = clamp(uv, 0.5 / tileSize, 1.0 - 0.5 / tileSize);
-    return texture(PointShadowArray, (uv + vec2(float(face), float(slot))) / grid).r;
+    vec2 cell = vec2(float(face + 6 * (slot % columns)), float(slot / columns));
+    return texture(PointShadowArray, (uv + cell) / grid).r;
 }
 vec4 amneticPointSample(vec4 v) {
     return vec4(amneticPointDepth(v.xyz, int(v.w + 0.5)));
 }
 #define AMNETIC_POINT_SHADOW(v) amneticPointSample(v)
-#define AMNETIC_POINT_TEXEL (2.0 / max(float(textureSize(PointShadowArray, 0).x) / 6.0, 1.0))
+#define AMNETIC_POINT_TEXEL (2.0 / max(float(textureSize(PointShadowArray, 0).x) / (6.0 * float(max(PointShadowColumns, 1))), 1.0))
 #else
 uniform samplerCubeArray PointShadowArray;
 #define AMNETIC_POINT_SHADOW(v) texture(PointShadowArray, v)

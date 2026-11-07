@@ -26,9 +26,16 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class NativeLocalShadows implements AutoCloseable {
     public static final NativeLocalShadows INSTANCE = new NativeLocalShadows();
+    private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Shadows");
+    private static final int MAX_EXTENT = 16384;
+    private static final long POINT_BUDGET = 512L << 20;
+    private static final int MIN_FACE_SIZE = 128;
+    private static final int BYTES_PER_TEXEL = 8;
     private static final int CUBE_FACES = 6;
     private static final int SUN_COLUMNS = 4;
     private static final int MAX_SUN_CASCADES = 4;
@@ -76,6 +83,8 @@ public final class NativeLocalShadows implements AutoCloseable {
         }
     }
 
+    private record PointClamp(int wanted, int slots) {}
+
     private final NativeFramebuffer point = target("Amnetic point shadows");
     private final NativeFramebuffer spot = target("Amnetic spot shadows");
     private final NativeFramebuffer sun = target("Amnetic directional shadows");
@@ -100,6 +109,9 @@ public final class NativeLocalShadows implements AutoCloseable {
     public int points;
     public int spots;
     public int rows;
+    public int columns = 1;
+    public int faceSize;
+    private PointClamp lastClamp;
     public int spotGrid = 1;
     public final float[] spotMatrices = new float[ShadowSettings.MAX_SPOT * MATRIX_FLOATS];
 
@@ -140,8 +152,8 @@ public final class NativeLocalShadows implements AutoCloseable {
         ensure();
         int wantedPoints = Math.min(settings.maxPointShadows(), countCandidates(LightType.POINT));
         int wantedSpots = Math.min(settings.maxSpotShadows(), countCandidates(LightType.SPOT));
-        rows = Math.max(1, wantedPoints);
-        if (allocateTargets(settings.pointFaceSize(), settings.resolution(), wantedPoints, wantedSpots)) baked.clear();
+        layoutPoints(Math.max(1, wantedPoints), settings.pointFaceSize());
+        if (allocateTargets(settings.resolution(), wantedPoints, wantedSpots)) baked.clear();
         live.clear();
         for (var light : candidates) {
             boolean isPoint = light.type() == LightType.POINT;
@@ -182,10 +194,10 @@ public final class NativeLocalShadows implements AutoCloseable {
         return (int) candidates.stream().filter(light -> light.type() == type).count();
     }
 
-    private boolean allocateTargets(int faceSize, int tileSize, int wantedPoints, int wantedSpots) {
+    private boolean allocateTargets(int tileSize, int wantedPoints, int wantedSpots) {
         int neededGrid = wantedSpots <= 1 ? 1 : wantedSpots <= 4 ? 2 : 4;
         int nextGrid = Math.max(spot.isAllocated() ? spotGrid : 1, neededGrid);
-        int pointWidth = faceSize * CUBE_FACES;
+        int pointWidth = faceSize * CUBE_FACES * columns;
         int pointHeight = faceSize * rows;
         boolean pointResized = wantedPoints > 0 && (point.width() != pointWidth || point.height() != pointHeight);
         boolean spotResized = wantedSpots > 0 && (spot.width() != tileSize * nextGrid || spot.height() != tileSize * nextGrid);
@@ -226,7 +238,7 @@ public final class NativeLocalShadows implements AutoCloseable {
             for (int face = 0; dirty && face < CUBE_FACES; face++) {
                 var f = FACES[face];
                 var view = new Matrix4f().lookAt(x, y, z, x + f.x(), y + f.y(), z + f.z(), f.upX(), f.upY(), f.upZ());
-                var tile = new Tile(face, points, CUBE_FACES, rows);
+                var tile = new Tile(face + CUBE_FACES * (points % columns), points / columns, CUBE_FACES * columns, rows);
                 draw(mesh, new Matrix4f(projection).mul(view), point, tile);
             }
             points++;
@@ -257,6 +269,23 @@ public final class NativeLocalShadows implements AutoCloseable {
 
     private static Vector3f spotUp(Light light) {
         return Math.abs(light.dirY()) > .99f ? new Vector3f(1, 0, 0) : new Vector3f(0, 1, 0);
+    }
+
+    private void layoutPoints(int slots, int wanted) {
+        int size = wanted;
+        while (true) {
+            columns = Math.max(1, Math.min(slots, MAX_EXTENT / (size * CUBE_FACES)));
+            rows = (slots + columns - 1) / columns;
+            long bytes = (long) size * CUBE_FACES * columns * size * rows * BYTES_PER_TEXEL;
+            if (size <= MIN_FACE_SIZE || rows * size <= MAX_EXTENT && bytes <= POINT_BUDGET) break;
+            size /= 2;
+        }
+        var clamp = new PointClamp(wanted, slots);
+        if (size != wanted && !clamp.equals(lastClamp)) {
+            LOG.info("{} point shadows at {}px don't fit, using {}px faces", slots, wanted, size);
+            lastClamp = clamp;
+        }
+        faceSize = size;
     }
 
     private void renderSun(CameraSnapshot cam, ShadowSettings settings) {
