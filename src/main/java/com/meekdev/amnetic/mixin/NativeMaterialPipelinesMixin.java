@@ -15,7 +15,7 @@ public abstract class NativeMaterialPipelinesMixin {
             Operation<CompletableFuture<CompiledRenderPipeline.Pending>> original) {
         var normal=original.call(pipeline,source,executor);
         if(!NativeWorldMaterials.eligible(pipeline))return normal;
-        var variant=original.call(NativeWorldMaterials.definition(pipeline),NativeWorldMaterials.source(source,NativeWorldMaterials.captures(pipeline)),executor);
+        var variant=original.call(NativeWorldMaterials.definition(pipeline),NativeWorldMaterials.source(source,NativeWorldMaterials.captures(pipeline),NativeWorldMaterials.blended(pipeline)),executor);
         return normal.thenCombine(variant,(a,b)->()->{
             var compiled=a.finishCompile();
             var material=b.finishCompile();

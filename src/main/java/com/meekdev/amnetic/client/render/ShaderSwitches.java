@@ -9,7 +9,8 @@ import java.util.Set;
 public final class ShaderSwitches {
     public static final String NATIVE = "AMNETIC_NATIVE";
     public static final String ZERO_TO_ONE = "AMNETIC_ZERO_TO_ONE";
-    private static final Set<String> KNOWN = Set.of(NATIVE, ZERO_TO_ONE);
+    public static final String BLENDED = "AMNETIC_BLENDED";
+    private static final Set<String> KNOWN = Set.of(NATIVE, ZERO_TO_ONE, BLENDED);
 
     private record Branch(boolean known, boolean taken) {
         Branch flipped() {
