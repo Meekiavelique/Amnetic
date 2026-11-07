@@ -24,7 +24,7 @@ public final class ShadowSettings {
     private Predicate<Entity> entityFilter = entity -> true;
     private boolean pcss = true;
     private float lightSize = 2.5f;
-    private int bakeBudget = 0;
+    private int bakeBudget = 6;
     private int sunResolution = 2048;
     private int sunCascades = 4;
     private float sunDistance = 128f;
