@@ -113,6 +113,7 @@ final class NativeDeferredLighting implements AutoCloseable {
             program.setTexture("SpotShadowColor", shadows.spotColor());
         }
         program.setInt("PointShadowRows", Math.max(1, shadows.rows));
+        program.setInt("PointShadowColumns", Math.max(1, shadows.columns));
         program.setInt("ShadowActive", shadows.points > 0 || shadows.spots > 0 || shadows.sunCascades > 0 ? 1 : 0);
         var ss = ShadowSettings.defaults();
         for (int i = 0; i < shadows.spots; i++) {

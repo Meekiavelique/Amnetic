@@ -9,14 +9,22 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL40;
 
 import java.nio.ByteBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class PointShadowArray {
     private static final int GL_TEXTURE_CUBE_MAP_SEAMLESS = 0x884F;
+    private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Shadows");
+    private static final long BUDGET = 512L << 20;
+    private static final int MIN_FACE_SIZE = 128;
     private static final int FACES = 6;
+    private static final int DEPTH_BYTES = 4;
+    private static final int MAX_DRAINED_ERRORS = 16;
     private static int textureId;
     private static int fboId;
     private static int faceSize;
     private static int slots;
+    private static int requestedFace;
 
     private PointShadowArray() {}
 
@@ -30,9 +38,13 @@ public final class PointShadowArray {
 
     public static void ensure(int requestedFaceSize, int requestedSlots) {
         requestedSlots = Math.max(1, Math.min(ShadowSettings.MAX_POINT, requestedSlots));
-        if (textureId != 0 && faceSize == requestedFaceSize && slots == requestedSlots) return;
+        if (textureId != 0 && requestedFace == requestedFaceSize && slots == requestedSlots) return;
         delete();
-        faceSize = requestedFaceSize;
+        int size = requestedFaceSize;
+        while (size > MIN_FACE_SIZE && (long) size * size * FACES * requestedSlots * DEPTH_BYTES > BUDGET) size /= 2;
+        if (size != requestedFaceSize) LOG.info("{} point shadows at {}px don't fit, using {}px faces", requestedSlots, requestedFaceSize, size);
+        requestedFace = requestedFaceSize;
+        faceSize = size;
         slots = requestedSlots;
         int layerCount = FACES * slots;
 
@@ -41,7 +53,13 @@ public final class PointShadowArray {
 
         textureId = GlStateManager._genTexture();
         GL11.glBindTexture(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, textureId);
+        drainErrors();
         allocateFaces(layerCount);
+        while (GL11.glGetError() == GL11.GL_OUT_OF_MEMORY && faceSize > MIN_FACE_SIZE) {
+            faceSize /= 2;
+            LOG.warn("out of video memory for point shadows, using {}px faces", faceSize);
+            allocateFaces(layerCount);
+        }
         GL11.glTexParameteri(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, GL12.GL_TEXTURE_BASE_LEVEL, 0);
         GL11.glTexParameteri(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, GL12.GL_TEXTURE_MAX_LEVEL, 0);
         GL11.glTexParameteri(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
@@ -66,6 +84,12 @@ public final class PointShadowArray {
         GL11.glBindTexture(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, prevCubeArray);
     }
 
+    private static void drainErrors() {
+        for (int i = 0; i < MAX_DRAINED_ERRORS; i++) {
+            if (GL11.glGetError() == GL11.GL_NO_ERROR) return;
+        }
+    }
+
     private static void allocateFaces(int layerCount) {
         GL12.glTexImage3D(GL40.GL_TEXTURE_CUBE_MAP_ARRAY, 0, GL30.GL_DEPTH_COMPONENT32F,
                 faceSize, faceSize, layerCount, 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, (ByteBuffer) null);
@@ -87,5 +111,6 @@ public final class PointShadowArray {
         }
         faceSize = 0;
         slots = 0;
+        requestedFace = 0;
     }
 }
