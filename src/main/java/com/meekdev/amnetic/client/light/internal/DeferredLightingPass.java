@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.light.internal;
 
+import net.minecraft.util.Mth;
 import com.meekdev.amnetic.client.compat.IrisCompat;
 import com.meekdev.amnetic.client.compat.VanillaCompat;
 import com.meekdev.amnetic.client.framebuffer.ColorFormat;
@@ -153,7 +154,7 @@ public final class DeferredLightingPass extends ScreenPass {
     }
 
     private static float lightCoordinate(int level) {
-        return (Math.clamp(level, 0, MAX_LIGHT_LEVEL) + 0.5f) / 16f;
+        return (Mth.clamp(level, 0, MAX_LIGHT_LEVEL) + 0.5f) / 16f;
     }
 
     @Override protected boolean enabled() {
