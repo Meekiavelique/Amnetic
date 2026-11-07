@@ -32,7 +32,7 @@ final class ProgramWorker {
                 threads++;
             }
             available = threads > 0;
-            if (!available) LOG.info("no extra gl context for compiling shaders, links stay on the render thread");
+            if (!available) LOG.info("no shared gl context, shaders link on the render thread");
         }
         return available;
     }

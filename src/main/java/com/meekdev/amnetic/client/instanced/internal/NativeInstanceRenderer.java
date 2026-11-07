@@ -111,7 +111,8 @@ final class NativeInstanceRenderer implements AutoCloseable {
 
     private void ensure() {
         if (program != null) return;
-        Identifier vertexId, fragmentId;
+        Identifier vertexId;
+        Identifier fragmentId;
         if (mesh.vertexShaderId() != null) {
             vertexId = path(mesh.vertexShaderId(), ".vsh"); fragmentId = path(mesh.fragmentShaderId(), ".fsh");
         } else if (mesh.isBuiltin()) {

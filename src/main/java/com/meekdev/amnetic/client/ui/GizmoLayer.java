@@ -105,8 +105,12 @@ public final class GizmoLayer {
     }
 
     private static void movePlane(Transformable t, CameraSnapshot cam, Vector4f tmp, float dx, float dy) {
-        float rx = cam.view.m00(), ry = cam.view.m10(), rz = cam.view.m20();
-        float ux = cam.view.m01(), uy = cam.view.m11(), uz = cam.view.m21();
+        float rx = cam.view.m00();
+        float ry = cam.view.m10();
+        float rz = cam.view.m20();
+        float ux = cam.view.m01();
+        float uy = cam.view.m11();
+        float uz = cam.view.m21();
         float wpp = extentPerPixel(t, cam, tmp);
         double nx = t.posX() + rx * dx * wpp - ux * dy * wpp;
         double ny = t.posY() + ry * dx * wpp - uy * dy * wpp;

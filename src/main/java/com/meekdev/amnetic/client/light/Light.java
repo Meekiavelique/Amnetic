@@ -13,8 +13,12 @@ public final class Light {
     private final LightType type;
 
     private double x, y, z;
-    private float dx, dy = -1f, dz;
-    private float tx = 1f, ty, tz;
+    private float dx;
+    private float dy = -1f;
+    private float dz;
+    private float tx = 1f;
+    private float ty;
+    private float tz;
 
     private float r = 1f, g = 1f, b = 1f;
     private float temperature = 6500f;
@@ -27,7 +31,8 @@ public final class Light {
     private FalloffCurve falloff = FalloffCurve.SMOOTH;
     private float falloffParam = 2f;
 
-    private float areaW = 1f, areaH = 1f;
+    private float areaW = 1f;
+    private float areaH = 1f;
     private float tubeLen = 2f;
 
     private boolean castsShadow;

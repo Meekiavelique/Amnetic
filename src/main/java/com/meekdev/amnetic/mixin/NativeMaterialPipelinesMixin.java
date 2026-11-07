@@ -17,7 +17,8 @@ public abstract class NativeMaterialPipelinesMixin {
         if(!NativeWorldMaterials.eligible(pipeline))return normal;
         var variant=original.call(NativeWorldMaterials.definition(pipeline),NativeWorldMaterials.source(source,NativeWorldMaterials.captures(pipeline)),executor);
         return normal.thenCombine(variant,(a,b)->()->{
-            var compiled=a.finishCompile();var material=b.finishCompile();
+            var compiled=a.finishCompile();
+            var material=b.finishCompile();
             NativeWorldMaterials.put(compiled,material,pipeline.getLocation().getNamespace().equals("sodium"));return compiled;
         });
     }

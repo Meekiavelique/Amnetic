@@ -34,9 +34,11 @@ final class NativePostPipeline implements AutoCloseable {
     }
 
     void run(Map<String, List<UniformValue>> slots, Function<Identifier, RenderTarget> external) {
-        var client=Minecraft.getInstance();var main=client.gameRenderer.mainRenderTarget();
+        var client=Minecraft.getInstance();
+        var main=client.gameRenderer.mainRenderTarget();
         for(int index=0;index<passes.size();index++) {
-            var pass=passes.get(index);var output=resolve(pass.output(),external,main);
+            var pass=passes.get(index);
+            var output=resolve(pass.output(),external,main);
             if(output==null)throw new IllegalStateException("Missing native post output "+pass.output());
             var format=output.getColorTexture().getFormat();
             var program=programs.get(index);
@@ -55,7 +57,8 @@ final class NativePostPipeline implements AutoCloseable {
             shader.setFloat("GameTime",((client.level==null?0:client.level.getGameTime())%24000L+VanillaCompat.partialTick(false))/24000f);
             for(var input:pass.inputs()) {
                 GpuTextureView view;
-                int width,height;
+                int width;
+                int height;
                 if(input.texture()!=null) {
                     var location=input.texture().withPath(path->path.endsWith(".png")?path:"textures/effect/"+path+".png");
                     view=client.getTextureManager().getTexture(location).getTextureView();
@@ -111,9 +114,12 @@ final class NativePostPipeline implements AutoCloseable {
     private static String flatten(String source,Map<String,List<String>> blocks) {
         int first=source.indexOf('\n');
         source=source.substring(0,first+1)+source.substring(first+1).replaceAll("(?m)^\\s*#version[^\\r\\n]*","");
-        var matcher=BLOCK.matcher(source);var result=new StringBuffer();
+        var matcher=BLOCK.matcher(source);
+        var result=new StringBuffer();
         while(matcher.find()) {
-            var fields=new ArrayList<String>();var declarations=new StringBuilder();var members=MEMBER.matcher(matcher.group(2));
+            var fields=new ArrayList<String>();
+            var declarations=new StringBuilder();
+            var members=MEMBER.matcher(matcher.group(2));
             while(members.find()) {
                 int count=members.group(3)==null?1:Integer.parseInt(members.group(3));
                 declarations.append("\nuniform ").append(members.group(1)).append(' ').append(members.group(2));

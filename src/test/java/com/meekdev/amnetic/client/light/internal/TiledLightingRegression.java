@@ -28,31 +28,51 @@ final class TiledLightingRegression {
                 out vec4 TestResult;
                 void main(){
                     vec4 ray=TestInverse*vec4(vUV*2-1,0,1);
-                    vec3 fragPos=ray.xyz/ray.w;fragPos*=TestDepth/-fragPos.z;
-                    vec3 N=vec3(0,0,1),V=normalize(-fragPos);
-                    float rough=.65,f0=.04,sunShadow=0;
-                    vec3 radiance=vec3(0),specular=vec3(0);
+                    vec3 fragPos=ray.xyz/ray.w;
+                    fragPos*=TestDepth/-fragPos.z;
+                    vec3 N=vec3(0,0,1);
+                    vec3 V=normalize(-fragPos);
+                    float rough=.65;
+                    float f0=.04;
+                    float sunShadow=0;
+                    vec3 radiance=vec3(0);
+                    vec3 specular=vec3(0);
                 """+loop+"TestResult=vec4(radiance+specular,1);}";
         int program=LightResolveRegression.program(source.substring(0,source.indexOf("void main()"))+main);
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays();int[] textures=new int[3],buffers=new int[2];glGenTextures(textures);glGenBuffers(buffers);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int[] textures=new int[3];
+        int[] buffers=new int[2];
+        glGenTextures(textures);
+        glGenBuffers(buffers);
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,96,60,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,textures[0],0);glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBindVertexArray(vao);glViewport(0,0,96,60);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);glUseProgram(program);
             glUniform1i(glGetUniformLocation(program,"LightTexels"),11);glUniform1i(glGetUniformLocation(program,"TileLights"),14);
-            int count=48,columns=12,rows=8,slices=LightDepthSlices.COUNT;
+            int count=48;
+            int columns=12;
+            int rows=8;
+            int slices=LightDepthSlices.COUNT;
             glUniform1i(glGetUniformLocation(program,"LightCount"),count);glUniform1i(glGetUniformLocation(program,"TileColumns"),columns);glUniform1i(glGetUniformLocation(program,"TileRows"),rows);
             glUniform1i(glGetUniformLocation(program,"TileDepthSlices"),slices);
             glUniform4f(glGetUniformLocation(program,"TileViewDepth"),0,0,-1,0);
-            var random=new Random(51071);int[] bounds=new int[4];float maxError=0;long candidates=0;
+            var random=new Random(51071);
+            int[] bounds=new int[4];
+            float maxError=0;
+            long candidates=0;
             for(int scene=0;scene<24;scene++) {
                 var projection=new Matrix4f().perspective((float)Math.toRadians(45+scene*2),1.6F,.05F,100).rotateY((scene%3-1)*.15F).rotateX((scene%5-2)*.04F);
                 glUniformMatrix4fv(glGetUniformLocation(program,"TestInverse"),false,new Matrix4f(projection).invert().get(new float[16]));
                 glUniform1f(glGetUniformLocation(program,"TestDepth"),3+scene*2);
-                float[] lights=new float[count*32];int[] regions=new int[count*6];
+                float[] lights=new float[count*32];
+                int[] regions=new int[count*6];
                 for(int light=0;light<count;light++) {
                     int base=light*32;
-                    float x=random.nextFloat()*20-10,y=random.nextFloat()*16-8,z=-2-random.nextFloat()*55,radius=3+random.nextFloat()*8;
+                    float x=random.nextFloat()*20-10;
+                    float y=random.nextFloat()*16-8;
+                    float z=-2-random.nextFloat()*55;
+                    float radius=3+random.nextFloat()*8;
                     lights[base]=x;lights[base+1]=y;lights[base+2]=z;lights[base+3]=radius;
                     lights[base+4]=.3F+random.nextFloat()*.7F;lights[base+5]=.3F+random.nextFloat()*.7F;lights[base+6]=.3F+random.nextFloat()*.7F;lights[base+7]=1.28F;
                     lights[base+10]=-1;lights[base+19]=1;lights[base+23]=-1;
@@ -72,11 +92,14 @@ final class TiledLightingRegression {
                         bounds[3]=clamp((int)Math.floor(rectangle[3]*rows)+1,0,rows-1);
                     }
                     for(int sample=0;sample<40;sample++) {
-                        float dx=(random.nextFloat()*2-1)*radius,dy=(random.nextFloat()*2-1)*radius,dz=(random.nextFloat()*2-1)*radius;
+                        float dx=(random.nextFloat()*2-1)*radius;
+                        float dy=(random.nextFloat()*2-1)*radius;
+                        float dz=(random.nextFloat()*2-1)*radius;
                         if(spot && (dx*dx+dy*dy+dz*dz>radius*radius || -dz/Math.sqrt(dx*dx+dy*dy+dz*dz)<.9))continue;
                         var p=new Vector4f(x+dx,y+dy,z+dz,1).mul(projection);
                         if(p.w<=0 || Math.abs(p.x)>p.w || Math.abs(p.y)>p.w)continue;
-                        int tx=clamp((int)((p.x/p.w*.5F+.5F)*columns),0,columns-1),ty=clamp((int)((p.y/p.w*.5F+.5F)*rows),0,rows-1);
+                        int tx=clamp((int)((p.x/p.w*.5F+.5F)*columns),0,columns-1);
+                        int ty=clamp((int)((p.y/p.w*.5F+.5F)*rows),0,rows-1);
                         require(tx>=bounds[0] && tx<=bounds[2] && ty>=bounds[1] && ty<=bounds[3],"Light culling clipped a visible influence volume");
                     }
                     if(light==count-1){lights[base+11]=2;LightTileBounds.full(columns,rows,bounds);}
@@ -86,8 +109,10 @@ final class TiledLightingRegression {
                     regions[light*6+5]=LightDepthSlices.last(-z,radius+extent);
                     if(light>=count-2){regions[light*6+4]=0;regions[light*6+5]=slices-1;}
                 }
-                var clusters=new LightClusterLists();clusters.build(columns,rows,slices,regions,count);
-                int[] tiles=Arrays.copyOf(clusters.entries(),clusters.length());candidates+=clusters.length()-2*columns*rows*slices;
+                var clusters=new LightClusterLists();
+                clusters.build(columns,rows,slices,regions,count);
+                int[] tiles=Arrays.copyOf(clusters.entries(),clusters.length());
+                candidates+=clusters.length()-2*columns*rows*slices;
                 glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_BUFFER,textures[1]);glBindBuffer(GL_TEXTURE_BUFFER,buffers[0]);glBufferData(GL_TEXTURE_BUFFER,lights,GL_STREAM_DRAW);glTexBuffer(GL_TEXTURE_BUFFER,GL_RGBA32F,buffers[0]);
                 glActiveTexture(GL_TEXTURE14);glBindTexture(GL_TEXTURE_BUFFER,textures[2]);glBindBuffer(GL_TEXTURE_BUFFER,buffers[1]);glBufferData(GL_TEXTURE_BUFFER,tiles,GL_STREAM_DRAW);glTexBuffer(GL_TEXTURE_BUFFER,GL_R32I,buffers[1]);
                 float[][] pixels={new float[96*60*4],new float[96*60*4]};
@@ -101,16 +126,22 @@ final class TiledLightingRegression {
         } finally {glUseProgram(0);glBindFramebuffer(GL_FRAMEBUFFER,0);glActiveTexture(GL_TEXTURE0);glDeleteProgram(program);glDeleteFramebuffers(fbo);glDeleteVertexArrays(vao);glDeleteTextures(textures);glDeleteBuffers(buffers);}
     }
     private static void verifyCameraPlaneCrossings() {
-        var random=new Random(9328);int[] bounds=new int[4];int visible=0;
+        var random=new Random(9328);
+        int[] bounds=new int[4];
+        int visible=0;
         for(int scene=0;scene<2000;scene++) {
             var projection=new Matrix4f().perspective(.7F+random.nextFloat(),1.6F,.05F,200)
                     .rotateX(random.nextFloat()-.5F).rotateY(random.nextFloat()*3-1.5F);
-            float x=random.nextFloat()*24-12,y=random.nextFloat()*16-8,z=random.nextFloat()*16-12,radius=.1F+random.nextFloat()*8;
+            float x=random.nextFloat()*24-12;
+            float y=random.nextFloat()*16-8;
+            float z=random.nextFloat()*16-12;
+            float radius=.1F+random.nextFloat()*8;
             LightTileBounds.project(projection,x,y,z,radius,60,34,bounds);
             for(int sample=0;sample<100;sample++) {
                 var point=new Vector4f(x+(random.nextFloat()*2-1)*radius,y+(random.nextFloat()*2-1)*radius,z+(random.nextFloat()*2-1)*radius,1).mul(projection);
                 if(point.w<.05F || Math.abs(point.x)>point.w || Math.abs(point.y)>point.w)continue;
-                int tx=clamp((int)((point.x/point.w*.5F+.5F)*60),0,59),ty=clamp((int)((point.y/point.w*.5F+.5F)*34),0,33);
+                int tx=clamp((int)((point.x/point.w*.5F+.5F)*60),0,59);
+                int ty=clamp((int)((point.y/point.w*.5F+.5F)*34),0,33);
                 require(tx>=bounds[0] && tx<=bounds[2] && ty>=bounds[1] && ty<=bounds[3],"Camera-plane light clipping removed a visible point");visible++;
             }
         }

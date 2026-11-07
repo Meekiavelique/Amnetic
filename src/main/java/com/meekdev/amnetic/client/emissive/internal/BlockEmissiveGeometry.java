@@ -92,9 +92,12 @@ public final class BlockEmissiveGeometry {
         float mv = v;
         float hasMask = 0f;
         if (mask != null && sprite != null) {
-            float su0 = sprite.getU0(), su1 = sprite.getU1();
-            float sv0 = sprite.getV0(), sv1 = sprite.getV1();
-            float du = su1 - su0, dv = sv1 - sv0;
+            float su0 = sprite.getU0();
+            float su1 = sprite.getU1();
+            float sv0 = sprite.getV0();
+            float sv1 = sprite.getV1();
+            float du = su1 - su0;
+            float dv = sv1 - sv0;
             if (Math.abs(du) > 1e-9f && Math.abs(dv) > 1e-9f) {
                 float lu = (u - su0) / du;
                 float lv = (v - sv0) / dv;
@@ -104,9 +107,14 @@ public final class BlockEmissiveGeometry {
             }
         }
 
-        out.add(q.x(i)); out.add(q.y(i)); out.add(q.z(i));
-        out.add(u); out.add(v);
-        out.add(mu); out.add(mv);
-        out.add(emission); out.add(hasMask);
+        out.add(q.x(i));
+        out.add(q.y(i));
+        out.add(q.z(i));
+        out.add(u);
+        out.add(v);
+        out.add(mu);
+        out.add(mv);
+        out.add(emission);
+        out.add(hasMask);
     }
 }

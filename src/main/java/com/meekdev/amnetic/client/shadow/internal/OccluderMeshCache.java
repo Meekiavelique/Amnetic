@@ -18,7 +18,10 @@ public final class OccluderMeshCache {
         Slot slot = byId.get(id);
         if (slot != null && slot.builtFrom == collected.list) return slot.mesh;
 
-        if (slot == null) { slot = new Slot(); byId.put(id, slot); }
+        if (slot == null) {
+            slot = new Slot();
+            byId.put(id, slot);
+        }
         if (slot.mesh != null) slot.mesh.close();
         slot.mesh = OccluderMesh.build(collected.list, collected.anchorX, collected.anchorY, collected.anchorZ);
         slot.builtFrom = collected.list;
@@ -37,7 +40,9 @@ public final class OccluderMeshCache {
     }
 
     public void dispose() {
-        for (Slot s : byId.values()) if (s.mesh != null) s.mesh.close();
+        for (Slot s : byId.values()) {
+            if (s.mesh != null) s.mesh.close();
+        }
         byId.clear();
     }
 }

@@ -67,7 +67,7 @@ public final class TexelBuffer implements AutoCloseable {
 
     public void bind(int unit) {
         //? if >=26.2 {
-        throw new IllegalStateException("Bind native texel buffers by name on a RenderPass");
+        throw new IllegalStateException("texel buffers bind by name on a render pass");
         //?} else {
         /*select(unit);
         GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, texture);

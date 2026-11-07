@@ -82,8 +82,15 @@ public final class FilmDecal {
         return this;
     }
 
-    public FilmDecal look(FilmLook look) { this.look = look; return this; }
-    public FilmDecal opacity(float v) { this.opacity = Math.max(0f, Math.min(1f, v)); return this; }
+    public FilmDecal look(FilmLook look) {
+        this.look = look;
+        return this;
+    }
+
+    public FilmDecal opacity(float v) {
+        this.opacity = Math.max(0f, Math.min(1f, v));
+        return this;
+    }
 
     public boolean isEmpty() { return nonEmpty <= 0; }
     public boolean isRemoved() { return removed; }
@@ -112,8 +119,14 @@ public final class FilmDecal {
     }
 
     void freeCpu() {
-        if (fieldA != null) { MemoryUtil.memFree(fieldA); fieldA = null; }
-        if (fieldB != null) { MemoryUtil.memFree(fieldB); fieldB = null; }
+        if (fieldA != null) {
+            MemoryUtil.memFree(fieldA);
+            fieldA = null;
+        }
+        if (fieldB != null) {
+            MemoryUtil.memFree(fieldB);
+            fieldB = null;
+        }
     }
 
     private static byte unorm(float v) {

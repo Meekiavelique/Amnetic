@@ -280,7 +280,8 @@ public final class ShaderProgram implements AutoCloseable {
         for (String line : loadRaw(id).split("\n", -1)) {
             String trimmed = line.trim();
             if (trimmed.startsWith("#include") || trimmed.startsWith("#moj_import")) {
-                int left = trimmed.indexOf('<'), right = trimmed.indexOf('>');
+                int left = trimmed.indexOf('<');
+                int right = trimmed.indexOf('>');
                 if (left >= 0 && right > left) {
                     Identifier include = Identifier.parse(trimmed.substring(left + 1, right));
                     resolve(include.withPath(path -> "shaders/include/" + path), out, seen);

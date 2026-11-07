@@ -13,8 +13,15 @@ public final class CutoutGeometry {
     public static final class Result {
         public final float[] cutout;
         public final float[] translucent;
-        Result(float[] cutout, float[] translucent) { this.cutout = cutout; this.translucent = translucent; }
-        boolean empty() { return cutout == null && translucent == null; }
+
+        Result(float[] cutout, float[] translucent) {
+            this.cutout = cutout;
+            this.translucent = translucent;
+        }
+
+        boolean empty() {
+            return cutout == null && translucent == null;
+        }
     }
 
     private static final Result NONE = new Result(null, null);
@@ -22,7 +29,9 @@ public final class CutoutGeometry {
 
     private CutoutGeometry() {}
 
-    public static void clear() { CACHE.clear(); }
+    public static void clear() {
+        CACHE.clear();
+    }
 
     public static Result extract(BlockState state) {
         Result cached = CACHE.get(state);
@@ -40,9 +49,13 @@ public final class CutoutGeometry {
         List<Float> translucent = new ArrayList<>();
         boolean hasSolid = false;
         for (BlockQuads.Quad q : quads) {
-            if (q.layer() == BlockQuads.Layer.SOLID) hasSolid = true;
-            else if (q.layer() == BlockQuads.Layer.CUTOUT) emitQuad(cutout, q);
-            else if (q.layer() == BlockQuads.Layer.TRANSLUCENT) emitQuad(translucent, q);
+            if (q.layer() == BlockQuads.Layer.SOLID) {
+                hasSolid = true;
+            } else if (q.layer() == BlockQuads.Layer.CUTOUT) {
+                emitQuad(cutout, q);
+            } else if (q.layer() == BlockQuads.Layer.TRANSLUCENT) {
+                emitQuad(translucent, q);
+            }
         }
         if (hasSolid) return null;
         Result r = new Result(toArray(cutout), toArray(translucent));
@@ -57,12 +70,19 @@ public final class CutoutGeometry {
     }
 
     private static void emitQuad(List<Float> out, BlockQuads.Quad q) {
-        vertex(out, q, 0); vertex(out, q, 1); vertex(out, q, 2);
-        vertex(out, q, 0); vertex(out, q, 2); vertex(out, q, 3);
+        vertex(out, q, 0);
+        vertex(out, q, 1);
+        vertex(out, q, 2);
+        vertex(out, q, 0);
+        vertex(out, q, 2);
+        vertex(out, q, 3);
     }
 
     private static void vertex(List<Float> out, BlockQuads.Quad q, int i) {
-        out.add(q.x(i)); out.add(q.y(i)); out.add(q.z(i));
-        out.add(q.u(i)); out.add(q.v(i));
+        out.add(q.x(i));
+        out.add(q.y(i));
+        out.add(q.z(i));
+        out.add(q.u(i));
+        out.add(q.v(i));
     }
 }
