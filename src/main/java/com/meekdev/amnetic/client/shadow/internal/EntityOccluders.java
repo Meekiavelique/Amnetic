@@ -29,6 +29,8 @@ public final class EntityOccluders {
     private static final long FNV_OFFSET = 1469598103934665603L;
     private static final long FNV_PRIME = 1099511628211L;
     private static final double POSITION_STEPS = 64.0;
+    private static final double FALLBACK_INSET_WIDTH = 0.2;
+    private static final double FALLBACK_INSET_HEIGHT = 0.05;
     private static final int FLOATS_PER_VERTEX = 3;
     private final CaptureConsumer capture = new CaptureConsumer();
     private float[] tri = new float[8192];
@@ -159,7 +161,10 @@ public final class EntityOccluders {
     }
 
     private void appendFallbackBox(Entity e, int anchorX, int anchorY, int anchorZ) {
-        AABB bb = e.getBoundingBox();
+        AABB bb = e.getBoundingBox()
+                .deflate(e.getBbWidth() * FALLBACK_INSET_WIDTH, e.getBbHeight() * FALLBACK_INSET_HEIGHT,
+                        e.getBbWidth() * FALLBACK_INSET_WIDTH)
+                .move(0, -e.getBbHeight() * FALLBACK_INSET_HEIGHT, 0);
         appendBox((float) (bb.minX - anchorX), (float) (bb.minY - anchorY), (float) (bb.minZ - anchorZ),
                 (float) (bb.maxX - anchorX), (float) (bb.maxY - anchorY), (float) (bb.maxZ - anchorZ));
     }
