@@ -9,6 +9,8 @@ import com.example.mirror.MirrorFeature;
 import com.example.model.StressDemo;
 import net.fabricmc.api.ClientModInitializer;
 
+import java.util.ServiceLoader;
+
 public class ExamplesClient implements ClientModInitializer {
 
     @Override
@@ -16,6 +18,8 @@ public class ExamplesClient implements ClientModInitializer {
         MirrorFeature.registerClient();
         StressDemo.init();
         EmissiveDemo.init();
-
+        for (LocalDemo demo : ServiceLoader.load(LocalDemo.class, ExamplesClient.class.getClassLoader())) {
+            demo.init();
+        }
     }
 }
