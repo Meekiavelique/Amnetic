@@ -41,6 +41,8 @@ public abstract class ScreenPass {
 
     protected boolean skipUnderIris() { return true; }
 
+    protected final boolean alive() { return guard.alive(); }
+
 
     protected final void dispatchNative(Runnable render) {
         if (!guard.alive() || !enabled()) return;

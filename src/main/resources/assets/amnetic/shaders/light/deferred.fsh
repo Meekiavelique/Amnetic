@@ -12,6 +12,9 @@ uniform vec4 TileViewDepth;
 uniform isamplerBuffer TileLights;
 uniform int ScatteringClip;
 uniform vec4 ScatteringRect;
+// the view model pass, drawn at full light, ViewLightUV is the lightmap cell it really stands in
+uniform int ViewLight;
+uniform vec2 ViewLightUV;
 
 // forward scattering glow toward the light source
 float hgPhase(float cosT, float g) {
@@ -228,6 +231,12 @@ void main() {
     // frame, so a lamp can still light a surface the daylight left at black
     vec4 published = texture(GAlbedoSampler, vUV);
     vec3 material = HasGBuffer == 1 && published.a > 0.5 ? published.rgb : lightMaterial(albedo);
+    vec3 scene = albedo;
+    if (ViewLight == 1) {
+        material = albedo;
+        vec3 full = max(texture(LightmapSampler, vec2(15.5 / 16.0)).rgb, vec3(1e-3));
+        scene = albedo * clamp(texture(LightmapSampler, ViewLightUV).rgb / full, 0.0, 1.0);
+    }
 
     if (DebugMode != 0) {
         vec3 dbg = vec3(0.0);
@@ -266,7 +275,7 @@ void main() {
     // with light volumes on the local lights were skipped above and the volumes add them after
     vec3 local = surfaceRadiance(material, radiance, specular, metallic);
     vec3 outColor = ShaderPackComposite == 1 ? albedo * sunMul + compositeLight(albedo, local)
-            : resolveSurface(albedo, sunMul, material, local);
+            : resolveSurface(scene, sunMul, material, local);
     outColor = max(outColor, vec3(0.0));
     if (any(isnan(outColor)) || any(isinf(outColor))) outColor = vec3(0.0);
 
