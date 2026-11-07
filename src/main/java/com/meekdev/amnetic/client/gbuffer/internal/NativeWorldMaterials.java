@@ -1,6 +1,7 @@
 package com.meekdev.amnetic.client.gbuffer.internal;
 
 import com.meekdev.amnetic.client.render.ShaderPatch;
+import com.meekdev.amnetic.client.render.ShaderSwitches;
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
 import com.mojang.renderpearl.api.pipeline.*;
@@ -62,8 +63,11 @@ public final class NativeWorldMaterials {
     }
 
     public static boolean captures(RenderPipeline p) {
-        return p.getDepthStencilState() != null && p.getDepthStencilState().writeDepth()
-                && p.getColorTargetStates().getFirst().blendFunction().isEmpty();
+        return p.getDepthStencilState() != null && p.getDepthStencilState().writeDepth();
+    }
+
+    public static boolean blended(RenderPipeline p) {
+        return p.getColorTargetStates().getFirst().blendFunction().isPresent();
     }
 
     public static RenderPipeline definition(RenderPipeline p) {
@@ -83,13 +87,14 @@ public final class NativeWorldMaterials {
         return RenderPipeline.builder(snippet).withShaderDefine("AMNETIC_NATIVE_MATERIAL").withLocation(location).build();
     }
 
-    public static ShaderSource source(ShaderSource original, boolean capture) {
+    public static ShaderSource source(ShaderSource original, boolean capture, boolean blended) {
+        Set<String> switches = blended ? Set.of(ShaderSwitches.BLENDED) : Set.of();
         return new ShaderSource() {
             public String getShader(Identifier id, ShaderType type) {
                 String source = original.getShader(id, type);
                 if (!capture || source == null) return source;
                 Identifier patch = patchFor(id, type);
-                return patch == null ? source : ShaderPatch.apply(source, patch, Set.of());
+                return patch == null ? source : ShaderPatch.apply(source, patch, switches);
             }
 
             public CachedIncludeSource getInclude(Identifier id) {
