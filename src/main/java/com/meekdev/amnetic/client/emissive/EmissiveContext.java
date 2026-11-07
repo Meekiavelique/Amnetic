@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.emissive;
 
+import com.meekdev.amnetic.client.framebuffer.Framebuffer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4fc;
@@ -13,9 +14,16 @@ public final class EmissiveContext {
     private final float deltaTick;
     private final int width;
     private final int height;
+    private final Framebuffer target;
 
     public EmissiveContext(ClientLevel level, Vec3 cameraPos, Matrix4fc view, Matrix4fc projection,
                            float deltaTick, int width, int height) {
+        this(level, cameraPos, view, projection, deltaTick, width, height, null);
+    }
+
+    public EmissiveContext(ClientLevel level, Vec3 cameraPos, Matrix4fc view, Matrix4fc projection,
+                           float deltaTick, int width, int height, Framebuffer target) {
+        this.target = target;
         this.level = level;
         this.cameraPos = cameraPos;
         this.view = view;
@@ -38,4 +46,6 @@ public final class EmissiveContext {
     public int targetWidth() { return width; }
 
     public int targetHeight() { return height; }
+
+    public Framebuffer target() { return target; }
 }
