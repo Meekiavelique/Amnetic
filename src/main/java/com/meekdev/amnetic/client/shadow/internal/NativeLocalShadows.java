@@ -64,6 +64,8 @@ public final class NativeLocalShadows implements AutoCloseable {
 
     private record CubeFace(float x, float y, float z, float upX, float upY, float upZ) {}
 
+    private record Bake(Light light, OccluderCache.Collected collected, Mesh mesh, int slot, int signature, boolean stale) {}
+
     private record Mesh(OccluderCache.Collected collected, GpuBuffer opaque, int opaqueCount, GpuBuffer cutout, int cutoutCount) {
         void close() {
             if (opaque != null) opaque.close();
@@ -103,6 +105,12 @@ public final class NativeLocalShadows implements AutoCloseable {
     private NativeScreenProgram clear;
     private final Map<Long, Integer> baked = new HashMap<>();
     private final ArrayList<Light> candidates = new ArrayList<>();
+    private final ArrayList<Light> chosen = new ArrayList<>();
+    private final Map<Long, Integer> pointSlots = new HashMap<>();
+    private final Map<Long, Integer> spotSlots = new HashMap<>();
+    private final Map<Long, Long> bakedFrame = new HashMap<>();
+    private final ArrayList<Bake> pending = new ArrayList<>();
+    private long frame;
     private final Set<Long> live = new HashSet<>();
     private ByteBuffer opaqueUpload;
     private ByteBuffer cutoutUpload;
@@ -154,13 +162,20 @@ public final class NativeLocalShadows implements AutoCloseable {
         int wantedSpots = Math.min(settings.maxSpotShadows(), countCandidates(LightType.SPOT));
         layoutPoints(Math.max(1, wantedPoints), settings.pointFaceSize());
         if (allocateTargets(settings.resolution(), wantedPoints, wantedSpots)) baked.clear();
-        live.clear();
-        for (var light : candidates) {
-            boolean isPoint = light.type() == LightType.POINT;
-            if (isPoint ? points >= settings.maxPointShadows() : spots >= settings.maxSpotShadows()) continue;
-            live.add(light.id());
-            renderLight(light, camera, settings, mc.level);
+        chooseLights(wantedPoints, wantedSpots);
+        float partial = VanillaCompat.partialTick(false);
+        frame++;
+        pending.clear();
+        for (var light : chosen) queueBake(light, camera, settings, mc.level, partial);
+        int budget = settings.bakeBudget() > 0 ? settings.bakeBudget() : Integer.MAX_VALUE;
+        pending.sort(Comparator.comparingInt((Bake bake) -> bake.stale ? 1 : 0)
+                .thenComparingLong(bake -> bakedFrame.getOrDefault(bake.light.id(), 0L)));
+        int rebakes = 0;
+        for (var bake : pending) {
+            if (bake.stale && rebakes++ >= budget) break;
+            bakeLight(bake, settings, mc.level, partial);
         }
+        entityGeometry = false;
         meshes.entrySet().removeIf(entry -> {
             if (live.contains(entry.getKey())) return false;
             entry.getValue().close();
@@ -169,6 +184,7 @@ public final class NativeLocalShadows implements AutoCloseable {
         if (sunCascades > 0) live.add(SUN_CACHE_ID);
         OccluderCache.retainOnly(live);
         baked.keySet().retainAll(live);
+        bakedFrame.keySet().retainAll(live);
     }
 
     private void collectCandidates(CameraSnapshot camera, ShadowSettings settings) {
@@ -210,8 +226,36 @@ public final class NativeLocalShadows implements AutoCloseable {
         return pointResized || spotResized;
     }
 
-    private void renderLight(Light light, CameraSnapshot camera, ShadowSettings settings, ClientLevel level) {
+    private void chooseLights(int wantedPoints, int wantedSpots) {
+        live.clear();
+        chosen.clear();
+        int pointCount = 0;
+        int spotCount = 0;
+        for (var light : candidates) {
+            boolean isPoint = light.type() == LightType.POINT;
+            if (isPoint ? pointCount >= wantedPoints : spotCount >= wantedSpots) continue;
+            if (isPoint) pointCount++;
+            else spotCount++;
+            chosen.add(light);
+            live.add(light.id());
+        }
+        pointSlots.keySet().retainAll(live);
+        spotSlots.keySet().retainAll(live);
+        pointSlots.values().removeIf(slot -> slot >= wantedPoints);
+        spotSlots.values().removeIf(slot -> slot >= wantedSpots);
+        points = pointCount;
+        spots = spotCount;
+    }
+
+    private void queueBake(Light light, CameraSnapshot camera, ShadowSettings settings, ClientLevel level, float partial) {
         boolean isPoint = light.type() == LightType.POINT;
+        var slots = isPoint ? pointSlots : spotSlots;
+        Integer slot = slots.get(light.id());
+        if (slot == null) {
+            slot = freeSlot(slots);
+            slots.put(light.id(), slot);
+            baked.remove(light.id());
+        }
         var collected = OccluderCache.getOrCompute(light.id(), level, (float) light.x(), (float) light.y(), (float) light.z(), light.range());
         var mesh = meshes.get(light.id());
         if (mesh == null || mesh.collected.list != collected.list) {
@@ -219,48 +263,61 @@ public final class NativeLocalShadows implements AutoCloseable {
             mesh = build(collected);
             meshes.put(light.id(), mesh);
         }
-        var projection = new Matrix4f().perspective(isPoint ? (float) Math.PI / 2 : spotFov(light), 1, NEAR_PLANE, farPlane(light));
+        long entitySignature = gatherEntities(light, settings, level, partial);
+        int shadowRef = isPoint ? POINT_SHADOW_REF + slot : slot;
+        int signature = Objects.hash(entitySignature, System.identityHashCode(collected.list),
+                light.x(), light.y(), light.z(), light.dirX(), light.dirY(), light.dirZ(),
+                light.cosOuter(), light.range(), settings.entityModels(), shadowRef);
+        Integer previous = baked.get(light.id());
+        if (!Objects.equals(previous, signature)) pending.add(new Bake(light, collected, mesh, slot, signature, previous != null));
+        light.setShadowRef(shadowRef);
+        if (!isPoint) {
+            float x = (float) (light.x() - camera.eye.x);
+            float y = (float) (light.y() - camera.eye.y);
+            float z = (float) (light.z() - camera.eye.z);
+            spotViewProj(light, x, y, z).get(spotMatrices, slot * MATRIX_FLOATS);
+        }
+    }
+
+    private long gatherEntities(Light light, ShadowSettings settings, ClientLevel level, float partial) {
+        if (!settings.entityShadows()) return 0;
+        return entities.gather(level, light.x(), light.y(), light.z(), light.range(), partial);
+    }
+
+    private void bakeLight(Bake bake, ShadowSettings settings, ClientLevel level, float partial) {
+        var light = bake.light;
+        var collected = bake.collected;
+        long entitySignature = gatherEntities(light, settings, level, partial);
+        entityGeometry = entitySignature != 0
+                && entities.build(collected.anchorX, collected.anchorY, collected.anchorZ, settings.entityModels(), partial);
         float x = (float) (light.x() - collected.anchorX);
         float y = (float) (light.y() - collected.anchorY);
         float z = (float) (light.z() - collected.anchorZ);
-        float partial = VanillaCompat.partialTick(false);
-        long entitySignature = settings.entityShadows()
-                ? entities.gather(level, light.x(), light.y(), light.z(), light.range(), partial)
-                : 0;
-        int signature = Objects.hash(entitySignature, System.identityHashCode(collected.list),
-                light.x(), light.y(), light.z(), light.dirX(), light.dirY(), light.dirZ(),
-                light.cosOuter(), light.range(), settings.entityModels(), isPoint ? POINT_SHADOW_REF + points : spots);
-        boolean dirty = !Objects.equals(baked.get(light.id()), signature);
-        entityGeometry = dirty && entitySignature != 0
-                && entities.build(collected.anchorX, collected.anchorY, collected.anchorZ, settings.entityModels(), partial);
-        if (isPoint) {
-            light.setShadowRef(POINT_SHADOW_REF + points);
-            for (int face = 0; dirty && face < CUBE_FACES; face++) {
+        int slot = bake.slot;
+        if (light.type() == LightType.POINT) {
+            var projection = new Matrix4f().perspective((float) Math.PI / 2, 1, NEAR_PLANE, farPlane(light));
+            for (int face = 0; face < CUBE_FACES; face++) {
                 var f = FACES[face];
                 var view = new Matrix4f().lookAt(x, y, z, x + f.x(), y + f.y(), z + f.z(), f.upX(), f.upY(), f.upZ());
-                var tile = new Tile(face + CUBE_FACES * (points % columns), points / columns, CUBE_FACES * columns, rows);
-                draw(mesh, new Matrix4f(projection).mul(view), point, tile);
+                var tile = new Tile(face + CUBE_FACES * (slot % columns), slot / columns, CUBE_FACES * columns, rows);
+                draw(bake.mesh, new Matrix4f(projection).mul(view), point, tile);
             }
-            points++;
         } else {
-            light.setShadowRef(spots);
-            var up = spotUp(light);
-            if (dirty) {
-                var view = new Matrix4f().lookAt(new Vector3f(x, y, z), new Vector3f(x + light.dirX(), y + light.dirY(), z + light.dirZ()), up);
-                draw(mesh, new Matrix4f(projection).mul(view), spot, new Tile(spots % spotGrid, spots / spotGrid, spotGrid, spotGrid));
-            }
-            x = (float) (light.x() - camera.eye.x);
-            y = (float) (light.y() - camera.eye.y);
-            z = (float) (light.z() - camera.eye.z);
-            var view = new Matrix4f().lookAt(new Vector3f(x, y, z), new Vector3f(x + light.dirX(), y + light.dirY(), z + light.dirZ()), up);
-            new Matrix4f(projection).mul(view).get(spotMatrices, spots * MATRIX_FLOATS);
-            spots++;
+            draw(bake.mesh, spotViewProj(light, x, y, z), spot, new Tile(slot % spotGrid, slot / spotGrid, spotGrid, spotGrid));
         }
-        baked.put(light.id(), signature);
+        baked.put(light.id(), bake.signature);
+        bakedFrame.put(light.id(), frame);
     }
 
     private static float farPlane(Light light) {
         return Math.max(MIN_FAR_PLANE, light.range());
+    }
+
+    private static Matrix4f spotViewProj(Light light, float x, float y, float z) {
+        var projection = new Matrix4f().perspective(spotFov(light), 1, NEAR_PLANE, farPlane(light));
+        var eye = new Vector3f(x, y, z);
+        var center = new Vector3f(x + light.dirX(), y + light.dirY(), z + light.dirZ());
+        return projection.mul(new Matrix4f().lookAt(eye, center, spotUp(light)));
     }
 
     private static float spotFov(Light light) {
@@ -269,6 +326,12 @@ public final class NativeLocalShadows implements AutoCloseable {
 
     private static Vector3f spotUp(Light light) {
         return Math.abs(light.dirY()) > .99f ? new Vector3f(1, 0, 0) : new Vector3f(0, 1, 0);
+    }
+
+    private static int freeSlot(Map<Long, Integer> slots) {
+        int slot = 0;
+        while (slots.containsValue(slot)) slot++;
+        return slot;
     }
 
     private void layoutPoints(int slots, int wanted) {
@@ -564,5 +627,8 @@ public final class NativeLocalShadows implements AutoCloseable {
         spots = 0;
         spotGrid = 1;
         baked.clear();
+        bakedFrame.clear();
+        pointSlots.clear();
+        spotSlots.clear();
     }
 }
