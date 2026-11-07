@@ -205,7 +205,14 @@ val presetSecurityRegression = tasks.register<JavaExec>("presetSecurityRegressio
     mainClass = "com.meekdev.amnetic.client.particle.editor.EffectPresetFilesRegression"
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(toolchainJava.majorVersion) }
 }
-tasks.named("check") { dependsOn(presetSecurityRegression) }
+val hostileContentRegression = tasks.register<JavaExec>("hostileContentRegression") {
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "com.meekdev.amnetic.client.content.HostileContentRegression"
+    maxHeapSize = "256m"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(toolchainJava.majorVersion) }
+}
+tasks.named("check") { dependsOn(presetSecurityRegression, hostileContentRegression) }
 tasks.withType<Test>().configureEach { failOnNoDiscoveredTests = false }
 
 tasks.register<JavaExec>("lightingRegression") {
