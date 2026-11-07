@@ -1,5 +1,7 @@
 package com.meekdev.amnetic.client.model;
 
+import net.minecraft.util.Mth;
+
 public final class MaterialLook {
     float tintR = 1f;
     float tintG = 1f;
@@ -124,7 +126,7 @@ public final class MaterialLook {
     }
 
     public MaterialLook warp(float amount) {
-        warp = Math.clamp(amount, 0f, 1f);
+        warp = Mth.clamp(amount, 0f, 1f);
         return this;
     }
 
