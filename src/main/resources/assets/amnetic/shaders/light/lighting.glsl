@@ -77,7 +77,20 @@ float viewDistance(vec3 p) {
     return dot(z, p) / max(length(z), 1e-10);
 }
 
+// how far a march point sits behind the depth buffer, huge off screen and very negative over sky
+float contactBehind(vec3 p, out vec2 ndc) {
+    vec4 clip = ViewProj * vec4(p, 1.0);
+    ndc = vec2(2.0);
+    if (clip.w <= 0.0) return 1e9;
+    ndc = clip.xy / clip.w;
+    if (abs(ndc.x) > 1.0 || abs(ndc.y) > 1.0) return 1e9;
+    float sd = textureLod(DepthSampler, ndc * 0.5 + 0.5, 0.0).r;
+    if (skyDepth(sd)) return -1e9;
+    return viewDistance(p) - viewDistance(reconstruct(ndc * 0.5 + 0.5, sd));
+}
+
 // screen-space contact shadows, catches small occluders shadow maps miss
+// four interleaved marches with a per pixel offset are averaged, so neighbours differ by a quarter step instead of a whole one
 float contactShadow(vec3 P, vec3 N, vec3 L) {
     if (ContactSteps <= 0) return 1.0;
     float viewDepth = viewDistance(P);
@@ -87,29 +100,30 @@ float contactShadow(vec3 P, vec3 N, vec3 L) {
     // a pixel's footprint grows with depth, so the start push and the bias grow with it
     float pixel = max(viewDepth, 0.1) * 0.002;
     vec3 start = P + N * (0.01 + pixel * 2.0);
-    float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))) + max(TemporalOffset, 0.0));
-    float stepLen = ContactDistance / float(ContactSteps);
+    int steps = max(ContactSteps / 2, 3);
+    float stepLen = ContactDistance / float(steps);
     float thickness = max(ContactThickness, pixel * 4.0);
+    float bias = pixel * 3.0 + stepLen * 0.25;
+    float noise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
     float shadow = 0.0;
-    for (int i = 0; i < ContactSteps; i++) {
-        float t = (float(i) + jitter) / float(ContactSteps);
-        vec3 p = start + L * (ContactDistance * t);
-        vec4 clip = ViewProj * vec4(p, 1.0);
-        if (clip.w <= 0.0) break;
-        vec2 ndc = clip.xy / clip.w;
-        vec2 uv = ndc * 0.5 + 0.5;
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
-        float sd = textureLod(DepthSampler, uv, 0.0).r;
-        if (skyDepth(sd)) continue;
-        float behind = viewDistance(p) - viewDistance(reconstruct(uv, sd));
-        float bias = pixel * 3.0 + stepLen * 0.25;
-        if (behind > bias && behind < thickness) {
-            // weaker toward the end of the march and at the screen border, so it never cuts off hard
-            vec2 border = smoothstep(vec2(1.0), vec2(0.9), abs(ndc));
-            shadow = max(shadow, (1.0 - t) * (1.0 - t) * border.x * border.y);
+    for (int m = 0; m < 4; m++) {
+        float offset = (float(m) + noise) * 0.25;
+        float hit = 0.0;
+        for (int i = 0; i < steps; i++) {
+            float t = (float(i) + offset) / float(steps);
+            vec2 ndc;
+            float behind = contactBehind(start + L * (ContactDistance * t), ndc);
+            if (behind > 1e8) break;
+            if (behind > bias && behind < thickness) {
+                // a ray grazing an edge counts for little, weaker toward the end of the march and the screen border
+                vec2 border = smoothstep(vec2(1.0), vec2(0.9), abs(ndc));
+                float solid = smoothstep(bias, bias * 3.0, behind) * (1.0 - smoothstep(thickness * 0.7, thickness, behind));
+                hit = max(hit, solid * (1.0 - t) * (1.0 - t) * border.x * border.y);
+            }
         }
+        shadow += hit;
     }
-    return 1.0 - shadow * far;
+    return 1.0 - shadow * 0.25 * far;
 }
 
 // projects the cookie texture through the spot cone to tint the light
