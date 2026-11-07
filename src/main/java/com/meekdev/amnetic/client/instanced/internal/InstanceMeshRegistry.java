@@ -137,7 +137,7 @@ public final class InstanceMeshRegistry {
         try {
             EmissiveSources.emitAll(
                     new EmissiveContext(context.world(), context.cameraPos(),
-                            context.viewMatrix(), context.projectionMatrix(), context.deltaTick(), target.width(), target.height()));
+                            context.viewMatrix(), context.projectionMatrix(), context.deltaTick(), target.width(), target.height(), target));
         } finally { NativeInstanceRenderer.emissiveTarget = previous; }
     }
     //?}

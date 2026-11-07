@@ -21,6 +21,19 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryUtil;
 import java.nio.FloatBuffer;
+//? if >=26.2 {
+import com.meekdev.amnetic.client.render.NativeScreenProgram;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.pipeline.BlendFactor;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import java.util.Optional;
+//?}
 
 public final class BlockEmissiveSource {
 
@@ -30,6 +43,8 @@ public final class BlockEmissiveSource {
             Identifier.fromNamespaceAndPath("amnetic", "shaders/emissive/block.vsh");
     private static final Identifier FSH =
             Identifier.fromNamespaceAndPath("amnetic", "shaders/emissive/block.fsh");
+    private static final Identifier NATIVE_VSH =
+            Identifier.fromNamespaceAndPath("amnetic", "shaders/emissive/native/block.vsh");
 
     private static final int STRIDE = BlockEmissiveGeometry.FLOATS_PER_VERTEX;
     private static final int MAX_VERTICES = 400_000;
@@ -38,6 +53,10 @@ public final class BlockEmissiveSource {
     private static final int SECTION_SIZE = 16;
 
     private ShaderProgram program;
+    //? if >=26.2 {
+    private NativeScreenProgram nativeProgram;
+    private GpuBuffer nativeVertices;
+    //?}
 
     private int vao;
     private int vbo;
@@ -94,8 +113,46 @@ public final class BlockEmissiveSource {
         }
         if (vertexCount == 0) return;
 
-        drawGl(ctx);
+        //? if >=26.2 {
+        drawNative(ctx);
+        //?} else {
+        /*drawGl(ctx);
+        *///?}
     }
+
+    //? if >=26.2 {
+    private void drawNative(EmissiveContext ctx) {
+        if (ctx.target() == null || nativeVertices == null) return;
+        if (nativeProgram == null) nativeProgram = createNativeProgram();
+        var atlas = Minecraft.getInstance().getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS);
+        nativeProgram.setTexture("AtlasSampler", atlas.getTextureView());
+        nativeProgram.setMatrix("ViewProj", new Matrix4f(ctx.projection()).mul(ctx.view()));
+        nativeProgram.setVector("Anchor",
+                (float) (anchorX - ctx.cameraPos().x),
+                (float) (anchorY - ctx.cameraPos().y),
+                (float) (anchorZ - ctx.cameraPos().z));
+        nativeProgram.setFloat("Intensity", intensity);
+        var encoder = RenderSystem.getDevice().createCommandEncoder();
+        nativeProgram.draw(encoder, ctx.target().renderPassDescriptor(), pass -> {
+            pass.setVertexBuffer(0, nativeVertices.slice());
+            pass.draw(vertexCount, 1, 0, 0);
+        });
+        encoder.submit();
+    }
+
+    private static NativeScreenProgram createNativeProgram() {
+        var format = VertexFormat.builder(0)
+                .addAttribute("Position", GpuFormat.RGB32_FLOAT)
+                .addAttribute("UV", GpuFormat.RG32_FLOAT)
+                .addAttribute("MaskUV", GpuFormat.RG32_FLOAT)
+                .addAttribute("Params", GpuFormat.RG32_FLOAT)
+                .build();
+        var depth = Optional.of(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false));
+        var additive = Optional.of(new BlendFunction(BlendFactor.ONE, BlendFactor.ONE));
+        var target = new ColorTargetState(additive, GpuFormat.RG11B10_FLOAT, ColorTargetState.WRITE_ALL);
+        return new NativeScreenProgram(NATIVE_VSH, FSH, new VertexFormat[]{format}, false, depth, target);
+    }
+    //?}
 
     private void drawGl(EmissiveContext ctx) {
         int atlas = atlasGlId();
@@ -172,7 +229,13 @@ public final class BlockEmissiveSource {
         if (missedChunk) retryCooldown = MISSED_CHUNK_RETRY_FRAMES;
         if (vertexCount == 0) return;
 
-        uploadGl(buf);
+        //? if >=26.2 {
+        if (nativeVertices != null) nativeVertices.close();
+        var bytes = MemoryUtil.memByteBuffer(MemoryUtil.memAddress(buf), buf.remaining() * Float.BYTES);
+        nativeVertices = RenderSystem.getDevice().createBuffer(() -> "Amnetic block emissives", GpuBuffer.USAGE_VERTEX, bytes);
+        //?} else {
+        /*uploadGl(buf);
+        *///?}
     }
 
     private boolean appendSection(LevelChunkSection section, int baseX, int baseY, int baseZ, BlockPos.MutableBlockPos mut) {
@@ -245,6 +308,16 @@ public final class BlockEmissiveSource {
     }
 
     public void dispose() {
+        //? if >=26.2 {
+        if (nativeVertices != null) {
+            nativeVertices.close();
+            nativeVertices = null;
+        }
+        if (nativeProgram != null) {
+            nativeProgram.close();
+            nativeProgram = null;
+        }
+        //?}
         if (vbo != 0) {
             GL15.glDeleteBuffers(vbo);
             vbo = 0;
