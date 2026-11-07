@@ -263,8 +263,8 @@ void main() {
     // scene is already day-lit, darken where the sun is occluded, then local lights and specular on top
     vec4 shade = HasGBuffer == 1 ? texture(GShadeSampler, vUV) : vec4(0.0);
     float sunMul = clamp(1.0 - sunShadow * (shade.b > 0.5 ? shade.g : 1.0), 0.0, 1.0);
-    vec3 local = SkipLocalLights == 1 ? texture(LocalLightSampler, vUV).rgb
-            : surfaceRadiance(material, radiance, specular, metallic);
+    // with light volumes on the local lights were skipped above and the volumes add them after
+    vec3 local = surfaceRadiance(material, radiance, specular, metallic);
     vec3 outColor = ShaderPackComposite == 1 ? albedo * sunMul + compositeLight(albedo, local)
             : resolveSurface(albedo, sunMul, material, local);
     outColor = max(outColor, vec3(0.0));
