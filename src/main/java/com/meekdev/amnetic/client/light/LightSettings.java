@@ -28,7 +28,7 @@ public final class LightSettings {
     private float sceneAmbient = 1f;
     private int contactSteps = 12;
     private float contactDistance = 0.5f; // march length, blocks
-    private float contactThickness = 0.5f; // occluder thickness tolerance
+    private float contactThickness = 0.15f; // occluder thickness tolerance
 
     private Identifier cookieTexture;
 
