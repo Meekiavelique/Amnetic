@@ -12,6 +12,8 @@ uniform vec4 TileViewDepth;
 uniform isamplerBuffer TileLights;
 uniform int ScatteringClip;
 uniform vec4 ScatteringRect;
+uniform int ViewLight;
+uniform vec2 ViewLightUV;
 
 float hgPhase(float cosT, float g) {
     float g2 = g * g;
@@ -210,6 +212,12 @@ void main() {
     vec3 albedo = texture(AlbedoSampler, vUV).rgb;
     vec4 published = texture(GAlbedoSampler, vUV);
     vec3 material = HasGBuffer == 1 && published.a > 0.5 ? published.rgb : lightMaterial(albedo);
+    vec3 scene = albedo;
+    if (ViewLight == 1) {
+        material = albedo;
+        vec3 full = max(texture(LightmapSampler, vec2(15.5 / 16.0)).rgb, vec3(1e-3));
+        scene = albedo * clamp(texture(LightmapSampler, ViewLightUV).rgb / full, 0.0, 1.0);
+    }
 
     if (DebugMode != 0) {
         vec3 dbg = vec3(0.0);
@@ -245,7 +253,7 @@ void main() {
     float sunMul = clamp(1.0 - sunShadow * (shade.b > 0.5 ? shade.g : 1.0), 0.0, 1.0);
     vec3 local = surfaceRadiance(material, radiance, specular, metallic);
     vec3 outColor = ShaderPackComposite == 1 ? albedo * sunMul + compositeLight(albedo, local)
-            : resolveSurface(albedo, sunMul, material, local);
+            : resolveSurface(scene, sunMul, material, local);
     outColor = max(outColor, vec3(0.0));
     if (any(isnan(outColor)) || any(isinf(outColor))) outColor = vec3(0.0);
 

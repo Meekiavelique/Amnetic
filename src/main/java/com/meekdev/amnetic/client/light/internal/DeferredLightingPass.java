@@ -24,6 +24,8 @@ import com.meekdev.amnetic.client.shadow.internal.SunShadowCascades;
 import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import org.joml.FrustumIntersection;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
@@ -58,6 +60,7 @@ public final class DeferredLightingPass extends ScreenPass {
     private static final int GBUFFER_ALBEDO_UNIT = 10;
     private static final int SHADE_UNIT = 13;
     private static final int REDUCED_SURFACE_MIN_LIGHTS = 8;
+    private static final int MAX_LIGHT_LEVEL = 15;
     private static final double LIGHT_TIME_PERIOD = 3600.0;
 
     public static int debugMode = 0;
@@ -79,6 +82,11 @@ public final class DeferredLightingPass extends ScreenPass {
     private NativeDeferredLighting nativeVolumetric;
     //?}
     private boolean nativeScatterDrawn;
+
+    private record View(Matrix4f invViewProj, Matrix4f viewProj, float lightU, float lightV) {}
+
+    private View view;
+    private LightBuffer viewLights;
 
     private DeferredLightingPass() {
         super("Light");
@@ -130,6 +138,24 @@ public final class DeferredLightingPass extends ScreenPass {
         renderSurface();
     }
 
+    public boolean viewNeeded() {
+        return alive() && enabled() && !IrisCompat.shadersActive();
+    }
+
+    public void renderView(Matrix4fc invViewProj, int blockLight, int skyLight) {
+        view = new View(new Matrix4f(invViewProj), new Matrix4f(invViewProj).invert(),
+                lightCoordinate(blockLight), lightCoordinate(skyLight));
+        try {
+            dispatch();
+        } finally {
+            view = null;
+        }
+    }
+
+    private static float lightCoordinate(int level) {
+        return (Math.clamp(level, 0, MAX_LIGHT_LEVEL) + 0.5f) / 16f;
+    }
+
     @Override protected boolean enabled() {
         return (!LightRegistry.INSTANCE.isEmpty() || LightSettings.defaults().sceneAmbient() < 1f)
                 && (!IrisCompat.shadersActive() || IrisCompat.canComposite());
@@ -148,6 +174,7 @@ public final class DeferredLightingPass extends ScreenPass {
     @Override
     protected boolean record(CameraSnapshot cam, ShaderProgram program) {
         if (ShadingModelRegistry.INSTANCE.consumeDirty()) program.invalidate();
+        if (view != null) return recordView(cam, program, view);
 
         frustum.set(cam.viewProj);
         boolean shaderPack = IrisCompat.compositing();
@@ -250,6 +277,37 @@ public final class DeferredLightingPass extends ScreenPass {
         shade(GBufferTargets.INSTANCE.shadeGlId());
     }
 
+    private boolean recordView(CameraSnapshot cam, ShaderProgram program, View view) {
+        if (viewLights == null) viewLights = new LightBuffer(LightSettings.defaults().maxLights());
+        int count = viewLights.pack(LightRegistry.INSTANCE.all(), cam.eye, null, null);
+        capture.blitColorFromMain();
+        capture.blitDepthFromMain();
+        int prevFbo = MainTargetFramebuffer.bind();
+        if (prevFbo == -1) return false;
+        try {
+            bindScene();
+            boolean shadows = bindShadows();
+            boolean sunShadows = bindSunShadows();
+            GlState.bindTexture(LIGHTMAP_UNIT, levelLightmapGlId());
+            viewLights.bind();
+            MaterialParams.INSTANCE.bind();
+            program.begin();
+            applyShared(program, cam, shadows, sunShadows, false, count, false);
+            program.setMatrix4("InvViewProj", view.invViewProj());
+            program.setMatrix4("ViewProj", view.viewProj());
+            program.setInt("ContactSteps", 0);
+            program.setInt("ViewLight", 1);
+            program.setVec2("ViewLightUV", view.lightU(), view.lightV());
+            GlStateManager._disableBlend(0);
+            GL11.glDisable(GL11.GL_BLEND);
+            program.draw();
+        } finally {
+            unbind();
+            MainTargetFramebuffer.restore(prevFbo);
+        }
+        return true;
+    }
+
     private static boolean bindShadows() {
         if (!ShadowMapPass.INSTANCE.isActive()) return false;
         GlState.bindTexture(SPOT_ATLAS_UNIT, SpotShadowAtlas.glTextureId());
@@ -350,6 +408,10 @@ public final class DeferredLightingPass extends ScreenPass {
             lightBuffer.close();
             lightBuffer = null;
         }
+        if (viewLights != null) {
+            viewLights.close();
+            viewLights = null;
+        }
         if (capture != null) {
             capture.dispose();
             capture = null;
@@ -427,6 +489,7 @@ public final class DeferredLightingPass extends ScreenPass {
         p.setInt("DebugMode", debugMode);
         p.setInt("VolumetricOnly", volumetricOnly ? 1 : 0);
         p.setFloat("TemporalOffset", volumetricOnly ? (frameCounter & 7) / 8f : 0f);
+        p.setInt("ViewLight", 0);
     }
 
     private static void applySpotShadows(ShaderProgram p) {
