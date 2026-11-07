@@ -1,5 +1,6 @@
 package com.meekdev.amnetic.client.surface.text;
 
+import com.meekdev.amnetic.client.content.font.FontCheck;
 import com.meekdev.amnetic.client.render.GlState;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -174,6 +175,7 @@ public final class SdfFont {
                     bytes = in.readAllBytes();
                 }
             }
+            FontCheck.check(bytes);
             fontData = MemoryUtil.memAlloc(bytes.length);
             fontData.put(bytes).flip();
             STBTTFontinfo info = STBTTFontinfo.create();

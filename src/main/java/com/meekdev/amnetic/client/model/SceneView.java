@@ -106,6 +106,10 @@ public final class SceneView {
         return framebuffer == null ? 0 : framebuffer.colorTextureGlId(0);
     }
 
+    public int depthTextureId() {
+        return framebuffer == null ? 0 : framebuffer.depthTextureGlId();
+    }
+
     public SceneView register(Identifier id) {
         if (framebuffer != null) {
             framebuffer.registerColorTexture(id);

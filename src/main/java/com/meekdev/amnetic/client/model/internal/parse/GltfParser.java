@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import com.meekdev.amnetic.client.content.RejectedContentException;
 import com.meekdev.amnetic.client.model.ModelLoadException;
 import com.meekdev.amnetic.client.model.internal.GpuModel;
+import com.meekdev.amnetic.client.model.internal.ModelCheck;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import de.javagl.jgltf.model.AccessorModel;
 import de.javagl.jgltf.model.AnimationModel;
@@ -47,6 +49,7 @@ public final class GltfParser {
 
     public static ModelIR parse(byte[] bytes, Identifier source, Function<String, byte[]> files) {
         try {
+            GltfPreflight.checkJson(bytes);
             GltfModel gltf = read(bytes, files);
             GltfExtras extras = new GltfExtras(GltfExtras.json(bytes), gltf.getMaterialModels(), files);
             ModelIR ir = new ModelIR();
@@ -69,9 +72,12 @@ public final class GltfParser {
             }
 
             buildAnimations(ir, gltf, nodeIndices);
+            ModelCheck.check(ir);
             return ir;
         } catch (ModelLoadException e) {
             throw e;
+        } catch (RejectedContentException e) {
+            throw new ModelLoadException("glTF model " + (source == null ? "<bytes>" : source) + " is refused: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new ModelLoadException("Failed to parse glTF model: " + (source == null ? "<bytes>" : source), e);
         }
@@ -450,6 +456,7 @@ public final class GltfParser {
 
     private static GltfModel read(byte[] bytes, Function<String, byte[]> files) throws java.io.IOException {
         GltfAsset asset = new GltfAssetReader().readWithoutReferences(byteStream(bytes));
+        GltfPreflight.check(asset);
         for (GltfReference reference : asset.getReferences()) {
             byte[] found = GltfExtras.image(reference.getUri(), files);
             reference.getTarget().accept(ByteBuffer.wrap(found == null ? new byte[0] : found));
