@@ -35,6 +35,7 @@ final class CompiledShader implements AutoCloseable {
     private int cameraPosLoc;
     private int worldSpaceLoc;
     private int perInstanceCastLoc;
+    private int depthPassLoc;
     private final Map<String, Integer> customLocations = new HashMap<>();
 
     private CompiledShader(Identifier vshId, Identifier fshId, ProgramLink link) {
@@ -55,6 +56,7 @@ final class CompiledShader implements AutoCloseable {
         this.cameraPosLoc = GlStateManager._glGetUniformLocation(program, "CameraPos");
         this.worldSpaceLoc = GlStateManager._glGetUniformLocation(program, "WorldSpace");
         this.perInstanceCastLoc = GlStateManager._glGetUniformLocation(program, "PerInstanceCast");
+        this.depthPassLoc = GlStateManager._glGetUniformLocation(program, "DepthPass");
     }
 
     // starts compiling the mesh's shader, it draws once ready() says so
@@ -140,6 +142,10 @@ final class CompiledShader implements AutoCloseable {
     void uploadPerInstanceCast(boolean perInstance) {
         if (perInstanceCastLoc == -1) return;
         GL20.glUniform1i(perInstanceCastLoc, perInstance ? 1 : 0);
+    }
+
+    void uploadDepthPass(boolean depthOnly) {
+        if (depthPassLoc != -1) GL20.glUniform1i(depthPassLoc, depthOnly ? 1 : 0);
     }
 
     void uploadProjView(Matrix4fc m) { uploadMatrix(projViewMatrixLoc, m); }

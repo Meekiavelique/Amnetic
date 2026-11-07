@@ -54,6 +54,8 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private boolean textureRegistered;
     private int lastInstanceCount;
     private boolean staticUploaded;
+    private boolean prepassed;
+    private boolean depthPass;
     private int uploadedGeometryVersion = -1;
 
     private int cullBounds;
@@ -137,6 +139,12 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     }
 
     private void renderCpu(InstanceRenderContext ctx) {
+        if (!uploadInstances(ctx)) return;
+        drawNow(projViewScratch, ctx.projectionMatrix(), ctx.viewMatrix(), ctx.gameTime(), ctx.cameraPos(), lastInstanceCount);
+        prepassed = false;
+    }
+
+    private boolean uploadInstances(InstanceRenderContext ctx) {
         boolean reuse = mesh.staticInstances() && staticUploaded;
         if (!reuse) {
             batch.reset();
@@ -145,14 +153,40 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
             mesh.onRender().accept(ctx, batch);
             int instanceCount = batch.count();
             lastInstanceCount = instanceCount;
-            if (instanceCount == 0) return;
+            if (instanceCount == 0) return false;
             instanceBuffer.upload(batch.flip(), instanceCount);
             uploaded();
             staticUploaded = mesh.staticInstances();
         }
-        if (lastInstanceCount == 0) return;
+        return lastInstanceCount > 0;
+    }
 
-        drawNow(projViewScratch, ctx.projectionMatrix(), ctx.viewMatrix(), ctx.gameTime(), ctx.cameraPos(), lastInstanceCount);
+    // the depth of a static mesh ahead of its colour, which then only shades what ends up in front
+    public void renderDepth(InstanceRenderContext ctx) {
+        prepassed = false;
+        //? if <26.2 {
+        /*if (!mesh.depthPrepass() || gpuCullEnabled() || mesh.source() != null) return;
+        ensureVao();
+        ensureShader();
+        if (!shader.ready()) return;
+        syncGeometry();
+        if (mesh.geometry().vertexCount() == 0) return;
+        projViewScratch.set(ctx.projectionMatrix()).mul(ctx.viewMatrix());
+        Vec3 cam = ctx.cameraPos();
+        lastCamX = cam.x;
+        lastCamY = cam.y;
+        lastCamZ = cam.z;
+        if (!uploadInstances(ctx)) return;
+        depthPass = true;
+        GL11.glColorMask(false, false, false, false);
+        try {
+            drawNow(projViewScratch, ctx.projectionMatrix(), ctx.viewMatrix(), ctx.gameTime(), cam, lastInstanceCount);
+        } finally {
+            GL11.glColorMask(true, true, true, true);
+            depthPass = false;
+        }
+        prepassed = true;
+        *///?}
     }
 
     private void renderGpuCulled(InstanceRenderContext ctx) {
@@ -268,9 +302,13 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private void drawNow(Matrix4f projView, Matrix4fc projection, Matrix4fc view, float time,
                          Vec3 cameraPos, int instanceCount) {
         mesh.renderState().apply();
+        // the depth is already there, writing it again only keeps the card from skipping hidden pixels early
+        boolean kept = prepassed && !depthPass;
+        if (kept) GlStateManager._depthMask(false);
 
         try {
             shader.bind();
+            shader.uploadDepthPass(depthPass);
             shader.uploadProjView(projView);
             shader.uploadProjection(projection);
             shader.uploadView(view);
@@ -291,6 +329,7 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
                 GL31.glDrawArraysInstanced(GL11.GL_TRIANGLES, 0, mesh.geometry().vertexCount(), instanceCount);
             }
         } finally {
+            if (kept) GlStateManager._depthMask(true);
             GlState.resetVertexArray();
             GlStateManager._glUseProgram(0);
         }

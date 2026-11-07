@@ -222,6 +222,14 @@ public final class InstanceMeshRegistry {
         if (prevFbo == -1) return;
         try {
             for (InstanceMeshEntry<?> entry : entries) {
+                if (entry.mesh().phase() != phase || !entry.mesh().depthPrepass()) continue;
+                try {
+                    entry.renderDepth(ctx);
+                } catch (Exception e) {
+                    LOGGER.error("Amnetic: error rendering G-buffer depth of mesh {}", entry.id(), e);
+                }
+            }
+            for (InstanceMeshEntry<?> entry : entries) {
                 if (entry.mesh().phase() != phase || !entry.mesh().writeGBuffer()) continue;
                 try {
                     entry.render(ctx);
