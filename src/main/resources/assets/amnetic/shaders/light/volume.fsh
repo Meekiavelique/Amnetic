@@ -44,7 +44,9 @@ void main() {
     float sunShadow = 0.0;
     vec3 radiance = lightContribution(LightIndex, fragPos, N, V, rough, f0, specular, sunShadow);
 
-    vec3 lit = compositeLight(scene, surfaceRadiance(albedo, radiance, specular, metallic));
+    vec3 local = surfaceRadiance(albedo, radiance, specular, metallic);
+    vec3 lit = ShaderPackComposite == 1 ? compositeLight(scene, local)
+            : resolveSurface(scene, 1.0, albedo, local) - scene * SceneAmbient;
     lit = max(lit, vec3(0.0));
     if (any(isnan(lit)) || any(isinf(lit))) lit = vec3(0.0);
     FragColor = vec4(lit, 1.0);
