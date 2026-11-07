@@ -1,9 +1,10 @@
 package com.meekdev.amnetic.client.model.internal;
 
+import com.meekdev.amnetic.client.content.ImageProbe;
+import com.meekdev.amnetic.client.content.RejectedContentException;
 import com.meekdev.amnetic.client.model.TextureFilter;
 import com.meekdev.amnetic.client.model.internal.ammesh.TextureCache;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -11,8 +12,6 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-
-import javax.imageio.ImageIO;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
@@ -91,14 +90,11 @@ public final class ModelTexture implements AutoCloseable {
             tex.users = 1;
             STORED.put(name, tex);
             GlUploadQueue.decode(() -> {
-                try (InputStream is = new ByteArrayInputStream(bytes)) {
-                    BufferedImage img = ImageIO.read(is);
-                    if (img == null) {
-                        LOG.warn("Amnetic: embedded model texture could not be decoded");
-                        return;
-                    }
-                    Decoded d = decode(img);
+                try {
+                    Decoded d = decode(ImageProbe.decode(bytes, ImageProbe.TEXTURES));
                     GlUploadQueue.submit(() -> tex.finishUpload(d, srgb, filter));
+                } catch (RejectedContentException refused) {
+                    LOG.warn("Amnetic: embedded model texture is refused: {}", refused.getMessage());
                 } catch (Exception e) {
                     LOG.warn("Amnetic: failed to decode embedded model texture", e);
                 }
@@ -158,8 +154,14 @@ public final class ModelTexture implements AutoCloseable {
             STORED.put(name, tex);
             boolean squeeze = srgb && filter == TextureFilter.LINEAR && dxtSupported();
             GlUploadQueue.decode(() -> {
-                TextureCache.Image image = squeeze ? TextureCache.read(dir, key, true) : null;
-                if (image == null) image = TextureCache.read(dir, key, false);
+                TextureCache.Image image;
+                try {
+                    image = squeeze ? TextureCache.read(dir, key, true) : null;
+                    if (image == null) image = TextureCache.read(dir, key, false);
+                } catch (RejectedContentException refused) {
+                    LOG.warn("Amnetic: processed texture {} in {} is refused: {}", key, dir, refused.getMessage());
+                    return;
+                }
                 if (image == null) {
                     LOG.warn("Amnetic: processed texture {} is missing from {}", key, dir);
                     return;

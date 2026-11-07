@@ -118,6 +118,10 @@ public final class SceneView {
         return framebuffer == null ? 0 : framebuffer.colorTextureGlId(0);
     }
 
+    public int depthTextureId() {
+        return framebuffer == null ? 0 : framebuffer.depthTextureGlId();
+    }
+
     // exposes the color texture under an Identifier so vanilla GUI blits can draw it, call after render()
     public SceneView register(Identifier id) {
         if (framebuffer != null) {

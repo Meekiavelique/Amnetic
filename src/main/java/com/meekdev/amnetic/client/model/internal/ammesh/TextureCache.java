@@ -1,10 +1,13 @@
 package com.meekdev.amnetic.client.model.internal.ammesh;
 
+import com.meekdev.amnetic.client.content.Bounded;
+import com.meekdev.amnetic.client.content.ImageProbe;
+import com.meekdev.amnetic.client.content.RejectedContentException;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
@@ -16,8 +19,8 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HexFormat;
-import javax.imageio.ImageIO;
 
 // images decoded once into their whole mip chain on disk, named by what they hold, so drawing never decodes
 // no gl in here, a server can fill it too
@@ -31,6 +34,11 @@ public final class TextureCache {
     public static final int RGBA = 0;
     public static final int DXT1 = 1;
     public static final int DXT5 = 2;
+
+    private static final int RGBA_TEXEL = 4;
+    private static final int DXT_BLOCK = 4;
+    private static final int DXT1_BLOCK_BYTES = 8;
+    private static final int DXT5_BLOCK_BYTES = 16;
 
     private static final float[] TO_LINEAR = new float[256];
 
@@ -67,11 +75,10 @@ public final class TextureCache {
         return Files.isRegularFile(file(dir, key, false));
     }
 
-    // decodes the image and writes its mips under key, false when it is no image
-    public static boolean store(Path dir, String key, byte[] image, boolean srgb) throws IOException {
-        if (has(dir, key)) return true;
-        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(image));
-        if (decoded == null) return false;
+    // decodes the image and writes its mips under key, refused when it is no image a model can use or too big
+    public static void store(Path dir, String key, byte[] image, boolean srgb) throws IOException {
+        if (has(dir, key)) return;
+        BufferedImage decoded = ImageProbe.decode(image, ImageProbe.TEXTURES);
         int w = decoded.getWidth();
         int h = decoded.getHeight();
         boolean opaque = true;
@@ -94,7 +101,6 @@ public final class TextureCache {
         levels[0] = level;
         for (int n = 1; n < count; n++) levels[n] = half(levels[n - 1], Math.max(1, w >> (n - 1)), Math.max(1, h >> (n - 1)), srgb);
         write(file(dir, key, false), RGBA, w, h, opaque, levels);
-        return true;
     }
 
     // the same mips as the driver compressed them, kept beside the plain ones
@@ -103,32 +109,46 @@ public final class TextureCache {
     }
 
     // mapped, so uploading reads straight from the file, null when missing or from another version
+    // a file that claims more than it holds is refused before any of it reaches the driver
     public static Image read(Path dir, String key, boolean compressed) {
         Path file = file(dir, key, compressed);
         if (!Files.isRegularFile(file)) return null;
         try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
             MappedByteBuffer map = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
             map.order(ByteOrder.BIG_ENDIAN);
-            byte[] magic = new byte[4];
+            if (map.remaining() < HEADER) return null;
+            byte[] magic = new byte[MAGIC.length];
             map.get(magic);
-            for (int i = 0; i < 4; i++) if (magic[i] != MAGIC[i]) return null;
-            if (map.getInt() != VERSION) return null;
+            if (!Arrays.equals(magic, MAGIC) || map.getInt() != VERSION) return null;
             int format = map.getInt();
             int w = map.getInt();
             int h = map.getInt();
             boolean opaque = map.getInt() != 0;
             int count = map.getInt();
-            if (w <= 0 || h <= 0 || count <= 0 || count > 32) return null;
+            Bounded.require(format == RGBA || format == DXT1 || format == DXT5, "texture " + key + " has unknown format " + format);
+            ImageProbe.checkSize(w, h);
+            Bounded.require(count > 0 && count <= levels(w, h), "texture " + key + " claims " + count + " mip levels");
             ByteBuffer[] levels = new ByteBuffer[count];
             for (int n = 0; n < count; n++) {
-                int size = map.getInt();
+                int size = Bounded.count(map, 1, "texture " + key + " level " + n);
+                int expected = levelBytes(format, Math.max(1, w >> n), Math.max(1, h >> n));
+                Bounded.require(size == expected, "texture " + key + " level " + n + " holds " + size + " bytes, not " + expected);
                 levels[n] = map.slice(map.position(), size);
                 map.position(map.position() + size);
             }
             return new Image(format, w, h, opaque, levels);
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException e) {
             return null;
+        } catch (BufferUnderflowException e) {
+            throw new RejectedContentException("texture " + key + " ends early");
         }
+    }
+
+    // what one level of an image takes, rgba8 or dxt blocks of four by four texels
+    static int levelBytes(int format, int w, int h) {
+        if (format == RGBA) return w * h * RGBA_TEXEL;
+        int blocks = ((w + DXT_BLOCK - 1) / DXT_BLOCK) * ((h + DXT_BLOCK - 1) / DXT_BLOCK);
+        return blocks * (format == DXT1 ? DXT1_BLOCK_BYTES : DXT5_BLOCK_BYTES);
     }
 
     public static int levels(int w, int h) {

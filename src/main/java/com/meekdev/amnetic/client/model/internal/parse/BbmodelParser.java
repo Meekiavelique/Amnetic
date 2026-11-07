@@ -1,8 +1,13 @@
 package com.meekdev.amnetic.client.model.internal.parse;
 
+import com.meekdev.amnetic.client.content.Bounded;
+import com.meekdev.amnetic.client.content.ContentLimits;
+import com.meekdev.amnetic.client.content.RejectedContentException;
 import com.meekdev.amnetic.client.model.TextureFilter;
+import com.danrus.bb4j.api.CompressionMode;
 import com.danrus.bb4j.api.ReadOptions;
 import com.danrus.bb4j.api.utils.RenderUtils;
+import com.danrus.bb4j.io.BbModelFormatDetector;
 import com.danrus.bb4j.io.BbModelReader;
 import com.danrus.bb4j.migrate.steps.AnimationPre50Migration;
 import com.danrus.bb4j.model.BbModelDocument;
@@ -13,8 +18,9 @@ import com.danrus.bb4j.model.geometry.CubeElement;
 import com.danrus.bb4j.model.geometry.Element;
 import com.danrus.bb4j.model.texture.Texture;
 import com.meekdev.amnetic.client.model.ModelLoadException;
+import com.meekdev.amnetic.client.model.internal.ModelCheck;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
-import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
@@ -29,13 +35,16 @@ import org.joml.Vector4f;
 public final class BbmodelParser {
 
     private static final float PIXELS_PER_BLOCK = 16f;
+    private static final byte DEFLATED = 1;
 
     private BbmodelParser() {}
 
     public static ModelIR parse(byte[] bytes, String source) {
         BbModelDocument document;
         try {
-            document = BbModelReader.read(new ByteArrayInputStream(bytes), ReadOptions.builder());
+            document = BbModelReader.read(uncompressed(bytes), ReadOptions.builder().compressionMode(CompressionMode.JSON));
+        } catch (RejectedContentException refused) {
+            throw new ModelLoadException("refused .bbmodel " + source + ": " + refused.getMessage(), refused);
         } catch (RuntimeException | Error malformed) {
             throw new ModelLoadException("not a readable .bbmodel: " + source, malformed);
         }
@@ -132,9 +141,18 @@ public final class BbmodelParser {
         }
         skeleton.finish();
         importAnimations(ir, document, skeleton);
+        ModelCheck.check(ir);
         return ir;
     }
 
+    // blockbench's compressed form, inflated here with a limit since bb4j would inflate it with none
+    private static String uncompressed(byte[] bytes) {
+        String text = new String(bytes, StandardCharsets.UTF_8);
+        if (!BbModelFormatDetector.isCompressed(text)) return text;
+        byte[] packed = Base64.getDecoder().decode(BbModelFormatDetector.extractCompressedContent(text));
+        Bounded.require(packed.length > 0 && packed[0] == DEFLATED, "a compressed .bbmodel in an unknown form");
+        return new String(Bounded.inflate(packed, 1, ContentLimits.INFLATED_BYTES), StandardCharsets.UTF_8);
+    }
 
     private static final int COPLANAR_LIMIT = 2000;
 

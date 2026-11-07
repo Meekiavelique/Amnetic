@@ -1,7 +1,10 @@
 package com.meekdev.amnetic.client.model.internal.ammesh;
 
+import com.meekdev.amnetic.client.content.Bounded;
+import com.meekdev.amnetic.client.content.RejectedContentException;
 import com.meekdev.amnetic.client.model.TextureFilter;
 import com.meekdev.amnetic.client.model.ModelLoadException;
+import com.meekdev.amnetic.client.model.internal.ModelCheck;
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -13,6 +16,9 @@ import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 
 public final class AmmeshReader {
+
+    private static final int MATRIX_FLOATS = 16;
+    private static final int MATRIX_BYTES = MATRIX_FLOATS * Float.BYTES;
 
     private AmmeshReader() {}
 
@@ -35,22 +41,34 @@ public final class AmmeshReader {
             ModelIR ir = new ModelIR();
             ir.setName(readUTF(in));
 
-            int partCount = in.getInt();
+            int partCount = Bounded.count(in, 1, "parts");
             for (int i = 0; i < partCount; i++) readPart(in, ir, version);
 
-            int materialCount = in.getInt();
+            int materialCount = Bounded.count(in, 1, "materials");
             for (int i = 0; i < materialCount; i++) ir.addMaterial(readMaterial(in, version));
 
-            int nodeCount = in.getInt();
+            int nodeCount = Bounded.count(in, 1, "nodes");
             for (int i = 0; i < nodeCount; i++) ir.addNode(readNode(in));
 
-            int animCount = in.getInt();
+            int animCount = Bounded.count(in, 1, "animations");
             for (int i = 0; i < animCount; i++) ir.animations().add(readAnimation(in));
 
+            ModelCheck.check(ir);
             return ir;
-        } catch (IOException | BufferUnderflowException | IllegalArgumentException | IndexOutOfBoundsException | NegativeArraySizeException e) {
+        } catch (RejectedContentException e) {
+            throw new ModelLoadException("Refused .ammesh: " + e.getMessage(), e);
+        } catch (IOException | BufferUnderflowException | IllegalArgumentException | IndexOutOfBoundsException e) {
             throw new ModelLoadException("Failed to read .ammesh", e);
         }
+    }
+
+    // a counted array, its count checked against the bytes left before anything is allocated
+    private static float[] floats(ByteBuffer in, String what) {
+        return floats(in, Bounded.count(in, Float.BYTES, what));
+    }
+
+    private static int[] ints(ByteBuffer in, String what) {
+        return ints(in, Bounded.count(in, Integer.BYTES, what));
     }
 
     private static float[] floats(ByteBuffer in, int count) {
@@ -75,6 +93,10 @@ public final class AmmeshReader {
         return new DataInputStream(new ByteArrayInputStream(raw)).readUTF();
     }
 
+    private static Matrix4f matrix(ByteBuffer in) {
+        return new Matrix4f().set(floats(in, MATRIX_FLOATS));
+    }
+
     private static boolean readBoolean(ByteBuffer in) {
         return in.get() != 0;
     }
@@ -84,40 +106,41 @@ public final class AmmeshReader {
         int materialIndex = in.getInt();
         int nodeIndex = in.getInt();
 
-        Matrix4f transform = new Matrix4f().set(floats(in, 16));
+        Matrix4f transform = matrix(in);
 
-        float[] vertices = floats(in, in.getInt());
+        float[] vertices = floats(in, "vertices");
 
         float[] tangents = null;
-        if (readBoolean(in)) tangents = floats(in, in.getInt());
+        if (readBoolean(in)) tangents = floats(in, "tangents");
 
-        int indexCount = in.getInt();
+        int indexCount = Bounded.count(in, Integer.BYTES, "indices");
         int[] indices = indexCount > 0 ? ints(in, indexCount) : null;
 
         ModelIR.Part part = new ModelIR.Part(vertices, tangents, indices, materialIndex, nodeIndex, transform, name);
 
         if (readBoolean(in)) {
-            float[] jointIndices = floats(in, in.getInt());
-            float[] jointWeights = floats(in, in.getInt());
-            int[] jointNodes = ints(in, in.getInt());
+            float[] jointIndices = floats(in, "joint indices");
+            float[] jointWeights = floats(in, "joint weights");
+            int[] jointNodes = ints(in, "joints");
+            Bounded.require((long) jointNodes.length * MATRIX_BYTES <= in.remaining(), "a skin claims more joints than it holds");
             Matrix4f[] inverseBind = new Matrix4f[jointNodes.length];
-            for (int i = 0; i < inverseBind.length; i++) inverseBind[i] = new Matrix4f().set(floats(in, 16));
+            for (int i = 0; i < inverseBind.length; i++) inverseBind[i] = matrix(in);
             part.jointIndices = jointIndices;
             part.jointWeights = jointWeights;
             part.jointNodes = jointNodes;
             part.inverseBind = inverseBind;
         }
 
-        if (version >= 3 && readBoolean(in)) part.colors = floats(in, in.getInt());
+        if (version >= 3 && readBoolean(in)) part.colors = floats(in, "colors");
 
-        int levels = version >= 5 ? in.getInt() : 0;
+        int levels = version >= 5 ? Bounded.count(in, 1, "detail levels") : 0;
         if (levels > 0) {
             int[][] lods = new int[levels][];
             float[] errors = new float[levels];
             lods[0] = indices;
             for (int n = 1; n < levels; n++) {
                 errors[n] = in.getFloat();
-                lods[n] = readBoolean(in) ? lods[n - 1] : ints(in, in.getInt());
+                lods[n] = readBoolean(in) ? lods[n - 1] : ints(in, "detail indices");
             }
             part.lodErrors = errors;
             part.lods = lods;
@@ -171,7 +194,7 @@ public final class AmmeshReader {
         byte kind = version >= 4 ? in.get() : readBoolean(in) ? AmmeshFormat.SLOT_BYTES : AmmeshFormat.SLOT_NONE;
         if (kind == AmmeshFormat.SLOT_KEY) return new TextureSlot(id, null, readUTF(in));
         if (kind != AmmeshFormat.SLOT_BYTES) return new TextureSlot(id, null, null);
-        byte[] bytes = new byte[in.getInt()];
+        byte[] bytes = new byte[Bounded.count(in, 1, "image bytes")];
         in.get(bytes);
         return new TextureSlot(id, bytes, null);
     }
@@ -183,7 +206,7 @@ public final class AmmeshReader {
         node.t.set(in.getFloat(), in.getFloat(), in.getFloat());
         node.r.set(in.getFloat(), in.getFloat(), in.getFloat(), in.getFloat());
         node.s.set(in.getFloat(), in.getFloat(), in.getFloat());
-        node.children = ints(in, in.getInt());
+        node.children = ints(in, "children");
         node.rebuildLocal();
         return node;
     }
@@ -192,14 +215,14 @@ public final class AmmeshReader {
         ModelIR.Animation anim = new ModelIR.Animation();
         anim.name = readUTF(in);
         anim.duration = in.getFloat();
-        int channelCount = in.getInt();
+        int channelCount = Bounded.count(in, 1, "channels");
         for (int i = 0; i < channelCount; i++) {
             ModelIR.Channel ch = new ModelIR.Channel();
             ch.node = in.getInt();
             ch.path = ModelIR.Path.valueOf(readUTF(in));
             ch.interp = ModelIR.Interp.valueOf(readUTF(in));
-            ch.times = floats(in, in.getInt());
-            ch.values = floats(in, in.getInt());
+            ch.times = floats(in, "key times");
+            ch.values = floats(in, "key values");
             anim.channels.add(ch);
         }
         return anim;

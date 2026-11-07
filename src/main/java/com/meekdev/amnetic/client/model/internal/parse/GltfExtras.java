@@ -6,8 +6,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import de.javagl.jgltf.model.MaterialModel;
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -15,9 +13,6 @@ import java.util.function.Function;
 
 // the bits of a gltf jgltf leaves out: texture transforms, unlit materials, images by uri
 public final class GltfExtras {
-
-    private static final int GLB_MAGIC = 0x46546C67;
-    private static final int JSON_CHUNK = 0x4E4F534A;
 
     private final JsonArray materials;
     private final List<MaterialModel> models;
@@ -137,16 +132,10 @@ public final class GltfExtras {
 
     // the json of a .glb or a plain .gltf, null when it cannot be read
     static JsonObject json(byte[] bytes) {
+        GltfPreflight.JsonChunk chunk = GltfPreflight.json(bytes);
+        if (chunk == null) return null;
         try {
-            String text;
-            ByteBuffer in = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-            if (bytes.length >= 20 && in.getInt(0) == GLB_MAGIC) {
-                int length = in.getInt(12);
-                if (in.getInt(16) != JSON_CHUNK || length < 0 || 20 + length > bytes.length) return null;
-                text = new String(bytes, 20, length, StandardCharsets.UTF_8);
-            } else {
-                text = new String(bytes, StandardCharsets.UTF_8);
-            }
+            String text = new String(bytes, chunk.from(), chunk.length(), StandardCharsets.UTF_8);
             return JsonParser.parseString(text) instanceof JsonObject root ? root : null;
         } catch (RuntimeException e) {
             return null;

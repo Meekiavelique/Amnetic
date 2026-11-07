@@ -99,7 +99,8 @@ public final class AmmeshCache {
         byte[] ammesh = AmmeshWriter.write(ir, (image, srgb) -> {
             String id = TextureCache.key(image, srgb);
             try {
-                return TextureCache.store(textures, id, image, srgb) ? id : null;
+                TextureCache.store(textures, id, image, srgb);
+                return id;
             } catch (IOException | RuntimeException e) {
                 LOG.warn("Amnetic: could not process an image of {}, it stays inside the model", source, e);
                 return null;
