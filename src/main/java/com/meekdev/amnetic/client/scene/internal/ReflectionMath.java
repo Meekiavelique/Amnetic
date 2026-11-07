@@ -7,7 +7,6 @@ import org.joml.Matrix4fc;
 import org.joml.Vector4f;
 
 public final class ReflectionMath {
-
     public static final float CLIP_SIGN = 1.0f;
 
     private ReflectionMath() {}
@@ -30,7 +29,6 @@ public final class ReflectionMath {
 
     public static void obliqueProjection(Matrix4f out, Matrix4fc base, Matrix4fc viewRotation, Vec3 eye,
                                          float nx, float ny, float nz, float dw) {
-        // the clip plane math assumes forward depth, so work on the forward form and flip back after
         if (VanillaCompat.reversedDepth()) {
             Matrix4f forward = VanillaCompat.matchDepth(new Matrix4f(base));
             obliqueForward(out, forward, viewRotation, eye, nx, ny, nz, dw);

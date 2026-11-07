@@ -25,19 +25,16 @@ import net.minecraft.client.Minecraft;
 //?}
 
 public final class TaaPass extends ScreenPass {
-
     public static final TaaPass INSTANCE = new TaaPass();
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/util/fullscreen.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/taa/taa.fsh");
     private static final Identifier BLIT_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/taa/blit.fsh");
 
-    // a camera cut (teleport, dimension change) larger than this invalidates the history,
-    // reprojecting across it would smear the old view over the new one
     private static final double MAX_EYE_JUMP = 16.0;
 
     private ShaderProgram blit;
-    private Framebuffer capture; // full-res scene colour + depth
+    private Framebuffer capture;
     private Framebuffer historyA, historyB;
     private boolean usingA;
     private TaaSettings settings;
@@ -90,7 +87,7 @@ public final class TaaPass extends ScreenPass {
 
     public void render(TaaSettings s) {
         this.settings = s;
-        if (!s.isEnabled()) historyValid = false; // don't reproject stale frames after a re-enable
+        if (!s.isEnabled()) historyValid = false;
         //? if >=26.2 {
         dispatchNative(() -> renderNative(CameraSnapshot.current()));
         //? } else {

@@ -1,8 +1,6 @@
 package com.meekdev.amnetic.client.content;
 
-// refuses json nested deeper than ContentLimits.JSON_DEPTH before a recursive parser overflows its stack on it
 public final class JsonDepth {
-
     private JsonDepth() {}
 
     public static void check(byte[] utf8, int from, int length) {

@@ -20,7 +20,6 @@ final class NeoForgeClientEvents {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> AmneticClient.endClientTick(Minecraft.getInstance()));
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> AmneticClient.disconnect());
         NeoForge.EVENT_BUS.addListener((GameShuttingDownEvent event) -> AmneticClient.stopping());
-        // AfterLevel has no active render pass, so native uploads and separate passes are permitted here.
         //? if >=26.2 && <26.3 {
         NeoForge.EVENT_BUS.addListener((RenderLevelStageEvent.AfterLevel event) -> {
             LevelCamera camera = LevelCamera.of(event.getLevelRenderState().cameraRenderState);

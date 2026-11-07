@@ -6,14 +6,7 @@ import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * streams GPU asset work so a heavy scene doesn't hitch the frame it first appears.
- * CPU-side decode runs on worker threads, the GL uploads are queued and drained on the
- * render thread under a per-frame time budget so a big batch spreads over a few frames.
- * consumers that aren't uploaded yet just pop in when their task runs
- */
 public final class GlUploadQueue {
-
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Upload");
 
     private static final ConcurrentLinkedQueue<Runnable> QUEUE = new ConcurrentLinkedQueue<>();
@@ -28,7 +21,6 @@ public final class GlUploadQueue {
 
     private GlUploadQueue() {}
 
-    // runs CPU-side decode off the render thread, the task should end by submitting the GL upload
     public static void decode(Runnable task) {
         DECODE.submit(() -> {
             try {
@@ -43,7 +35,6 @@ public final class GlUploadQueue {
         QUEUE.add(glTask);
     }
 
-    // render thread only, runs queued uploads until budgetNanos is exceeded, at least one per call
     public static void drain(long budgetNanos) {
         long start = System.nanoTime();
         Runnable task;

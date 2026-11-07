@@ -2,7 +2,7 @@
 
 in vec2 vUV;
 
-uniform sampler2D uAtlas; // block atlas
+uniform sampler2D uAtlas;
 
 out vec4 FragColor;
 

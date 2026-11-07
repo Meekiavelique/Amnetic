@@ -18,7 +18,6 @@ import java.util.Map;
 import net.minecraft.resources.Identifier;
 
 final class CompiledShader implements AutoCloseable {
-
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Instance");
 
     private final Identifier vshId;
@@ -44,7 +43,6 @@ final class CompiledShader implements AutoCloseable {
         this.link = link;
     }
 
-    // the program is in. moud hooks here to find the programs of the shaders it patches
     private void linked(int program) {
         this.program = program;
         this.projViewMatrixLoc = GlStateManager._glGetUniformLocation(program, "ProjViewMatrix");
@@ -59,7 +57,6 @@ final class CompiledShader implements AutoCloseable {
         this.depthPassLoc = GlStateManager._glGetUniformLocation(program, "DepthPass");
     }
 
-    // starts compiling the mesh's shader, it draws once ready() says so
     static CompiledShader load(InstancedMesh<?> mesh) {
         Identifier vshId, fshId;
         if (mesh.vertexShaderId() != null && mesh.fragmentShaderId() != null) {
@@ -86,7 +83,6 @@ final class CompiledShader implements AutoCloseable {
         return new CompiledShader(vshId, fshId, link);
     }
 
-    // true once it can draw. false while the driver is still on it, and for good when it did not build
     boolean ready() {
         if (program != 0) return true;
         if (failed || link == null || !link.ready()) return false;

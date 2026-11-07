@@ -6,9 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-// stb_truetype trusts every offset in a font, so a game's font has each table it reads checked first
 public final class FontCheck {
-
     private static final long TRUETYPE = 0x00010000L;
     private static final long APPLE_TRUETYPE = 0x74727565L;
     private static final long OPENTYPE_CFF = 0x4f54544fL;

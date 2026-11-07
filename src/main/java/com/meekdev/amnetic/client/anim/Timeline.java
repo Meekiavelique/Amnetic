@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class Timeline implements Updatable {
-
     private static final class Entry {
         final float offset;
         final Updatable child;
@@ -19,8 +18,8 @@ public final class Timeline implements Updatable {
     }
 
     private final List<Entry> entries = new ArrayList<>();
-    private float cursor;       // where the next append() lands
-    private float lastOffset;   // where the previous append() landed (for with())
+    private float cursor;
+    private float lastOffset;
     private float total;
     private float speed = 1f;
     private boolean loop;
@@ -102,7 +101,6 @@ public final class Timeline implements Updatable {
     public void seek(float seconds) {
         rewind();
         float target = Math.max(0f, seconds);
-        // replay from zero in one step so children land at the right local time
         time = 0f;
         update(target);
     }

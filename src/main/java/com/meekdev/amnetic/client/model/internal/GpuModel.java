@@ -27,7 +27,6 @@ import org.lwjgl.system.MemoryUtil;
 import com.meekdev.amnetic.client.material.SurfaceInputs;
 
 public final class GpuModel implements AutoCloseable {
-
     private static final int INSTANCE_STRIDE = 144;
     private static final float DITHERED = -1f;
     private static final int VERTEX_STRIDE_BYTES = ModelIR.VERTEX_STRIDE_FLOATS * Float.BYTES;
@@ -42,7 +41,6 @@ public final class GpuModel implements AutoCloseable {
         float skyLight;
         SurfaceInputs inputs;
         ModelLook look;
-        // the level of detail it is drawn at, and a hash of what decides whether it can share a draw
         int lod;
         int batch;
 
@@ -172,7 +170,6 @@ public final class GpuModel implements AutoCloseable {
         outMax.set(tightMax);
     }
 
-    // a skinned part drawn with no pose stands in the rest pose
     private Matrix4f[] rest() {
         if (rest == null) {
             rest = Skinning.restPose(ir);
@@ -194,7 +191,6 @@ public final class GpuModel implements AutoCloseable {
         draw(shader, instances, 0);
     }
 
-    /** hands over each part of a draw that blends, so the caller can sort them against everything else */
     public interface Blended {
         void add(int part, DrawInstance instance);
     }
@@ -212,7 +208,6 @@ public final class GpuModel implements AutoCloseable {
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
-    /** draws the solid parts and leaves every blended one to later */
     public void drawSolid(ModelShader shader, List<DrawInstance> instances, int lod, Blended later) {
         if (closed || instances.isEmpty()) {
             return;
@@ -235,7 +230,6 @@ public final class GpuModel implements AutoCloseable {
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
-    /** how far the middle of one part of a draw is from the origin its world matrix is relative to */
     public float distance(int partIndex, DrawInstance instance) {
         GpuPart part = parts[partIndex];
         Vector3f middle = part.middle();
@@ -254,8 +248,6 @@ public final class GpuModel implements AutoCloseable {
             if (part == null) {
                 continue;
             }
-            // draws that look different or want another level cannot share one instanced call, so the list,
-            // sorted so those that can are together, is cut wherever that changes
             int start = 0;
             while (start < instances.size()) {
                 DrawInstance first = instances.get(start);
@@ -280,7 +272,6 @@ public final class GpuModel implements AutoCloseable {
         }
     }
 
-    // whether two draws come out the same but for where they stand, so one instanced call can draw both
     private static boolean together(DrawInstance a, DrawInstance b) {
         if (a.lod != b.lod || a.batch != b.batch) return false;
         if (a.look != b.look && (a.look == null || !a.look.sameAs(b.look))) return false;
@@ -308,7 +299,6 @@ public final class GpuModel implements AutoCloseable {
 
     private final ModelIR.Material looked = new ModelIR.Material();
 
-    // the material as this draw sees it: the file's with the look's changes on top
     private ModelIR.Material effective(int materialIndex, ModelLook draw) {
         ModelIR.Material base = materialFor(materialIndex);
         if (draw == null) {
@@ -368,7 +358,6 @@ public final class GpuModel implements AutoCloseable {
             if (part.skinned) {
                 drawShadowSkinned(shadow, part, casting);
             } else {
-                // casters come sorted by level, each level is one draw
                 int start = 0;
                 while (start < casting.size()) {
                     int level = casting.get(start).lod;
@@ -389,7 +378,6 @@ public final class GpuModel implements AutoCloseable {
 
     private final ArrayList<DrawInstance> casting = new ArrayList<>();
 
-    // a draw showing one piece only casts that piece, and a see-through look casts nothing
     private List<DrawInstance> casting(GpuPart part, List<DrawInstance> instances) {
         boolean plain = true;
         for (DrawInstance inst : instances) {
@@ -710,8 +698,6 @@ public final class GpuModel implements AutoCloseable {
         return false;
     }
 
-    /** whether these draws can write any glow: a material that emits, a look that adds emission, or a
-     *  surface snippet, which may set its own */
     public boolean mayEmit(List<Model.Draw> draws) {
         if (hasEmissiveMaterial() || nodeShading != null) return true;
         for (ModelIR.Material mat : ir.materials()) {
@@ -740,7 +726,6 @@ public final class GpuModel implements AutoCloseable {
         TextureFilter asked = look == null ? null : look.filter();
         int sampler = 0;
         if (ownBase) {
-            // a texture handed in may have no mip levels, so it is sampled without them
             sampler = sampler(asked == TextureFilter.NEAREST ? GL11.GL_NEAREST : GL11.GL_LINEAR,
                     asked == TextureFilter.NEAREST ? GL11.GL_NEAREST : GL11.GL_LINEAR);
             GL33.glBindSampler(0, sampler);
@@ -798,7 +783,6 @@ public final class GpuModel implements AutoCloseable {
         return true;
     }
 
-    // leaving a sampler bound would follow us out into vanilla's own draws
     private void clearSamplerState() {
         for (int unit : ModelShader.MATERIAL_UNITS) {
             GL33.glBindSampler(unit, 0);
@@ -1004,7 +988,6 @@ public final class GpuModel implements AutoCloseable {
                 lodIbo[0] = ibo;
                 lodCount[0] = indexCount;
             }
-            // a level the same as the one below it shares its buffer
             int base = lod;
             while (base > 0 && lods[base] == lods[base - 1]) base--;
             if (lodIbo[base] == 0) {

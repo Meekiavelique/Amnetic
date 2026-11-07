@@ -19,10 +19,7 @@ import java.util.List;
 import java.util.Map;
 import org.lwjgl.opengl.GL11;
 
-// what jgltf would trust in a gltf, checked before it parses the json and before it builds a model from it
-// jgltf allocates every accessor without a buffer view from its count and walks node parents with no end
 final class GltfPreflight {
-
     private static final int GLB_MAGIC = 0x46546C67;
     private static final int JSON_CHUNK = 0x4E4F534A;
     private static final int GLB_HEADER = 12;
@@ -39,7 +36,6 @@ final class GltfPreflight {
 
     private GltfPreflight() {}
 
-    // where the json of a .glb or a plain .gltf lies in its bytes, null when a .glb is malformed
     static JsonChunk json(byte[] bytes) {
         ByteBuffer in = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         if (bytes.length < GLB_HEADER + CHUNK_HEADER || in.getInt(0) != GLB_MAGIC) return new JsonChunk(0, bytes.length);
@@ -49,14 +45,12 @@ final class GltfPreflight {
         return new JsonChunk(from, length);
     }
 
-    // before jackson recurses into the json
     static void checkJson(byte[] bytes) {
         JsonChunk chunk = json(bytes);
         if (chunk == null) throw new RejectedContentException("a .glb whose json chunk is malformed");
         JsonDepth.check(bytes, chunk.from(), chunk.length());
     }
 
-    // before jgltf builds its model
     static void check(GltfAsset asset) {
         if (!(asset instanceof GltfAssetV2 v2)) throw new RejectedContentException("only glTF 2.0 files can be used");
         GlTF gltf = v2.getGltf();
@@ -96,7 +90,6 @@ final class GltfPreflight {
         }
     }
 
-    // the glTF names children, every node must have one parent at most and the links must form trees
     private static void nodes(List<Node> nodes) {
         Bounded.require(nodes.size() <= ContentLimits.MODEL_NODES, "a glTF with " + nodes.size() + " nodes");
         int[] parents = new int[nodes.size()];

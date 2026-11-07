@@ -33,7 +33,6 @@ import org.joml.Vector3f;
 import org.joml.Vector4f;
 
 public final class BbmodelParser {
-
     private static final float PIXELS_PER_BLOCK = 16f;
     private static final byte DEFLATED = 1;
 
@@ -84,7 +83,6 @@ public final class BbmodelParser {
                     byUuid.put(texture.getUuid(), tex);
                 }
                 if (texture.getId() != null) {
-                    // two textures in one project can carry the same id, so the first keeps it
                     byUuid.putIfAbsent(String.valueOf(texture.getId()), tex);
                 }
             }
@@ -116,12 +114,6 @@ public final class BbmodelParser {
                 Tex tex = resolve(byUuid, ordered, face.getTextureUuid(),
                         mesh.getTextureUuid(), fallback);
                 long key = (((long) bone) << 32) | (tex.material() & 0xFFFFFFFFL);
-                // bb4j already hands back 0..1 uvs, divided by the size of the texture the face
-                // actually uses (RenderUtils.createFace / getMeshUv), falling back to the project
-                // resolution only when that texture has no size of its own. Scaling again by
-                // resolution/textureSize double-corrects it: on a 128px project a 64px texture
-                // came out at 2x and a 32px one at 4x, and only a texture matching the project
-                // resolution looked right. The uvs arrive normalised, so they pass through as-is.
                 builders.computeIfAbsent(key, k -> new Builder())
                         .face(face.getVertices(), face.getVertexUvs(), face.getNormal(),
                                 1f, 1f, geometry);
@@ -145,7 +137,6 @@ public final class BbmodelParser {
         return ir;
     }
 
-    // blockbench's compressed form, inflated here with a limit since bb4j would inflate it with none
     private static String uncompressed(byte[] bytes) {
         String text = new String(bytes, StandardCharsets.UTF_8);
         if (!BbModelFormatDetector.isCompressed(text)) return text;
@@ -350,7 +341,6 @@ public final class BbmodelParser {
     }
 
     private static final class Skeleton {
-
         private final ModelIR ir;
         private final Map<String, String> groupNames;
         private final Map<String, Integer> byUuid = new HashMap<>();
@@ -499,7 +489,6 @@ public final class BbmodelParser {
                 return ordered.get(index);
             }
         } catch (NumberFormatException notAnIndex) {
-            // a uuid that simply is not in this project, so nothing more to try
         }
         return null;
     }
@@ -556,7 +545,6 @@ public final class BbmodelParser {
     }
 
     private static final class Builder {
-
         private final List<Float> vertices = new ArrayList<>();
         private final List<Integer> indices = new ArrayList<>();
 

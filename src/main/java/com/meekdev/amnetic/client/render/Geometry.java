@@ -22,7 +22,6 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
 
 public final class Geometry {
-
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/util/flat.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/util/flat.fsh");
 
@@ -32,7 +31,6 @@ public final class Geometry {
     private static int colorLoc;
 
     static {
-        // dev hot reload, drop the program so the next fill() recompiles from the new source
         ShaderHotReload.onReload(Geometry::invalidateProgram);
     }
 

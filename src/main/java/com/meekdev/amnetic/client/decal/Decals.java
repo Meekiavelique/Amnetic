@@ -7,12 +7,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
-
 public final class Decals {
-
     static final CopyOnWriteArrayList<Decal> ACTIVE = new CopyOnWriteArrayList<>();
     static final CopyOnWriteArrayList<FilmDecal> FILMS = new CopyOnWriteArrayList<>();
-    // light the film decals reflect: sun direction (towards the sun), sun, sky and block light colours
     static final float[] ENVIRONMENT = {0.3f, 0.9f, 0.3f, 1.0f, 0.95f, 0.85f, 0.55f, 0.65f, 0.85f, 1.0f, 0.75f, 0.45f};
 
     private Decals() {}
@@ -26,8 +23,6 @@ public final class Decals {
 
     public static List<Decal> active() { return ACTIVE; }
 
-    // a film decal over the box from (x, minY, z) to (x + sizeX, minY + sizeY, z + sizeZ), resX by resZ texels
-    // the floor heights written into it have to sit inside the box's vertical range
     public static FilmDecal film(double x, double minY, double z, float sizeX, float sizeY, float sizeZ, int resX, int resZ, FilmLook look) {
         FilmDecal f = new FilmDecal(x, minY, z, sizeX, sizeY, sizeZ, resX, resZ, look);
         FILMS.add(f);
@@ -36,7 +31,6 @@ public final class Decals {
 
     public static List<FilmDecal> films() { return FILMS; }
 
-    // what wet films reflect, call it when the time of day or weather changes. sun direction points at the sun
     public static void filmEnvironment(float sunX, float sunY, float sunZ, float sunR, float sunG, float sunB,
                                        float skyR, float skyG, float skyB, float blockR, float blockG, float blockB) {
         float l = (float) Math.sqrt(sunX * sunX + sunY * sunY + sunZ * sunZ);
@@ -49,7 +43,6 @@ public final class Decals {
 
     public static void clearFilms() { for (FilmDecal f : FILMS) f.remove(); }
 
-    // makes sure both decal passes exist so their shaders can be warmed before first use
     public static void touch() {
         FilmPass.INSTANCE.hashCode();
         DecalRenderer.INSTANCE.hashCode();

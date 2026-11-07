@@ -36,7 +36,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class WorldSurfaceRenderer {
-
     public static final WorldSurfaceRenderer INSTANCE = new WorldSurfaceRenderer();
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
 
@@ -262,8 +261,6 @@ public final class WorldSurfaceRenderer {
         return s.directValue() && s.curveValue() == 0 && s.filterValue() == null;
     }
 
-    // the widgets go through the ui batch with a matrix that takes canvas pixels onto the plane, so
-    // the distance field text and the rounded edges are resolved on screen rather than in a texture
     private void drawDirect(WorldSurface s, FrameContext fc, Vector3f right, Vector3f up, Vector3f n) {
         Vec3 eye = fc.camera().eye;
         float w = s.canvasW(), h = s.canvasH();
@@ -272,7 +269,6 @@ public final class WorldSurfaceRenderer {
         float ox = (float) (s.xPos() - eye.x) - right.x * wM * 0.5f + up.x * hM * 0.5f;
         float oy = (float) (s.yPos() - eye.y) - right.y * wM * 0.5f + up.y * hM * 0.5f;
         float oz = (float) (s.zPos() - eye.z) - right.z * wM * 0.5f + up.z * hM * 0.5f;
-        // column major: x runs along right, y runs down the plane, z is unused
         Matrix4f plane = new Matrix4f(
                 right.x * sx, right.y * sx, right.z * sx, 0,
                 -up.x * sy, -up.y * sy, -up.z * sy, 0,
@@ -289,7 +285,6 @@ public final class WorldSurfaceRenderer {
         } else {
             GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(GL11.GL_LEQUAL);
-            // a surface lying on a face would otherwise fight the face for the same depth
             GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
             GL11.glPolygonOffset(-1f, -2f);
         }

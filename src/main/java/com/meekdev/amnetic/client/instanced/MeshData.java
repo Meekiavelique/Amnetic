@@ -6,7 +6,6 @@ import java.nio.IntBuffer;
 import org.lwjgl.BufferUtils;
 
 public final class MeshData {
-
     private final float[] vertices;
     private final int[] indices;
     private final int vertexStrideFloats;
@@ -128,8 +127,6 @@ public final class MeshData {
         return new MeshData(v, idx);
     }
 
-    // each face is counter clockwise seen from outside, get one backwards and it vanishes under
-    // the default backface culling instead of drawing wrong
     public static MeshData openCylinder(int segments, int rings) {
         if (segments < 3) throw new IllegalArgumentException("segments must be >= 3");
         if (rings < 1) throw new IllegalArgumentException("rings must be >= 1");
@@ -166,7 +163,6 @@ public final class MeshData {
 
     public static MeshData unitCube() {
         float[] v = {
-
             -0.5f, 0.5f,-0.5f, 0.5f, 0.5f,-0.5f, 0.5f,-0.5f,-0.5f, -0.5f,-0.5f,-0.5f,
             -0.5f,-0.5f, 0.5f, 0.5f,-0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f,
             -0.5f, 0.5f, 0.5f, -0.5f, 0.5f,-0.5f, -0.5f,-0.5f,-0.5f, -0.5f,-0.5f, 0.5f,

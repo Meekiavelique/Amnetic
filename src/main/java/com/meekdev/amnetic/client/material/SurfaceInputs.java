@@ -1,12 +1,6 @@
 package com.meekdev.amnetic.client.material;
 
-/**
- * the values and textures one draw hands its {@link ShadingModel#surface(String) surface} snippet.
- * the snippet's own {@code uniform} declarations are mapped onto these slots, so a caller fills them
- * through {@link ShadingModel#layout()} by name rather than by index
- */
 public final class SurfaceInputs {
-
     public static final int VEC4_SLOTS = 16;
     public static final int TEXTURE_SLOTS = 4;
 
@@ -23,7 +17,6 @@ public final class SurfaceInputs {
         return this;
     }
 
-    // whether a draw with these inputs and one with other hand the snippet the same values and textures
     public boolean sameAs(SurfaceInputs other) {
         return other == this || other != null && java.util.Arrays.equals(values, other.values)
                 && java.util.Arrays.equals(textures, other.textures);

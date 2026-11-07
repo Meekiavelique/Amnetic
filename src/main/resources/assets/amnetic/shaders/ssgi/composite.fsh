@@ -10,12 +10,9 @@ uniform int ZeroToOne;
 
 #include "amnetic:shaders/common/screen.glsl"
 
-// bilateral 5x5 blur. weights neighbours by relative linear distance from reconstructed positions,
-// not raw hyperbolic depth. raw depth was the bug SSAO had: at distance adjacent pixels look like
-// hard edges, the blur stops, and the dither pattern shows through as blotchy haze
 void main() {
     float centerD = texture(DepthSampler, vUV).r;
-    if (IS_SKY(centerD)) { FragColor = vec4(0.0); return; } // sky: no indirect
+    if (IS_SKY(centerD)) { FragColor = vec4(0.0); return; }
 
     vec3 cP = reconstruct(vUV, centerD);
     float centerDist = length(cP);
@@ -29,7 +26,6 @@ void main() {
             float d = texture(DepthSampler, vUV + o).r;
             if (IS_SKY(d)) continue;
             vec3 p = reconstruct(vUV + o, d);
-            // edge-stop: reject taps more than ~5% relative linear depth away
             float w = exp(-abs(length(p) - centerDist) / (centerDist * 0.05 + 1e-4));
             sum += texture(GiSampler, vUV + o).rgb * w;
             wsum += w;

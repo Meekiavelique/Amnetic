@@ -22,8 +22,6 @@ float radicalInverse(uint bits) {
     return float(bits) * 2.3283064365386963e-10;
 }
 
-// cosine weighted average of the sky over the hemisphere around the normal, which is the diffuse
-// light a white surface facing that way gets (irradiance over pi)
 void main() {
     vec2 c = vUV * 2.0 - 1.0;
     vec3 N = normalize(Forward + Right * c.x + Up * c.y);

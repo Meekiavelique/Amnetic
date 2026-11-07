@@ -8,7 +8,6 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public final class Animator {
-
     private final Model model;
     private final ModelIR ir;
 
@@ -256,7 +255,6 @@ public final class Animator {
         return crossfade(from, clip, seconds, 0f);
     }
 
-    // same, but the target clip starts at startTime instead of 0, e.g. to blend into the held last pose of a clip
     public Animator crossfade(String from, String clip, float seconds, float startTime) {
         this.current = from;
         this.crossfadeTo = clip;
@@ -266,8 +264,6 @@ public final class Animator {
         return this;
     }
 
-    // poses clip at its own time faded in over from at its time, weight 1 shows clip alone
-    // either may be null for the rest pose, the caller owns both clocks
     public Animator blend(String from, float fromTime, String clip, float clipTime, float weight) {
         float w = Math.max(0f, Math.min(1f, weight));
         if (w >= 1f || from == null && clip == null || from != null && from.equals(clip)) {
@@ -277,7 +273,6 @@ public final class Animator {
             return this;
         }
         if (clip == null) {
-            // fading out to rest is fading rest in over the old clip the other way round
             return blend(null, 0f, from, fromTime, 1f - w);
         }
         current = from;
@@ -289,7 +284,6 @@ public final class Animator {
         return this;
     }
 
-    // seconds a clip lasts, 0 when the model has no such clip
     public float clipLength(String clip) {
         ModelIR.Animation anim = clip == null ? null : ir.animation(clip);
         return anim == null ? 0f : anim.duration;
@@ -302,7 +296,6 @@ public final class Animator {
             if (crossfadeElapsed >= crossfadeDuration) {
                 current = crossfadeTo;
                 crossfadeTo = null;
-                // the target was already playing at the crossfade clock, keep going from there instead of popping back to 0
                 time = crossfadeStart + crossfadeElapsed;
             }
         }
@@ -446,7 +439,6 @@ public final class Animator {
         int a = i * 3;
         int b = (i + 1) * 3;
         if (ch.interp == ModelIR.Interp.STEP) {
-            // past the last key a step holds the last value, not the one before it
             if (t >= ch.times[n - 1]) a = b;
             out.set(ch.values[a], ch.values[a + 1], ch.values[a + 2]);
             return;
@@ -517,7 +509,6 @@ public final class Animator {
 
     private final float[] cubicOut = new float[4];
 
-    // gltf hermite spline, keys are laid out in tangent, value, out tangent
     private float[] cubic(ModelIR.Channel ch, float t, int width) {
         float[] v = ch.values;
         int n = ch.times.length;

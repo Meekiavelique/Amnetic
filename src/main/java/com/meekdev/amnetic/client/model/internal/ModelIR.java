@@ -11,7 +11,6 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public final class ModelIR {
-
     public static final int VERTEX_STRIDE_FLOATS = 8;
 
     private final List<Part> parts = new ArrayList<>();
@@ -41,7 +40,6 @@ public final class ModelIR {
         return name;
     }
 
-    // where the processed textures this model names by key live, null when it names none
     public java.nio.file.Path textures() {
         return textures;
     }
@@ -94,7 +92,6 @@ public final class ModelIR {
         public final Matrix4f transform;
         public final String name;
 
-        // rgba per vertex from COLOR_0, multiplied into the base colour, null when the file has none
         public float[] colors;
 
         public float[] jointIndices;
@@ -102,11 +99,7 @@ public final class ModelIR {
         public int[] jointNodes;
         public Matrix4f[] inverseBind;
 
-        // pregenerated LOD index lists over vertices (lods[0] = full detail, higher = coarser)
-        // null until ModelLod finishes on a background thread, volatile for that cross-thread publish
-        // skinned parts are not simplified
         public volatile int[][] lods;
-        // how far each level's surface strays from the full one at worst, in the part's own units
         public volatile float[] lodErrors;
 
         public Part(float[] vertices, float[] tangents, int[] indices, int materialIndex,
@@ -155,17 +148,16 @@ public final class ModelIR {
         public float metallic = 0f;
         public float roughness = 1f;
         public float transmission = 0f;
-        public int baseColorGlId = 0; // caller-owned live GL texture overriding the base colour map (0 = none)
+        public int baseColorGlId = 0;
         public TextureFilter baseColorFilter = TextureFilter.LINEAR;
-        public int emissiveGlId = 0; // caller-owned live GL texture overriding the emissive map (0 = none)
+        public int emissiveGlId = 0;
         public float emR = 0f;
         public float emG = 0f;
         public float emB = 0f;
         public float alphaCutoff = 0f;
-        public int shadingModelId = 0; // 0 = built-in default PBR, else ShadingModelRegistry id
+        public int shadingModelId = 0;
         public boolean blend = false;
         public boolean doubleSided = false;
-        // KHR_materials_unlit, drawn as its base colour with no light
         public boolean unlit = false;
 
         public byte[] baseColorImageBytes;
@@ -177,7 +169,6 @@ public final class ModelIR {
         public byte[] emissiveImageBytes;
         public Identifier emissiveTexture;
 
-        // processed textures in ModelIR.textures() by key, see TextureCache
         public String baseColorImageKey;
         public String normalImageKey;
         public String ormImageKey;
@@ -215,7 +206,6 @@ public final class ModelIR {
         STEP,
         LINEAR,
         CATMULLROM,
-        // gltf cubic spline, each key holds in tangent, value, out tangent
         CUBICSPLINE
     }
 

@@ -3,11 +3,7 @@ package com.meekdev.amnetic.client.taa.internal;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 
-// sub-pixel projection jitter for TAA. Halton(2,3), 8 frame cycle, applied as a clip-space
-// translation premultiplied onto the projection so everything consuming the frame's projection
-// (terrain, entities, Amnetic geometry, FrameView capture) sees the same jitter
 public final class TaaJitter {
-
     public static final TaaJitter INSTANCE = new TaaJitter();
 
     private static final int CYCLE = 8;
@@ -22,7 +18,7 @@ public final class TaaJitter {
 
     private final Matrix4f scratch = new Matrix4f();
     private int frame;
-    private float jitterX, jitterY; // NDC units
+    private float jitterX, jitterY;
     private boolean resolved;
 
     private TaaJitter() {}

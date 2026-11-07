@@ -26,13 +26,9 @@ import org.joml.Quaternionfc;
 import org.joml.Vector3f;
 
 public final class Model {
-
-    /** lodPixels is how far on screen, in pixels, a coarser level may stray from the full model; 0 always draws
-     *  the full one, NaN leaves it to {@link ModelConfig#lod} */
     public record Draw(Matrix4f world, Matrix4f[] pose,
                        float blockLight, float skyLight, float emissive, SurfaceInputs inputs, ModelLook look, Object key,
                        float lodPixels) {
-
         public Draw(Matrix4f world, Matrix4f[] pose) {
             this(world, pose, Float.NaN, Float.NaN, Float.NaN, null, null, null, Float.NaN);
         }
@@ -48,16 +44,10 @@ public final class Model {
         public Matrix4f[] pose;
         public Matrix4f[] lastPose;
         public long frame = Long.MIN_VALUE;
-        // the level of detail it was drawn at, so it only goes coarser once it is well inside the next level
         public int lod = -1;
     }
 
-    /**
-     * one node of the file with everything under it, drawn in the node's own frame: its position and
-     * turn in the file are taken off, its scale is kept
-     */
     public record Piece(int node, boolean[] nodes, Matrix4f frame, Vector3f min, Vector3f max) {
-
         public boolean shows(int nodeIndex) {
             return nodeIndex >= 0 && nodeIndex < nodes.length && nodes[nodeIndex];
         }
@@ -81,7 +71,6 @@ public final class Model {
     private static final FlatProgram FLAT = new FlatProgram();
 
     static {
-        // dev hot reload for the flat fallback shader
         ShaderHotReload.onReload(FLAT::invalidate);
     }
 
@@ -95,9 +84,6 @@ public final class Model {
         }
     }
 
-    /** a model whose backing .ammesh hasn't finished converting/loading yet. render(...) is safe to
-     *  call on it until {@link #completeLoad(ModelIR)} swaps in the real GPU data, the render loop
-     *  just skips it silently */
     private Model(String name) {
         this.gpu = null;
         this.ir = null;
@@ -112,10 +98,6 @@ public final class Model {
 
     private volatile ModelIR pendingUpload;
 
-    /** called from a background conversion thread once the .ammesh bytes are ready. only stores the
-     *  IR, the actual GPU upload must happen on the render thread since GL calls from another thread
-     *  can contend and stall the frame. drained once per frame by ModelRegistry via
-     *  {@link #internalUploadPendingIfAny()} */
     public void completeLoad(ModelIR loadedIr) {
         if (ready) return;
         pendingUpload = loadedIr;
@@ -123,8 +105,6 @@ public final class Model {
 
     private boolean lodDone;
 
-    /** generates LODs once if this model opted in via {@link ModelConfig#lod}. called from the render
-     *  loop so the consumer can set the config first. generation itself is off-thread */
     public void internalEnsureLod() {
         if (lodDone) {
             return;
@@ -135,14 +115,11 @@ public final class Model {
         }
         lodDone = true;
         for (ModelIR.Part part : local.parts()) {
-            // a processed model came with its levels
             if (part.lods != null) return;
         }
         ModelLod.generate(local);
     }
 
-    /** render thread only. if a background conversion finished since last frame, do the GPU upload
-     *  now and flip this model ready. cheap no-op otherwise (single volatile read) */
     public synchronized void internalUploadPendingIfAny() {
         ModelIR loadedIr = pendingUpload;
         if (loadedIr == null || ready) return;
@@ -175,7 +152,6 @@ public final class Model {
         return ir != null && ir.nodes().size() > 1;
     }
 
-    // true when some part bends with a skin instead of following one node
     public boolean isSkinned() {
         if (ir == null) {
             return false;
@@ -188,7 +164,6 @@ public final class Model {
         return false;
     }
 
-    // seconds a clip lasts, 0 when there is no such clip
     public float clipLength(String clip) {
         ModelIR.Animation anim = ir == null || clip == null ? null : ir.animation(clip);
         return anim == null ? 0f : anim.duration;
@@ -279,23 +254,18 @@ public final class Model {
         return this;
     }
 
-    /** draws it with values for its surface snippets, see {@link ShadingModel#surface(String)} */
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs) {
         return render(worldTransform, pose, inputs, null);
     }
 
-    /** draws it with its own look, see {@link ModelLook}. the look is read when the frame is drawn */
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look) {
         return render(worldTransform, pose, inputs, look, null);
     }
 
-    /** draws it as the thing key stands for, so the frame can tell how far that thing moved since the last one */
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look, Object key) {
         return render(worldTransform, pose, inputs, look, key, Float.NaN);
     }
 
-    /** draws it at the coarsest level of detail that strays at most lodPixels from the full model on screen,
-     *  see {@link Draw}. a skinned part always draws in full */
     public Model render(Matrix4fc worldTransform, Matrix4f[] pose, SurfaceInputs inputs, ModelLook look, Object key, float lodPixels) {
         if (!disposed) {
             pending.add(new Draw(new Matrix4f(worldTransform), pose, Float.NaN, Float.NaN, Float.NaN, inputs, look, key, lodPixels));
@@ -306,24 +276,20 @@ public final class Model {
     private float[] lodErrors;
     private int lodParts = -1;
 
-    // the worst error of each level, null when it only has the full one
     public float[] internalLodErrors() {
         return lodErrors();
     }
 
-    // how many levels of detail it has, 1 when it only has the full one
     public int lodLevels() {
         float[] errors = lodErrors();
         return errors == null ? 1 : errors.length;
     }
 
-    // how far level strays from the full model at worst, in the model's own units
     public float lodError(int level) {
         float[] errors = lodErrors();
         return errors == null || level <= 0 ? 0f : errors[Math.min(level, errors.length - 1)];
     }
 
-    // triangles drawn at level, for one copy
     public int lodTriangles(int level) {
         ModelIR source = ir;
         if (source == null) return 0;
@@ -336,7 +302,6 @@ public final class Model {
         return total;
     }
 
-    // the worst error of each level over every part, made again when a part gains its levels later
     private float[] lodErrors() {
         ModelIR source = ir;
         if (source == null) return null;
@@ -369,7 +334,6 @@ public final class Model {
 
     private final Map<String, Piece> pieces = new HashMap<>();
 
-    /** the node called name, or else the node holding the mesh called name, or null */
     public Piece piece(String name) {
         ModelIR source = ir;
         if (source == null || name == null || name.isEmpty()) {
@@ -680,7 +644,7 @@ public final class Model {
             return;
         }
         if (ir == null) {
-            return; // not loaded yet, retry once completeLoad() runs
+            return;
         }
         boundsReady = true;
         float minX = Float.MAX_VALUE;
@@ -694,7 +658,6 @@ public final class Model {
         Matrix4f[] rest = null;
         for (ModelIR.Part part : ir.parts()) {
             if (part.hasSkin()) {
-                // a skinned part is where its joints put it at rest, not where its node sits
                 if (rest == null) rest = Skinning.restPose(ir);
                 Vector3f lo = new Vector3f(minX, minY, minZ);
                 Vector3f hi = new Vector3f(maxX, maxY, maxZ);
@@ -753,7 +716,6 @@ public final class Model {
 
     private KeptDraws kept;
 
-    /** draws of this model that stay where they are, drawn every frame until cleared, see {@link KeptDraws} */
     public KeptDraws kept() {
         if (kept == null) kept = new KeptDraws(this);
         return kept;

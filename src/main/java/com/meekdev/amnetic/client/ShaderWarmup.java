@@ -16,8 +16,6 @@ import org.slf4j.LoggerFactory;
 /*import net.minecraft.client.Minecraft;
 *///?}
 
-// starts every shader the engine knows about from the first ticks on and takes them in as the driver finishes,
-// so nothing links mid game. a first link can take seconds without a driver cache, which used to show up as a freeze
 public final class ShaderWarmup {
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/ShaderWarmup");
     private static int ticks, warmed;

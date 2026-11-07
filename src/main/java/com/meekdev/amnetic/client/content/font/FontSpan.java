@@ -2,9 +2,7 @@ package com.meekdev.amnetic.client.content.font;
 
 import com.meekdev.amnetic.client.content.RejectedContentException;
 
-// a window of a font file read big endian, a read past its end refuses the font
 record FontSpan(byte[] data, int start, int length, String table) {
-
     int u8(int at) {
         need(at, 1);
         return data[start + at] & 0xff;
@@ -30,7 +28,6 @@ record FontSpan(byte[] data, int start, int length, String table) {
         }
     }
 
-    // from at to the end of this window, how font tables point at their parts
     FontSpan from(long at) {
         need(at, 0);
         return new FontSpan(data, start + (int) at, length - (int) at, table);

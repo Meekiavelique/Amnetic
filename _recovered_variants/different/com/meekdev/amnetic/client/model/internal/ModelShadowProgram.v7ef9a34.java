@@ -12,9 +12,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
 
-// depth-only counterpart to ModelShader, used while baking custom-model geometry into the shadow maps
 final class ModelShadowProgram implements AutoCloseable {
-
     private static final ResourceLocation VSH = new ResourceLocation("amnetic", "shaders/model/shadow.vsh");
     private static final ResourceLocation FSH = new ResourceLocation("amnetic", "shaders/model/shadow.fsh");
 

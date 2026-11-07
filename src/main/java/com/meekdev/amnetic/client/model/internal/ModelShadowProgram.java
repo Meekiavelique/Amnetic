@@ -13,9 +13,7 @@ import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
 
-// depth-only counterpart to ModelShader, used while baking custom-model geometry into the shadow maps
 final class ModelShadowProgram implements AutoCloseable {
-
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/shadow.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/shadow.fsh");
 
@@ -43,7 +41,6 @@ final class ModelShadowProgram implements AutoCloseable {
         bindSamplerUnits();
     }
 
-    // starts compiling, it bakes once ready() says so
     static ModelShadowProgram load() {
         return new ModelShadowProgram(ProgramLink.builder("model shadow shader")
                 .vertex(loadSource(VSH), VSH)
@@ -51,7 +48,6 @@ final class ModelShadowProgram implements AutoCloseable {
                 .start());
     }
 
-    // true once it can draw, false while the driver is still on it or when it did not build
     boolean ready() {
         if (program != 0) return true;
         if (failed || link == null || !link.ready()) return false;

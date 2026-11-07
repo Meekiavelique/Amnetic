@@ -29,7 +29,6 @@ import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryStack;
 
 public final class DecalRenderer extends ScreenPass {
-
     public static final DecalRenderer INSTANCE = new DecalRenderer();
 
     private static final ResourceLocation VSH = new ResourceLocation("amnetic", "shaders/decal/decal.vsh");
@@ -126,7 +125,7 @@ public final class DecalRenderer extends ScreenPass {
         if (!any || gbufferProgram == null) return;
 
         GBufferTargets g = GBufferTargets.INSTANCE;
-        if (!g.isPopulated()) return; // need the depth-reconstructed normals underneath
+        if (!g.isPopulated()) return;
         int prevFbo = g.bind();
         if (prevFbo == -1) return;
         try {

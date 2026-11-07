@@ -4,19 +4,13 @@ import com.meekdev.amnetic.client.outline.internal.OutlinePass;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4fc;
 
-// crisp silhouette outlines drawn over the world after post, so taa and bloom never smear them
-// submit geometry every frame it should be outlined, it is dropped once drawn
-// positions are camera relative, the same space an entity pose stack is in
 public final class Outlines {
-
     private Outlines() {}
 
-    // starts a shape outlined in this colour (argb, alpha is the outline opacity)
     public static Shape shape(int argb) {
         return new Shape(argb);
     }
 
-    // outline thickness in pixels at 1080p, scales with the window height
     public static void width(float pixels) {
         OutlinePass.INSTANCE.width(pixels);
     }
@@ -38,19 +32,16 @@ public final class Outlines {
             this.b = (argb & 0xFF) / 255f;
         }
 
-        // transform applied to the vertices that follow
         public Shape pose(Matrix4fc pose) {
             this.pose = pose;
             return this;
         }
 
-        // texture whose alpha cuts the silhouette (cutout sprites), null for solid geometry
         public Shape texture(Identifier texture) {
             this.texture = texture;
             return this;
         }
 
-        // one quad corner, every 4 make a quad
         public Shape vertex(float x, float y, float z, float u, float v) {
             float px = x, py = y, pz = z;
             if (pose != null) {
@@ -71,7 +62,6 @@ public final class Outlines {
             return this;
         }
 
-        // solid box, handy when there's no real geometry to trace
         public Shape box(float x0, float y0, float z0, float x1, float y1, float z1) {
             Identifier keep = texture;
             texture = null;

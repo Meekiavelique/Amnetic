@@ -1,11 +1,6 @@
 package com.meekdev.amnetic.client.model;
 
-/**
- * what one draw changes on a model's material. a value left unset keeps the file's, so a look that
- * only sets a tint leaves roughness, emission and the rest as the model was exported
- */
 public final class MaterialLook {
-
     float tintR = 1f;
     float tintG = 1f;
     float tintB = 1f;
@@ -90,7 +85,6 @@ public final class MaterialLook {
         return this;
     }
 
-    /** a caller-owned GL texture drawn in place of the base colour map, 0 keeps the file's */
     public MaterialLook baseColorGlTexture(int glId) {
         baseColorGlId = glId;
         return this;
@@ -129,7 +123,6 @@ public final class MaterialLook {
         return this;
     }
 
-    // leans the texture toward affine mapping, 0 perspective correct, 1 fully affine like a psx
     public MaterialLook warp(float amount) {
         warp = Math.clamp(amount, 0f, 1f);
         return this;
@@ -155,7 +148,6 @@ public final class MaterialLook {
         if (warp > 0f) into.warp = warp;
     }
 
-    // whether a draw with this look and one with other come out the same, so they can share one instanced draw
     public boolean sameAs(MaterialLook other) {
         return other == this || other != null
                 && Float.compare(tintR, other.tintR) == 0 && Float.compare(tintG, other.tintG) == 0

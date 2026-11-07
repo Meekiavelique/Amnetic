@@ -4,15 +4,14 @@ import com.meekdev.amnetic.client.instanced.InstanceLayout;
 import com.meekdev.amnetic.client.instanced.InstanceWriter;
 
 public final class ParticleLayout {
-
     public static final InstanceLayout LAYOUT = InstanceLayout.builder()
-            .vec3(2) // center
-            .vec3(3) // velocity
-            .float1(4) // size
-            .float1(5) // rotation
-            .vec4(6) // color
-            .vec4(7) // seed + age
-            .vec4(8) // uvRect: offset.xy, scale.xy (flipbook sub-rect; (0,0,1,1) = whole texture)
+            .vec3(2)
+            .vec3(3)
+            .float1(4)
+            .float1(5)
+            .vec4(6)
+            .vec4(7)
+            .vec4(8)
             .build();
 
     public static final InstanceWriter<Particle> WRITER = (p, packer) ->

@@ -24,11 +24,8 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector4f;
 
 public final class AmneticCamera {
-
     private AmneticCamera() {}
 
-    // hold the camera at an absolute pose, for a game that owns its own camera
-    // a running director outranks this, effects like shake still layer on top
     public static void setPose(Vec3 position, float yaw, float pitch) {
         setPose(position, yaw, pitch, 0f);
     }
@@ -165,7 +162,7 @@ public final class AmneticCamera {
                 (float) (world.y - cam.y),
                 (float) (world.z - cam.z), 1f);
         viewProjection().transform(clip);
-        if (clip.w <= 1.0e-4f) return null; // behind / on the camera plane
+        if (clip.w <= 1.0e-4f) return null;
 
         float ndcX = clip.x / clip.w;
         float ndcY = clip.y / clip.w;
@@ -187,16 +184,10 @@ public final class AmneticCamera {
         Vector4f far = inv.transform(new Vector4f(ndcX, ndcY, 1f, 1f));
         near.div(near.w);
         far.div(far.w);
-        // unit length, because a caller stepping along a ray writes origin + direction * metres.
-        // handing back the whole near to far span made that step the length of the frustum
         Vec3 dir = new Vec3(far.x - near.x, far.y - near.y, far.z - near.z).normalize();
         return new Ray(position(), dir);
     }
 
-    // null behind the camera, the same answer worldToScreen gives there
-    //
-    // w is negative behind the plane, so dividing by it produced coordinates that look like a
-    // point in front and are not. a caller checking the result was being told yes
     @Nullable
     public static Vector3f worldToNdc(Vec3 world) {
         Vec3 cam = position();

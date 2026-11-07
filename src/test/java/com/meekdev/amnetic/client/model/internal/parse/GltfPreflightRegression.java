@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 public final class GltfPreflightRegression {
-
     private static final String ASSET = "\"asset\":{\"version\":\"2.0\"}";
     private static final int DEEP = 100_000;
     private static final int TRIANGLE_BYTES = 36;
@@ -32,7 +31,6 @@ public final class GltfPreflightRegression {
                 () -> parse("\"extras\":" + "[".repeat(DEEP) + "]".repeat(DEEP)));
     }
 
-    // three corners in a buffer inside the file, enough to be drawn
     private static byte[] triangle() {
         ByteBuffer corners = ByteBuffer.allocate(TRIANGLE_BYTES).order(ByteOrder.LITTLE_ENDIAN);
         corners.putFloat(0).putFloat(0).putFloat(0).putFloat(1).putFloat(0).putFloat(0).putFloat(0).putFloat(1).putFloat(0);

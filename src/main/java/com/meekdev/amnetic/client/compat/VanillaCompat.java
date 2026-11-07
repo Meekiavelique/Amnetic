@@ -58,8 +58,6 @@ public final class VanillaCompat {
         return proj.m02(-proj.m02()).m12(-proj.m12()).m22(-proj.m22()).m32(-proj.m32());
     }
 
-
-
     //? if <26.1 {
     /*private static float worldFov = 70f;
     private static Frustum cullFrustum;
@@ -70,7 +68,6 @@ public final class VanillaCompat {
 
     private VanillaCompat() {}
 
-    // whether clip-space depth runs 0..1 rather than GL's -1..1
     public static boolean zeroToOne() {
         //? if >=26.1 {
         return RenderSystem.getDevice().getDeviceInfo().isZZeroToOne();

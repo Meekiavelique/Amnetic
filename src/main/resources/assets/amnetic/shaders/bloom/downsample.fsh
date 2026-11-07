@@ -4,7 +4,7 @@ in vec2 vUV;
 out vec4 FragColor;
 
 uniform sampler2D Sampler;
-uniform vec2 TexelSize; // 1.0 / source resolution
+uniform vec2 TexelSize;
 
 void main() {
     float x = TexelSize.x;

@@ -1,12 +1,6 @@
 package com.meekdev.amnetic.client.ui.scene;
 
-/**
- * what an in-world gizmo can manipulate on a selected object, capability flags gate which handles show
- * position is world-space doubles, direction is a unit vector, extent is the object's
- * primary size (light range, spot reach, decal box half-size) in blocks
- */
 public interface Transformable {
-
     double posX();
     double posY();
     double posZ();

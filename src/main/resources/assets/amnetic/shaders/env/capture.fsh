@@ -24,7 +24,6 @@ vec3 skyEnv(vec3 d) {
     return d.y >= 0.0 ? sky : mix(horizon, ground, clamp(-d.y * 2.5, 0.0, 1.0));
 }
 
-// the middle of the panorama looks towards -z, its top row straight up
 vec3 panorama(vec3 d) {
     d = normalize(mat3(Turn) * d);
     vec2 uv = vec2(0.5 + atan(d.x, -d.z) / (2.0 * PI), acos(clamp(d.y, -1.0, 1.0)) / PI);
@@ -39,7 +38,6 @@ void main() {
         return;
     }
     vec3 col = skyEnv(dir);
-    // sun: tight bright disc plus a soft glow so smooth reflectors get a real highlight
     float s = max(dot(dir, normalize(SunDir)), 0.0);
     vec3 sunColor = vec3(1.0, 0.95, 0.85);
     col += sunColor * pow(s, 2000.0) * 6.0;

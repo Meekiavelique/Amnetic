@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class EffectDraft {
-
     private static final ResourceLocation SOFT = new ResourceLocation("amnetic", "particle/default_soft");
     private static final ResourceLocation TEXTURED = new ResourceLocation("amnetic", "particle/default_textured");
 
@@ -95,7 +94,6 @@ public final class EffectDraft {
         if (lightmap) b.lightmap(true);
         if (flipCols > 1 || flipRows > 1) b.flipbook(Math.max(1, flipCols), Math.max(1, flipRows), flipFps);
         if (trail) b.trail(trailPoints, trailWidth, trailFade, trailInterval);
-        // the gravity field only takes effect through a gravity affector, add one so it actually pulls
         if (gravity != 0f) b.affector(Affectors.gravity());
         for (Aff a : affectors) {
             Affector af = affector(a);

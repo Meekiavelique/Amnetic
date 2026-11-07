@@ -8,7 +8,6 @@ import java.util.function.DoubleSupplier;
 import net.minecraft.resources.Identifier;
 
 public final class PostEffects {
-
     private PostEffects() {}
 
     public static PostEffectHandle register(Identifier id) {
@@ -19,7 +18,7 @@ public final class PostEffects {
     public static PostEffectHandle register(Identifier id, Consumer<PostEffectConfig> configurator) {
         PostEffectEntry entry = PostEffectRegistry.INSTANCE.register(id);
         configurator.accept(new PostEffectConfig(entry));
-        PostEffectRegistry.INSTANCE.resort(); // the configurator may have set a priority
+        PostEffectRegistry.INSTANCE.resort();
         return new PostEffectHandle(entry);
     }
 

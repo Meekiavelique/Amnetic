@@ -35,7 +35,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public final class DeferredLightingPass extends ScreenPass {
-
     public static final DeferredLightingPass INSTANCE = new DeferredLightingPass();
 
     private static final ResourceLocation VSH = new ResourceLocation("amnetic", "shaders/light/deferred.vsh");
@@ -100,8 +99,6 @@ public final class DeferredLightingPass extends ScreenPass {
         }
         boolean gbufferDepth = GBufferTargets.INSTANCE.isPopulated()
                 && GBufferTargets.INSTANCE.depthGlId() != 0;
-        // the fullscreen pass recomposes the whole frame, which is only needed when something
-        // darkens it (sun/directional) or replaces it (custom shading, debug, volumetrics)
         boolean needsFullscreen = !volumes
                 || volumetricOnly
                 || debugMode != 0
@@ -151,9 +148,6 @@ public final class DeferredLightingPass extends ScreenPass {
                 GlStateManager._disableBlend();
                 GL11.glDisable(GL11.GL_BLEND);
             } else if (debugMode == 0) {
-                // replace, not additive: the shader outputs the full recomposed scene (captured scene darkened
-                // by sun-shadow occlusion + local lights + specular). additive blending can't darken, which a
-                // daylight directional sun needs. go check the type==2 block in deferred.fsh
                 GlStateManager._disableBlend();
                 GL11.glDisable(GL11.GL_BLEND);
             }

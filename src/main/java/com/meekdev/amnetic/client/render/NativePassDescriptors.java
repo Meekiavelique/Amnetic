@@ -6,7 +6,6 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.function.Supplier;
 import com.mojang.blaze3d.systems.RenderPass;
 
-/^* Keeps descriptor construction consistent across the two native API versions. ^/
 public final class NativePassDescriptors {
     public static Builder builder(Supplier<String> label) { return new Builder(label); }
     public static final class Builder {

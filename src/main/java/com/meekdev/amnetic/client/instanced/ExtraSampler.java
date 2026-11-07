@@ -9,19 +9,12 @@ import java.util.Objects;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
-// a texture bound alongside the mesh's own, either one the texture manager knows by name or one
-// the caller resolves itself
-//
-// not everything worth sampling is in the texture manager. minecraft's own light map is a gpu
-// texture the game renderer owns and never registers, so a mod that wants the light a block would
-// get has no identifier to ask for. a supplier of the raw gl name reaches those
 public record ExtraSampler(String uniformName, @Nullable Identifier textureId, int unit,
                            boolean fileBacked, @Nullable IntSupplier glTexture, int target
                            //? if >=26.2 {
                            , @Nullable Supplier<com.mojang.renderpearl.api.textures.GpuTextureView> nativeTexture
                            //?}
                            ) {
-
     //? if >=26.2 {
     public ExtraSampler(String uniformName, Identifier textureId, int unit,
                         boolean fileBacked, IntSupplier glTexture, int target) {

@@ -15,7 +15,6 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
 //?}
 
 public final class InstancedMesh<T> {
-
     public record CustomUniform(String name, Supplier<float[]> value) {}
 
     final MeshData geometry;
@@ -80,10 +79,6 @@ public final class InstancedMesh<T> {
         this.source = b.source;
     }
 
-    /**
-     * forces a static-instance mesh to re-run its onRender emitter next frame (e.g. to refresh baked
-     * per-instance lighting when the time of day changes). no-op for dynamic meshes
-     */
     public static void invalidate(Identifier id) {
         InstanceMeshRegistry.INSTANCE.invalidate(id);
     }
@@ -197,10 +192,6 @@ public final class InstancedMesh<T> {
             return this;
         }
 
-        /**
-         * how the mesh texture is filtered. nearest by default, which is what a game drawn from
-         * texels wants; ask for linear only for something authored smooth
-         */
         public Builder<T> textureFilter(TextureFilter filter) {
             this.textureFilter = filter;
             return this;
@@ -223,13 +214,11 @@ public final class InstancedMesh<T> {
             return this;
         }
 
-        // a texture the caller resolves itself, for one the texture manager does not hold
         public Builder<T> extraSampler(String uniformName, IntSupplier glTexture, int unit) {
             this.extraSamplers.add(new ExtraSampler(uniformName, glTexture, unit));
             return this;
         }
 
-        // a cube map the caller resolves itself, such as the sky probe from Ibl.cube()
         public Builder<T> extraCubeSampler(String uniformName, IntSupplier glTexture, int unit) {
             this.extraSamplers.add(new ExtraSampler(uniformName, glTexture, unit, true));
             return this;
@@ -265,27 +254,17 @@ public final class InstancedMesh<T> {
             return this;
         }
 
-        /** Uploads one to four floats under this name before every draw of this mesh. */
         public Builder<T> uniform(String name, Supplier<float[]> value) {
             this.customUniforms.add(new CustomUniform(name, value));
             return this;
         }
 
-        /**
-         * Bakes the shadow with a depth-only program instead of this mesh's own shader, which skips
-         * its textures and lighting. The instance transform has to be a mat4 at locations 1 to 4,
-         * and a shader that carves its silhouette with discard must not use this.
-         */
         public Builder<T> shadowDepthOnly() {
             this.castsShadow = true;
             this.shadowDepthOnly = true;
             return this;
         }
 
-        /**
-         * Lets each instance decide whether it casts, through a float at location 7: zero does not
-         * cast. Implies {@link #shadowDepthOnly()}.
-         */
         public Builder<T> castsShadowPerInstance() {
             this.perInstanceShadow = true;
             return shadowDepthOnly();
@@ -311,16 +290,11 @@ public final class InstancedMesh<T> {
             return this;
         }
 
-        /**
-         * emit instances once and reuse the uploaded buffer every frame (no per-frame CPU re-emit/re-upload),
-         * for large static fields like grass. call {@link InstancedMesh#invalidate(Identifier)} to re-emit
-         */
         public Builder<T> staticInstances() {
             this.staticInstances = true;
             return this;
         }
 
-        // depth goes in first so the shader runs once per pixel, it gets DepthPass 1 then and returns after its discards
         public Builder<T> depthPrepass() {
             this.depthPrepass = true;
             return this;
@@ -341,12 +315,6 @@ public final class InstancedMesh<T> {
             return this;
         }
 
-        /**
-         * shades every face by the axis it points down, the way a vanilla block is shaded and the
-         * way {@link com.meekdev.amnetic.client.material.ShadingModel#flat()} shades a model.
-         * instanced geometry carries no normals, so the face normal comes from the derivative of
-         * the fragment position and there is no lightmap term
-         */
         public Builder<T> flatShaded() {
             this.flatShaded = true;
             return this;

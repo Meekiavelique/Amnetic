@@ -16,7 +16,6 @@ import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 
 public final class AmmeshReader {
-
     private static final int MATRIX_FLOATS = 16;
     private static final int MATRIX_BYTES = MATRIX_FLOATS * Float.BYTES;
 
@@ -26,7 +25,6 @@ public final class AmmeshReader {
         return read(ByteBuffer.wrap(bytes));
     }
 
-    // reads from the buffer's position, a mapped file works, arrays come out in one copy each
     public static ModelIR read(ByteBuffer bytes) {
         ByteBuffer in = bytes.slice().order(ByteOrder.BIG_ENDIAN);
         try {
@@ -62,7 +60,6 @@ public final class AmmeshReader {
         }
     }
 
-    // a counted array, its count checked against the bytes left before anything is allocated
     private static float[] floats(ByteBuffer in, String what) {
         return floats(in, Bounded.count(in, Float.BYTES, what));
     }
@@ -85,7 +82,6 @@ public final class AmmeshReader {
         return out;
     }
 
-    // the modified utf-8 writeUTF makes, decoded by the jdk so odd names come back the same
     private static String readUTF(ByteBuffer in) throws IOException {
         int length = Short.toUnsignedInt(in.getShort(in.position()));
         byte[] raw = new byte[2 + length];
@@ -190,7 +186,6 @@ public final class AmmeshReader {
 
     private static TextureSlot readTextureSlot(ByteBuffer in, int version) throws IOException {
         Identifier id = readBoolean(in) ? Identifier.parse(readUTF(in)) : null;
-        // before 4 a slot only said whether bytes follow
         byte kind = version >= 4 ? in.get() : readBoolean(in) ? AmmeshFormat.SLOT_BYTES : AmmeshFormat.SLOT_NONE;
         if (kind == AmmeshFormat.SLOT_KEY) return new TextureSlot(id, null, readUTF(in));
         if (kind != AmmeshFormat.SLOT_BYTES) return new TextureSlot(id, null, null);

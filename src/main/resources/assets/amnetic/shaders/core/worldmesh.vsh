@@ -14,7 +14,7 @@ out vec3 vNormal;
 
 void main() {
     vec4 clip = ProjMat * ModelViewMat * vec4(Position, 1.0);
-    clip.z = min(clip.z, clip.w * 0.999999);   // never far-clip distant geometry
+    clip.z = min(clip.z, clip.w * 0.999999);
     gl_Position = clip;
     vPos = Position;
     vUV = UV0;

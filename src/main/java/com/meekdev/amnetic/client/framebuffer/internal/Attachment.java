@@ -6,11 +6,10 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryUtil;
 
 public final class Attachment {
-
     public enum Kind { COLOR_TEXTURE, DEPTH_TEXTURE, DEPTH_RENDERBUFFER }
 
     private final Kind kind;
-    private final ColorFormat colorFormat; // null unless COLOR_TEXTURE
+    private final ColorFormat colorFormat;
     private int glId;
 
     private Attachment(Kind kind, ColorFormat colorFormat) {
@@ -70,7 +69,6 @@ public final class Attachment {
             }
         }
     }
-    // colorIndex is ignored for depth
     public void attachTo(int colorIndex) {
         switch (kind) {
             case COLOR_TEXTURE -> GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER,

@@ -9,7 +9,6 @@ import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
 
 public final class AmmeshWriter {
-
     private AmmeshWriter() {}
 
     public static byte[] write(ModelIR ir) {
@@ -81,8 +80,6 @@ public final class AmmeshWriter {
         out.writeFloat(mat.metallic); out.writeFloat(mat.roughness); out.writeFloat(mat.transmission);
         out.writeFloat(mat.emR); out.writeFloat(mat.emG); out.writeFloat(mat.emB);
         out.writeFloat(mat.alphaCutoff);
-        // custom shading model ids depend on runtime registration order, only the
-        // default (0) is stable across sessions so never persist anything else
         out.writeInt(0);
         out.writeBoolean(mat.blend);
         out.writeBoolean(mat.doubleSided);
@@ -93,8 +90,6 @@ public final class AmmeshWriter {
         writeTextureSlot(out, mat.emissiveTexture, mat.emissiveImageBytes);
     }
 
-    // texture reference: prefer an ResourceLocation (path), only fall back to embedded bytes when the
-    // source glTF had no external path to reference (data-uri / bufferView image)
     private static void writeTextureSlot(DataOutputStream out, ResourceLocation texId, byte[] bytes) throws IOException {
         out.writeBoolean(texId != null);
         if (texId != null) out.writeUTF(texId.toString());

@@ -5,7 +5,6 @@ import com.meekdev.amnetic.client.model.internal.ModelIR;
 import net.minecraft.resources.Identifier;
 
 public final class ModelMaterial {
-
     private final ModelIR.Material mat;
 
     public ModelMaterial(ModelIR.Material mat) {
@@ -66,7 +65,6 @@ public final class ModelMaterial {
         return this;
     }
 
-    // KHR transmission factor, 0 disables the glass path (renders as an opaque env-tinted sheet)
     public ModelMaterial setTransmission(float v) {
         mat.transmission = v;
         return this;
@@ -117,8 +115,6 @@ public final class ModelMaterial {
         return this;
     }
 
-    /** binds a caller-owned live GL texture as the emissive map (e.g. a video screen). caller keeps
-     *  ownership and updates it with glTexSubImage2D, pass 0 to detach */
     public ModelMaterial setEmissiveGlTexture(int glId) {
         mat.emissiveGlId = glId;
         mat.emissiveTexture = null;

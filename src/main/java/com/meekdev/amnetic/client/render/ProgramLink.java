@@ -12,14 +12,8 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.KHRParallelShaderCompile;
 
-// a gl program being compiled and linked. it starts at once and gets polled, so the render thread only
-// waits on the driver when something needs the program before it is done.
-// a first compile can take seconds without a driver disk cache, so every program goes through here.
-// the work happens on a ProgramWorker thread when there is one, else through the driver's parallel compile, else in place
 public final class ProgramLink {
-
     private static final int COMPLETION_STATUS = 0x91B1;
-    // without parallel compiling a finish blocks, so at most one of those a frame or so
     private static final long BLOCKING_GAP = 16_000_000L;
 
     private static final int QUEUED = 0, RUNNING = 1, DONE = 2, TAKEN_BACK = 3;
@@ -43,7 +37,6 @@ public final class ProgramLink {
     private String problem;
     private int failedStage = -1;
 
-    // only used when a worker builds it
     private final AtomicInteger state = new AtomicInteger(-1);
     private final CountDownLatch built = new CountDownLatch(1);
 
@@ -69,12 +62,10 @@ public final class ProgramLink {
         return new Builder(name);
     }
 
-    // the usual vertex and fragment pair
     public static ProgramLink start(String name, String vertex, String fragment) {
         return builder(name).vertex(vertex, name).fragment(fragment, name).start();
     }
 
-    // true when links finish without the render thread waiting, on a worker or through the driver
     public static boolean parallel() {
         if (parallel == null) {
             boolean worker = ProgramWorker.available();
@@ -82,7 +73,6 @@ public final class ProgramLink {
             boolean khr = caps.GL_KHR_parallel_shader_compile;
             boolean arb = caps.GL_ARB_parallel_shader_compile;
             boolean driver = (khr || arb) && !"false".equals(System.getProperty("amnetic.parallelCompile"));
-            // all ones lets the driver pick how many threads
             if (driver && khr) KHRParallelShaderCompile.glMaxShaderCompilerThreadsKHR(0xFFFFFFFF);
             else if (driver) ARBParallelShaderCompile.glMaxShaderCompilerThreadsARB(0xFFFFFFFF);
             parallel = worker || driver;
@@ -90,7 +80,6 @@ public final class ProgramLink {
         return parallel;
     }
 
-    // how the links went so far, for the startup log line
     public static String stats() {
         String how = ProgramWorker.available() ? ProgramWorker.threads() + " compile threads worked " + ms(WORKER_NANOS.get()) + " ms"
                 : parallel() ? "the driver compiled in parallel" : "the driver compiled in place";
@@ -117,12 +106,10 @@ public final class ProgramLink {
         waitedNanos += System.nanoTime() - t0;
     }
 
-    // on a worker, false when the render thread took it back first
     boolean claim() {
         return state.compareAndSet(QUEUED, RUNNING);
     }
 
-    // builds the whole program on a worker, glFinish makes it safe to use from the game's context after
     void buildOnWorker() {
         long t0 = System.nanoTime();
         try {
@@ -171,7 +158,6 @@ public final class ProgramLink {
         GL20.glLinkProgram(program);
     }
 
-    // true once linking is over, worked or not, without waiting on the driver when it can help it
     public boolean ready() {
         int s = state.get();
         if (s >= 0) return s == DONE || s == TAKEN_BACK;
@@ -189,8 +175,6 @@ public final class ProgramLink {
         return true;
     }
 
-    // the linked program, waits for it when it is not done yet. throws when it did not compile or link.
-    // whoever takes it owns it from then on and deletes it themselves
     public int program() {
         await();
         if (failed) throw new RuntimeException(name + ": " + problem);
@@ -198,7 +182,6 @@ public final class ProgramLink {
         return program;
     }
 
-    // whether it did not compile or link, waits for it when it is not done yet
     public boolean failed() {
         await();
         return failed;
@@ -208,21 +191,17 @@ public final class ProgramLink {
         return fromCache;
     }
 
-    // what went wrong, the compile or link log
     public String problem() {
         return problem;
     }
 
-    // which stage did not compile, -1 when it was the link
     public int failedStage() {
         return failedStage;
     }
 
-    // drops a link nobody took the program of
     public void delete() {
         if (taken) return;
         if (state.get() >= 0) {
-            // a queued one never starts, a running one is waited for so its program can go
             if (state.compareAndSet(QUEUED, TAKEN_BACK)) {
                 done = true;
                 return;
@@ -238,7 +217,6 @@ public final class ProgramLink {
         done = true;
     }
 
-    // makes sure it is built, here and now when no worker picked it up yet
     private void await() {
         int s = state.get();
         if (s == DONE || s == TAKEN_BACK || s < 0 && done) return;
@@ -319,14 +297,11 @@ public final class ProgramLink {
             return this;
         }
 
-        // for programs a frame can not go without, they go ahead of ones whose users just skip drawing meanwhile
         public Builder soon() {
             soon = true;
             return this;
         }
 
-        // compiles the stages without linking and gives the first compiler error, null when they all compile.
-        // sources that compiled before on this driver are not compiled again
         public String check() {
             long t0 = System.nanoTime();
             parallel();

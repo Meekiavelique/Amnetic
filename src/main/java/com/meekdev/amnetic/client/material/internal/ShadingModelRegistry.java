@@ -10,21 +10,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import net.minecraft.resources.Identifier;
 
-/**
- * assigns small integer material IDs to custom GLSL shading snippets and generates the
- * "if (materialId == N) { ... }" ladder spliced into the deferred lighting uber-shader via a virtual
- * include ({@link #LADDER_INCLUDE}). snippets are the body of a function that returns a vec3 given a
- * GBufferSample (see the generated struct), e.g.:
- *
- * <pre>{@code
- * return floor(dot(s.normal, vec3(0.4, 0.8, 0.2)) * 3.0 + 3.5) / 3.0 * s.albedo;
- * }</pre>
- *
- * registering marks the registry dirty, the deferred pass checks {@link #consumeDirty()} once per
- * frame and only relinks when something actually changed
- */
 public final class ShadingModelRegistry {
-
     public static final Identifier LADDER_INCLUDE =
             Identifier.fromNamespaceAndPath("amnetic", "shaders/material/custom_ladder.glsl");
 
@@ -40,7 +26,6 @@ public final class ShadingModelRegistry {
 
     public static final int FLAT_SHADED_BASE = 128;
 
-    // materialId 0 is reserved for the built-in default PBR path (no custom snippet)
     private final Map<Integer, Supplier<String>> snippets = new LinkedHashMap<>();
     private final Map<Integer, Supplier<String>> vertexSnippets = new LinkedHashMap<>();
     private final Map<Integer, Supplier<String>> surfaceSnippets = new LinkedHashMap<>();
@@ -56,8 +41,6 @@ public final class ShadingModelRegistry {
         ShaderProgram.registerVirtualSource(LADDER_INCLUDE, this::generateLadder);
         ShaderProgram.registerVirtualSource(VERTEX_LADDER_INCLUDE, this::generateVertexLadder);
         ShaderProgram.registerVirtualSource(SURFACE_LADDER_INCLUDE, this::generateSurfaceLadder);
-        // the model shader has already shaded these fragments the vanilla way, so the deferred
-        // pass hands the colour straight back rather than lighting it a second time
         snippets.put(FLAT_ID, () -> "return s.albedo;");
     }
 
@@ -71,8 +54,6 @@ public final class ShadingModelRegistry {
             dirty = true;
             return reused;
         }
-        // the gbuffer stores materialId in an 8-bit channel, ids past 255 would alias, and
-        // everything from FLAT_SHADED_BASE up is reserved for the vanilla-shaded band
         if (nextId >= FLAT_SHADED_BASE) {
             throw new IllegalStateException(
                     "out of shading model ids (max " + (FLAT_SHADED_BASE - 1) + ")");
@@ -105,7 +86,6 @@ public final class ShadingModelRegistry {
         vertexDirty = true;
     }
 
-    // hands an id back once nothing draws with it, so a shader edited over and over keeps reusing ids
     public synchronized void release(int materialId) {
         if (materialId <= 0 || materialId == FLAT_ID || !snippets.containsKey(materialId)) return;
         snippets.remove(materialId);
@@ -127,7 +107,6 @@ public final class ShadingModelRegistry {
         return true;
     }
 
-    // true (and clears the flag) exactly once per newly-registered snippet set
     public synchronized boolean consumeDirty() {
         if (!dirty) return false;
         dirty = false;
@@ -156,9 +135,9 @@ public final class ShadingModelRegistry {
           .append("    vec3 fragPos;\n")
           .append("    float roughness;\n")
           .append("    float metallic;\n")
-          .append("    vec3 radiance;\n") // standard PBR result already computed, for tinting/replacing
-          .append("    vec3 lightmap;\n") // vanilla lightmap colour sampled at this fragment
-          .append("    float time;\n") // seconds, wrapping every hour
+          .append("    vec3 radiance;\n")
+          .append("    vec3 lightmap;\n")
+          .append("    float time;\n")
           .append("};\n\n")
           .append("vec3 shadeCustomMaterial(int materialId, GBufferSample s, out bool handled) {\n")
           .append("    handled = true;\n");
@@ -214,9 +193,9 @@ public final class ShadingModelRegistry {
     private synchronized String generateVertexLadder() {
         StringBuilder sb = new StringBuilder();
         sb.append("struct VertexSample {\n")
-          .append("    vec3 localPos;\n")  // model space, after skinning
-          .append("    vec3 worldPos;\n")  // world space, camera relative when WorldSpace is set
-          .append("    vec3 origin;\n")    // the instance's own translation
+          .append("    vec3 localPos;\n")
+          .append("    vec3 worldPos;\n")
+          .append("    vec3 origin;\n")
           .append("    vec2 uv;\n")
           .append("    float time;\n")
           .append("};\n\n")

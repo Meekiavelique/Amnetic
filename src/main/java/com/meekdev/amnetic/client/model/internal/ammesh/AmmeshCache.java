@@ -27,8 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class AmmeshCache {
-
-    // models from resource packs, under the game folder
     public static final AmmeshCache INSTANCE = new AmmeshCache(null);
     private static final Map<Path, AmmeshCache> FOLDERS = new ConcurrentHashMap<>();
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Ammesh");
@@ -45,13 +43,10 @@ public final class AmmeshCache {
         this.folder = folder;
     }
 
-    // a cache of processed models named by key, like a game's own one shipped with it
-    // these name their images by key too, so a texture shared by many models is decoded and kept once
     public static AmmeshCache at(Path folder) {
         return FOLDERS.computeIfAbsent(folder.toAbsolutePath().normalize(), AmmeshCache::new);
     }
 
-    // the game folder is looked up late, a dedicated server has none and only uses folders
     private synchronized Path dir() {
         if (cacheDir == null) {
             cacheDir = folder != null ? folder : Platform.gameDirectory().resolve("amnetic").resolve("ammesh_cache");
@@ -76,7 +71,6 @@ public final class AmmeshCache {
         return Files.isRegularFile(file(key));
     }
 
-    // the processed model under key, read in one go, null when there is none
     public ModelIR read(String key) {
         Path path = file(key);
         if (!Files.isRegularFile(path)) return null;
@@ -89,11 +83,8 @@ public final class AmmeshCache {
         }
     }
 
-    // turns a gltf into the model kept under key, its images into textures beside it, files reads what it names by uri
-    // key is asked once the file is read, so it can hold what the file pulled in through files
     public ModelIR convert(byte[] gltf, Identifier source, Function<String, byte[]> files, Supplier<String> key) {
         ModelIR ir = GltfParser.parse(gltf, source, files);
-        // levels of detail are made here once, so drawing the model later never simplifies anything
         ModelLod.build(ir);
         Path textures = textures();
         byte[] ammesh = AmmeshWriter.write(ir, (image, srgb) -> {

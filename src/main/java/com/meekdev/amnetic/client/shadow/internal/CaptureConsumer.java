@@ -3,13 +3,11 @@ package com.meekdev.amnetic.client.shadow.internal;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 public final class CaptureConsumer implements VertexConsumer {
-
     private float[] verts = new float[4096];
-    private int count; // number of floats written (3 per vertex)
+    private int count;
 
     public void reset() { count = 0; }
 
-    // raw captured vertices in addVertex order, 4 consecutive = one quad
     public float[] data() { return verts; }
     public int vertexCount() { return count / 3; }
 

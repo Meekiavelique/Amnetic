@@ -9,10 +9,7 @@ import org.lwjgl.opengl.GL30;
 
 import java.nio.ByteBuffer;
 
-/** depth-only 2D texture array holding the sun's shadow cascades (layer = cascade, tightest first).
- * one FBO is retargeted per layer during the bake, same as PointShadowArray */
 public final class SunShadowCascades {
-
     private static int textureId, fboId, resolution, cascades;
 
     private SunShadowCascades() {}
@@ -28,8 +25,6 @@ public final class SunShadowCascades {
         resolution = requestedResolution;
         cascades = requestedCascades;
 
-        // no glGet of the bindings to restore: the budget can reallocate this mid-game, and the shadow
-        // pass puts its framebuffer back itself
         textureId = GlStateManager._genTexture();
         GL11.glBindTexture(GL30.GL_TEXTURE_2D_ARRAY, textureId);
         GL12.glTexImage3D(GL30.GL_TEXTURE_2D_ARRAY, 0, GL30.GL_DEPTH_COMPONENT32F,

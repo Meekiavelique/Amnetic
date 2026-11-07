@@ -11,7 +11,6 @@ import org.joml.Vector3f;
 import org.joml.Vector4f;
 
 public final class DecalGizmo {
-
     public static boolean enabled = true;
 
     private DecalGizmo() {}
@@ -23,7 +22,7 @@ public final class DecalGizmo {
         float w = ImGui.getIO().getDisplaySizeX(), h = ImGui.getIO().getDisplaySizeY();
         if (w <= 0 || h <= 0) return;
 
-        ImDrawList dl = ImGui.getBackgroundDrawList(); // behind panels, over the world
+        ImDrawList dl = ImGui.getBackgroundDrawList();
         Vector4f tmp = new Vector4f();
         float mx = ImGui.getMousePosX(), my = ImGui.getMousePosY();
         boolean clickable = ImGui.isMouseClicked(0) && !ImGui.getIO().getWantCaptureMouse() && !GizmoLayer.isDragging();
@@ -38,7 +37,6 @@ public final class DecalGizmo {
             right.normalize();
             Vector3f up = new Vector3f(right).cross(n).normalize();
             Vec3 c = d.center();
-            // decal local space is [-0.5,0.5] so half extents here
             float halfW = d.width() * 0.5f, halfH = d.height() * 0.5f, halfD = d.depth() * 0.5f;
 
             float[][] corners = new float[8][];

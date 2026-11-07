@@ -21,7 +21,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /*@Mixin(Minecraft.class)
 *///?}
 public abstract class MinecraftMainTargetMixin {
-
     //? if >=26.2 {
     @Inject(method = "mainRenderTarget", at = @At("HEAD"), cancellable = true)
     //?} else {
@@ -33,7 +32,6 @@ public abstract class MinecraftMainTargetMixin {
             cir.setReturnValue(capture);
             return;
         }
-        // while a layer (hand/GUI) is being isolated, vanilla draws into the layer target instead of the screen
         RenderTarget layer = LayerRedirect.active();
         if (layer != null) {
             cir.setReturnValue(layer);
@@ -41,8 +39,7 @@ public abstract class MinecraftMainTargetMixin {
     }
 
     //? if >=26.2 {
-    /*// renderLevel reads the field directly now, send it through the getter like older versions did
-    @Redirect(method = "renderLevel", at = @At(value = "FIELD", opcode = Opcodes.GETFIELD,
+    /*@Redirect(method = "renderLevel", at = @At(value = "FIELD", opcode = Opcodes.GETFIELD,
             target = "Lnet/minecraft/client/renderer/GameRenderer;mainRenderTarget:Lcom/mojang/blaze3d/pipeline/RenderTarget;"))
     private RenderTarget amnetic$levelMainTarget(GameRenderer renderer) {
         return renderer.mainRenderTarget();

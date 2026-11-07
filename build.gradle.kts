@@ -205,7 +205,6 @@ val presetSecurityRegression = tasks.register<JavaExec>("presetSecurityRegressio
     mainClass = "com.meekdev.amnetic.client.particle.editor.EffectPresetFilesRegression"
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(toolchainJava.majorVersion) }
 }
-// a small heap, so a decoder that allocates what a hostile file claims fails here instead of passing
 val hostileContentRegression = tasks.register<JavaExec>("hostileContentRegression") {
     dependsOn(tasks.named("testClasses"))
     classpath = sourceSets.test.get().runtimeClasspath

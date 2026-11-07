@@ -17,7 +17,6 @@ import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 
 public final class SsrPass extends ScreenPass {
-
     public static final SsrPass INSTANCE = new SsrPass();
 
     private static final ResourceLocation VSH = new ResourceLocation("amnetic", "shaders/ssr/ssr.vsh");
@@ -27,8 +26,8 @@ public final class SsrPass extends ScreenPass {
 
     private ShaderProgram composite;
     private ShaderProgram temporal;
-    private Framebuffer capture; // full-res scene color + depth
-    private Framebuffer reflection; // scaled reflection result (rgb = color, a = strength)
+    private Framebuffer capture;
+    private Framebuffer reflection;
     private Framebuffer historyA, historyB;
     private boolean usingA;
     private float reflectionScale = -1f;
@@ -53,7 +52,7 @@ public final class SsrPass extends ScreenPass {
         composite = new ShaderProgram(VSH, COMPOSITE_FSH);
         temporal = new ShaderProgram(VSH, TEMPORAL_FSH);
         capture = Framebuffers.screen("SSR Capture", FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
-        return new ShaderProgram(VSH, FSH); // the ray-march program
+        return new ShaderProgram(VSH, FSH);
     }
 
     @Override

@@ -2,9 +2,7 @@ package com.meekdev.amnetic.client.pipeline;
 
 import com.meekdev.amnetic.client.pipeline.internal.GpuTimer;
 
-// handle to a registered RenderPass, used to toggle or remove it after registration
 public final class PassHandle {
-
     final RenderStage stage;
     final RenderPass pass;
     final int order;

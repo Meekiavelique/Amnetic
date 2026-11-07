@@ -40,10 +40,8 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.entity.LivingEntity;
 //?}
 
-
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityRendererMixin {
-
     @Shadow protected EntityModel model;
 
     //? if >=1.21.2 {
@@ -79,7 +77,7 @@ public abstract class LivingEntityRendererMixin {
     private void amnetic$hideLayers(LivingEntityRenderState state, CallbackInfoReturnable<Boolean> cir) {
         if (state instanceof TextureOverrideTarget ov && ov.amnetic$getTextureOverride() != null
                 && ov.amnetic$isOverrideHideLayers()) {
-            cir.setReturnValue(false);   // hide armor/elytra/held items
+            cir.setReturnValue(false);
             return;
         }
         if (state instanceof SurfaceTarget target) {

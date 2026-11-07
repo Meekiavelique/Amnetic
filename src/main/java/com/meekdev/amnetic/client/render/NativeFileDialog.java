@@ -5,7 +5,6 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 public final class NativeFileDialog {
-
     private NativeFileDialog() {}
 
     public static String openImage() {
@@ -15,7 +14,7 @@ public final class NativeFileDialog {
                     stack.UTF8("*.tga"), stack.UTF8("*.bmp"));
             return TinyFileDialogs.tinyfd_openFileDialog("Choose a texture", "", filters, "Image files", false);
         } catch (Throwable t) {
-            return null; // natives missing or dialog failed
+            return null;
         }
     }
 }

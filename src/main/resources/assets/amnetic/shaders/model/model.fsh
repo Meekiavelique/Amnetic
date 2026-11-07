@@ -44,18 +44,17 @@ uniform float Roughness;
 uniform float AlphaCutoff;
 uniform float EmissiveStrength;
 uniform float Transmission;
-uniform vec4 UvTransform; // xy repeat, zw offset
+uniform vec4 UvTransform;
 uniform int DoubleSided;
-uniform float TextureWarp; // 0 perspective correct uvs, 1 affine like a psx
-uniform int Unlit; // base colour as is, no light
-uniform int AlbedoEncoded; // the base colour map is plain rgb8, not srgb
+uniform float TextureWarp;
+uniform int Unlit;
+uniform int AlbedoEncoded;
 
-uniform samplerCube EnvCube; // prefiltered sky/env probe
+uniform samplerCube EnvCube;
 uniform sampler2D LightMap;
 uniform int HasEnvCube;
 uniform float EnvMaxLod;
 
-// configurable lighting, see ModelLighting. defaults match the old hardcoded values
 uniform vec3 SunDirection;
 uniform vec3 SunColor;
 uniform float SunIntensity;
@@ -69,9 +68,6 @@ uniform float Time;
 #include "amnetic:shaders/material/custom_surface_ladder.glsl"
 #include "amnetic:shaders/common/look.glsl"
 
-
-
-// analytic sky environment, stands in for an HDR IBL probe
 vec3 skyEnv(vec3 d) {
     float up = clamp(d.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 zenith = vec3(0.30, 0.50, 0.92);
@@ -105,7 +101,6 @@ vec3 computeNormal() {
     return n;
 }
 
-
 void main() {
     GVelocity = vec4(vMotion, 1.0);
     GShade = vec4(0.0);
@@ -128,10 +123,7 @@ void main() {
     float roughness = Roughness;
     float ao = 1.0;
     if (HasOrm == 1) {
-        vec3 orm = texture(OrmSampler, materialUv).rgb; // ORM: r = occlusion, g = roughness, b = metallic
-        // glTF metallicRoughness textures leave r unused (0). treating that as occlusion would kill
-        // all ambient and render the surface black, so remap r into [0.35, 1]. real packed AO still
-        // darkens but a bare MR texture no longer blacks out
+        vec3 orm = texture(OrmSampler, materialUv).rgb;
         ao = mix(0.35, 1.0, orm.r);
         roughness *= orm.g;
         metallic *= orm.b;
@@ -198,7 +190,6 @@ void main() {
     GAlbedo = vec4(albedo.rgb, 1.0);
 
     if (Unlit == 1) {
-        // black published albedo keeps local lights off it, no shares keeps shadows and ao off
         FragColor = vec4(pow(max(albedo.rgb + emissive, 0.0), vec3(1.0 / 2.2)), albedo.a);
         GAlbedo = vec4(0.0, 0.0, 0.0, 1.0);
         GMaterial = vec4(1.0, 0.0, materialIdNorm, lightmapEncoded);

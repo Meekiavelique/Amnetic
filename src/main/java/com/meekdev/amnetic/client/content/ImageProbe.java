@@ -10,9 +10,7 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
-// tells what an image is from its first bytes and how big it says it is, before anything decodes it
 public final class ImageProbe {
-
     public enum Format {
         PNG("png"), JPEG("jpeg"), WEBP("webp"), GIF("gif"), BMP("bmp");
 
@@ -38,13 +36,11 @@ public final class ImageProbe {
 
     private ImageProbe() {}
 
-    // the format and size the header claims, refused when it is not one of allowed or too big
     public static Header header(byte[] bytes, Set<Format> allowed) throws IOException {
         Format format = format(bytes, allowed);
         return read(bytes, format, reader -> checked(format, reader));
     }
 
-    // decodes only once the header passed, with the reader of the format the bytes really are
     public static BufferedImage decode(byte[] bytes, Set<Format> allowed) throws IOException {
         Format format = format(bytes, allowed);
         return read(bytes, format, reader -> {

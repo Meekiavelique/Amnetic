@@ -8,9 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-// fonts built table by table, a sound one that passes and broken ones stb_truetype would read out of bounds
 public final class FontCheckRegression {
-
     private static final int COMPOSITE = -1;
 
     private FontCheckRegression() {}
@@ -40,14 +38,12 @@ public final class FontCheckRegression {
         return new Bytes().zeros(50).u16(1).u16(0).done();
     }
 
-    // one format 4 map with only the closing segment
     private static byte[] cmap() throws IOException {
         return new Bytes().u16(0).u16(1).u16(3).u16(1).u32(12)
                 .u16(4).u16(24).u16(0).u16(2).u16(2).u16(0).u16(0)
                 .u16(0xFFFF).u16(0).u16(0xFFFF).u16(1).u16(0).done();
     }
 
-    // one contour of one point, on the curve at the origin so it needs no coordinate bytes
     private static byte[] simpleGlyph() throws IOException {
         return new Bytes().u16(1).zeros(8).u16(0).u16(0).u8(0x31).done();
     }
@@ -56,7 +52,6 @@ public final class FontCheckRegression {
         return new Bytes().u16(COMPOSITE).zeros(8).u16(0).u16(0).zeros(2).done();
     }
 
-    // a contour of 200 points with flags for one
     private static byte[] overlongGlyph() throws IOException {
         return new Bytes().u16(1).zeros(8).u16(199).u16(0).u8(0x01).done();
     }

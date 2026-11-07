@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
 
-/** Instanced vertex streams submitted through Minecraft's native GPU device. */
 final class NativeInstanceRenderer implements AutoCloseable {
     private final InstancedMesh<?> mesh;
     private NativeScreenProgram program;
@@ -105,7 +104,6 @@ final class NativeInstanceRenderer implements AutoCloseable {
 
     private GpuTextureView texture(Identifier id, boolean imported) {
         var manager = Minecraft.getInstance().getTextureManager();
-        // getTexture lazily loads files and preserves atlases/dynamic textures already registered.
         var texture = manager.getTexture(id);
         if (texture == null || texture.getTextureView() == null) throw new IllegalStateException("Native texture not available: " + id);
         return texture.getTextureView();
@@ -183,7 +181,6 @@ final class NativeInstanceRenderer implements AutoCloseable {
             builder.addAttribute(inputs.group(3), spec.byteOffset(), attributeStride, format,
                     inputs.group(2).equals("mat4") ? 4 : 1);
         }
-        // 26.3 binds attributes by name; 26.2 uses consecutive locations and cannot add a padding input.
         //? if >=26.3 {
         builder.addAttribute("__AmneticStride", stride - 4, 4, GpuFormat.R32_FLOAT, 1);
         //?}

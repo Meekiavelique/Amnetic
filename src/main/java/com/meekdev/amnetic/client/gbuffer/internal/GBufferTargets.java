@@ -20,7 +20,6 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
 //?}
 
 public final class GBufferTargets {
-
     public static final GBufferTargets INSTANCE = new GBufferTargets();
 
     private int fbo;
@@ -95,11 +94,6 @@ public final class GBufferTargets {
         int prevFbo = outerFbo;
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
 
-        // re-attach only once per frame (or when an attachment id changes), not on every per-object bind.
-        // GL reuses freed texture ids so an id-only cache can miss a resize that hands back the same id at a
-        // new size (model rendered into limbo after going fullscreen). targets never change size mid-frame and
-        // captureOuterState() clears attachedThisFrame each frame, so re-attaching once per frame keeps the
-        // resize safety while cutting per-model churn
         if (!attachedThisFrame || colorId != cachedColor || depthId != cachedDepth
                 || normalTex != cachedNormal || materialTex != cachedMaterial || emissiveTex != cachedEmissive || albedoTex != cachedAlbedo
                 || velocityTex != cachedVelocity || shadeTex != cachedShade) {
@@ -168,7 +162,6 @@ public final class GBufferTargets {
         GlStateManager._viewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
     }
 
-    // the outer FBO captured once this frame, lets other passes (shadows) restore it without a glGet sync
     public int outerFboId() {
         return outerFbo;
     }
@@ -176,7 +169,6 @@ public final class GBufferTargets {
     public void captureOuterState() {
         RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if (main == null) return;
-        // new frame: force one FBO re-attach for resize safety, then skip it for later binds
         attachedThisFrame = false;
         outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         savedReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);

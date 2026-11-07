@@ -4,7 +4,6 @@ import com.meekdev.amnetic.client.camera.CameraFrame;
 import com.meekdev.amnetic.client.camera.CameraModifier;
 
 public final class Shake implements CameraModifier {
-
     private float trauma;
     private float decayPerSecond = 1.0f;
     private float positionScale = 0.18f;
@@ -36,7 +35,6 @@ public final class Shake implements CameraModifier {
         if (trauma <= 0f) return;
         clock += frame.dt();
 
-        // squared so small traumas stay subtle and large ones bite
         float s = trauma * trauma;
         frame.addPositionLocal(noise(clock, 1) * s * positionScale, noise(clock, 2) * s * positionScale, 0.0);
         frame.addRotation(noise(clock, 4) * s * rotationScale * 0.5f,

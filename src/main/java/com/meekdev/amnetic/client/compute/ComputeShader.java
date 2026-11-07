@@ -17,10 +17,7 @@ import org.lwjgl.opengl.GL42;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.system.MemoryStack;
 
-// compiled once at load(), so dev hot reload can't swap it in place; recreate the
-// instance from a ShaderHotReload.onReload callback if you want live compute edits
 public final class ComputeShader implements AutoCloseable {
-
     private final int program;
 
     private ComputeShader(int program) {
@@ -63,7 +60,6 @@ public final class ComputeShader implements AutoCloseable {
         GL20.glUniform3f(GL20.glGetUniformLocation(program, name), x, y, z);
     }
 
-    // bind 2D texture to a texture unit and point the named sampler uniform at it
     public void setTexture(String name, int unit, int glTextureId) {
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, glTextureId);

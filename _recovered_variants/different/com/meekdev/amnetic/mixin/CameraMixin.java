@@ -32,7 +32,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Camera.class)
 public abstract class CameraMixin {
-
     @Shadow private Vec3 position;
     @Shadow @Final private Quaternionf rotation;
     @Shadow @Final private Vector3f forwards;
@@ -69,9 +68,6 @@ public abstract class CameraMixin {
         CameraController c = CameraController.INSTANCE;
         c.frame(position, yRot, xRot, fov);
 
-        // the projection was already built from the fov field before this ran, and nothing reads getFov to
-        // build it again: a lens held or punched has to go into the field and the projection has to be made
-        // over, or it changes a number nobody draws with
         float lens = c.hasFovOverride()
                 ? c.overrideFov() + (!c.hasOverride() || c.overrideKeepsOffsets() ? c.fovOffset() : 0f)
                 : fov + c.fovOffset();
@@ -116,14 +112,12 @@ public abstract class CameraMixin {
             setRotation(newYaw, newPitch);
         }
 
-        // after the last setRotation, which would otherwise rebuild the basis without it
         float roll = c.rollOffset() + c.overrideRoll();
         if (roll != 0f) amnetic$applyRoll((float) Math.toRadians(roll));
 
         if (c.hasPositionOffset()) {
             Vector3f w = c.worldOffset();
-            Vector3f l = c.localOffset(); // (right, up, forward)
-            // right = -left; combine the local frame into a world delta using the (now rotated) basis
+            Vector3f l = c.localOffset();
             double dx = w.x + (-left.x) * l.x + up.x * l.y + forwards.x * l.z;
             double dy = w.y + (-left.y) * l.x + up.y * l.y + forwards.y * l.z;
             double dz = w.z + (-left.z) * l.x + up.z * l.y + forwards.z * l.z;
@@ -136,7 +130,7 @@ public abstract class CameraMixin {
         up.rotateAxis(radians, forwards.x, forwards.y, forwards.z);
         left.rotateAxis(radians, forwards.x, forwards.y, forwards.z);
         //? if >=26.1 {
-        /*matrixPropertiesDirty = -1; // force view-rotation matrices to rebuild with the roll
+        /*matrixPropertiesDirty = -1;
         *///?}
     }
 

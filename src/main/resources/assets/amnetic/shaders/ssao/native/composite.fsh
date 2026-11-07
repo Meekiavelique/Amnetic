@@ -12,8 +12,6 @@ uniform int EdgeAware;
 
 #include "amnetic:shaders/common/screen.glsl"
 
-// straight 1:1 sample of the already-denoised AO, blurring a second time here only widened it
-// into a halo across silhouettes. output is the multiply source (scene *= AO)
 void main() {
     if(EdgeAware==1) {
         float depth=texture(DepthSampler,vUV).r;

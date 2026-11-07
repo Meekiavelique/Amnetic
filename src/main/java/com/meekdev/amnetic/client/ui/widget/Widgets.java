@@ -6,20 +6,14 @@ import imgui.flag.ImGuiTreeNodeFlags;
 import imgui.type.ImBoolean;
 import imgui.type.ImInt;
 
-/**
- * shared editor controls so every panel looks and behaves the same
- * (two-column label | control rows, coloured vec3 fields, uniform sliders/toggles)
- */
 public final class Widgets {
-
     private static final float LABEL_W = 116f;
-    private static final int X_COL = 0x40_4D5DF2; // faint axis tints (ABGR, low alpha)
+    private static final int X_COL = 0x40_4D5DF2;
     private static final int Y_COL = 0x40_4DF26A;
     private static final int Z_COL = 0x40_F2A04D;
 
     private Widgets() {}
 
-    /** label on the left column, next item fills the remaining width */
     private static void label(String text) {
         ImGui.alignTextToFramePadding();
         ImGui.text(text);
@@ -67,7 +61,6 @@ public final class Widgets {
         return ImGui.combo("##" + lbl, sel, items);
     }
 
-    /** three colour-tinted X/Y/Z drag fields on one row */
     public static boolean vec3(String lbl, float[] xyz, float speed) {
         label(lbl);
         boolean changed = false;
@@ -90,7 +83,6 @@ public final class Widgets {
         return c;
     }
 
-    /** collapsible section header, open by default */
     public static boolean section(String title) {
         return ImGui.collapsingHeader(title, ImGuiTreeNodeFlags.DefaultOpen);
     }

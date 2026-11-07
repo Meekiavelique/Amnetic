@@ -221,12 +221,10 @@ stonecutter parameters {
             regex(true) { replace("new (?:Identifier|ResourceLocation)\\(", "ResourceLocation.fromNamespaceAndPath(", "new (?:Identifier|ResourceLocation)\\(", "ResourceLocation.fromNamespaceAndPath(") }
             regex(true) { replace("(?:Identifier|ResourceLocation)\\.tryParse\\(", "ResourceLocation.parse(", "(?:Identifier|ResourceLocation)\\.tryParse\\(", "ResourceLocation.parse(") }
         }
-        // blend toggles take a draw buffer index since 26.2
         string(current.parsed >= "26.2") {
             replace("GlStateManager._enableBlend()", "GlStateManager._enableBlend(0)")
             replace("GlStateManager._disableBlend()", "GlStateManager._disableBlend(0)")
         }
-        // the main target moved from Minecraft onto GameRenderer in 26.2
         string(current.parsed >= "26.2") {
             replace(".getMainRenderTarget()", ".gameRenderer.mainRenderTarget()")
         }

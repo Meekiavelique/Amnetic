@@ -2,7 +2,7 @@
 
 void main() {
     float c = texture(DepthSampler, vUV).r;
-    if (IS_SKY(c)) { // sky: no surface, leave coverage 0
+    if (IS_SKY(c)) {
         GNormal = vec4(0.0);
         GMaterial = vec4(0.0);
         return;
@@ -24,8 +24,8 @@ void main() {
     vec3 n = cross(Px, Py);
     float l = length(n);
     n = (l > 1e-7) ? n / l : normalize(-P);
-    if (dot(n, P) > 0.0) n = -n; // camera-relative origin is the eye, normal faces it
+    if (dot(n, P) > 0.0) n = -n;
 
-    GNormal = vec4(n, 1.0); // coverage 1: a real normal is now present here
-    GMaterial = vec4(clamp(DefaultRoughness, 0.0, 1.0), 0.0, 0.0, 0.0); // materialId 0 = default PBR
+    GNormal = vec4(n, 1.0);
+    GMaterial = vec4(clamp(DefaultRoughness, 0.0, 1.0), 0.0, 0.0, 0.0);
 }

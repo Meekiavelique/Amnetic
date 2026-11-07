@@ -4,7 +4,6 @@ import java.util.function.Predicate;
 import net.minecraft.world.entity.Entity;
 
 public final class ShadowSettings {
-
     public static final int SPOT_GRID = 4;
     public static final int MAX_SPOT = SPOT_GRID * SPOT_GRID;
     public static final int MAX_POINT = 32;
@@ -95,7 +94,6 @@ public final class ShadowSettings {
         return this;
     }
 
-    // which entities are drawn into shadow maps, for mods that hide some entities from the world
     public ShadowSettings entityFilter(Predicate<Entity> filter) {
         if (filter != entityFilter) { entityFilter = filter; version++; }
         return this;
@@ -137,38 +135,30 @@ public final class ShadowSettings {
         return this;
     }
 
-    /** how far from the camera sun shadows reach (far edge of the loosest cascade), in blocks */
     public ShadowSettings sunDistance(float blocks) {
         float next = Math.max(16f, blocks);
         if (next != sunDistance) { sunDistance = next; version++; }
         return this;
     }
 
-    /** practical-split blend: 0 = uniform splits, 1 = fully logarithmic (tight near the camera) */
     public ShadowSettings sunSplitLambda(float lambda) {
         float next = Math.max(0f, Math.min(1f, lambda));
         if (next != sunSplitLambda) { sunSplitLambda = next; version++; }
         return this;
     }
 
-    /** extra blocks each cascade reaches toward the sun so tall off-slice geometry still casts */
     public ShadowSettings sunCasterExtension(float blocks) {
         float next = Math.max(0f, blocks);
         if (next != sunCasterExtension) { sunCasterExtension = next; version++; }
         return this;
     }
 
-    /** radius around the camera within which vanilla blocks cast sun shadows, 0 disables block occluders
-     * (custom models / instanced meshes still cast at any distance) */
     public ShadowSettings sunBlockOccluderRadius(float blocks) {
         float next = Math.max(0f, Math.min(96f, blocks));
         if (next != sunBlockOccluderRadius) { sunBlockOccluderRadius = next; version++; }
         return this;
     }
 
-    /** an opt-in time limit for the shadow bake in milliseconds, 0 = off. over it, the sun's cascades,
-     * resolution and distance are lowered step by step, and raised back once there is room again,
-     * never above what is set here */
     public ShadowSettings budgetMs(float ms) {
         float next = Math.max(0f, ms);
         if (next != budgetMs) { budgetMs = next; version++; }
@@ -179,7 +169,6 @@ public final class ShadowSettings {
         return budgetMs;
     }
 
-    /** goes up whenever a setting actually changes, so a pass can skip work while it stays put */
     public int version() {
         return version;
     }

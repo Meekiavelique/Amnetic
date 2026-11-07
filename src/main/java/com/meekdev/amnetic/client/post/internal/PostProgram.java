@@ -27,7 +27,6 @@ import org.lwjgl.opengl.GL31;
 import org.lwjgl.system.MemoryUtil;
 
 final class PostProgram implements AutoCloseable {
-
     static final Identifier SCREENQUAD = Identifier.fromNamespaceAndPath("minecraft", "core/screenquad");
 
     private static final Identifier SCREENQUAD_FILE = Identifier.fromNamespaceAndPath("amnetic", "shaders/post/screenquad.vsh");
@@ -63,7 +62,6 @@ final class PostProgram implements AutoCloseable {
     private final Map<String, Block> memberBlocks = new HashMap<>();
     private final Map<String, Integer> looseLocations = new HashMap<>();
 
-    // starts compiling and linking the pass in the background
     static ProgramLink start(Identifier vertexShader, Identifier fragmentShader) {
         String vsh = SCREENQUAD.equals(vertexShader) ? read(SCREENQUAD_FILE) : load(vertexShader, "vsh");
         String fsh = fragmentShader.equals(Identifier.fromNamespaceAndPath("minecraft", "post/blit"))

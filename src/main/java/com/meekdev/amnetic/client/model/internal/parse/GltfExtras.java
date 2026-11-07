@@ -11,9 +11,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Function;
 
-// the bits of a gltf jgltf leaves out: texture transforms, unlit materials, images by uri
 public final class GltfExtras {
-
     private final JsonArray materials;
     private final List<MaterialModel> models;
     private final Function<String, byte[]> files;
@@ -24,9 +22,7 @@ public final class GltfExtras {
         this.files = files;
     }
 
-    // KHR_texture_transform as u' = a*u + c*v + e, v' = b*u + d*v + f, on the uv set it names
     public record UvTransform(float a, float b, float c, float d, float e, float f, int texCoord) {
-
         public static UvTransform of(float offsetU, float offsetV, float rotation, float scaleU, float scaleV, int texCoord) {
             float cos = (float) Math.cos(rotation);
             float sin = (float) Math.sin(rotation);
@@ -43,7 +39,6 @@ public final class GltfExtras {
         }
     }
 
-    // the base colour map's transform, else the emissive map's, baked into the uvs since both share them
     UvTransform uvTransform(MaterialModel model) {
         JsonObject material = material(model);
         if (material == null) return null;
@@ -73,7 +68,6 @@ public final class GltfExtras {
         return UvTransform.of(offset[0], offset[1], rotation, scale[0], scale[1], texCoord);
     }
 
-    // COLOR_0 as rgba per vertex, null when missing or plain white so nothing is spent on it
     public static float[] rgba(float[] colors, int vertexCount) {
         if (colors == null || vertexCount <= 0) return null;
         int width = colors.length / vertexCount;
@@ -90,7 +84,6 @@ public final class GltfExtras {
         return white ? null : out;
     }
 
-    // a data uri decoded, else the file it names read through files, uris are percent encoded
     public static byte[] image(String uri, Function<String, byte[]> files) {
         if (uri == null || uri.isEmpty()) return null;
         if (uri.startsWith("data:")) {
@@ -130,7 +123,6 @@ public final class GltfExtras {
         return out.toString(StandardCharsets.UTF_8);
     }
 
-    // the json of a .glb or a plain .gltf, null when it cannot be read
     static JsonObject json(byte[] bytes) {
         GltfPreflight.JsonChunk chunk = GltfPreflight.json(bytes);
         if (chunk == null) return null;

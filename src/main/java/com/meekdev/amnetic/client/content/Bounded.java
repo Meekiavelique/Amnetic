@@ -5,14 +5,11 @@ import java.nio.ByteBuffer;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-// reads from game files that check every size they claim against what is really there
 public final class Bounded {
-
     private static final int INFLATE_CHUNK = 8192;
 
     private Bounded() {}
 
-    // a count of entries that must all fit in the bytes left after it
     public static int count(ByteBuffer in, int entryBytes, String what) {
         int count = in.getInt();
         if (count < 0 || (long) count * entryBytes > in.remaining()) {
@@ -25,7 +22,6 @@ public final class Bounded {
         if (!holds) throw new RejectedContentException(problem);
     }
 
-    // zlib data, refused when it ends early or grows past limit bytes
     public static byte[] inflate(byte[] compressed, int offset, int limit) {
         Inflater inflater = new Inflater();
         try {

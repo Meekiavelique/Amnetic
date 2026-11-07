@@ -26,7 +26,6 @@ import org.lwjgl.system.MemoryUtil;
 import com.meekdev.amnetic.client.material.SurfaceInputs;
 
 public final class GpuModel implements AutoCloseable {
-
     private static final int INSTANCE_STRIDE = 80;
     private static final int VERTEX_STRIDE_BYTES = ModelIR.VERTEX_STRIDE_FLOATS * Float.BYTES;
     public static final int MAX_JOINTS = 128;
@@ -162,7 +161,6 @@ public final class GpuModel implements AutoCloseable {
         draw(shader, instances, 0);
     }
 
-    /** hands over each part of a draw that blends, so the caller can sort them against everything else */
     public interface Blended {
         void add(int part, DrawInstance instance);
     }
@@ -180,7 +178,6 @@ public final class GpuModel implements AutoCloseable {
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
-    /** draws the solid parts and leaves every blended one to later */
     public void drawSolid(ModelShader shader, List<DrawInstance> instances, int lod, Blended later) {
         if (closed || instances.isEmpty()) {
             return;
@@ -203,7 +200,6 @@ public final class GpuModel implements AutoCloseable {
         GlStateManager._activeTexture(GL13.GL_TEXTURE0);
     }
 
-    /** how far the middle of one part of a draw is from the origin its world matrix is relative to */
     public float distance(int partIndex, DrawInstance instance) {
         GpuPart part = parts[partIndex];
         Vector3f middle = part.middle();
@@ -223,8 +219,6 @@ public final class GpuModel implements AutoCloseable {
                 continue;
             }
             if (!part.skinned) part.selectLod(lod);
-            // draws with their own surface inputs or look cannot share one instanced call, so the
-            // list is cut wherever those change
             int start = 0;
             while (start < instances.size()) {
                 DrawInstance first = instances.get(start);
@@ -267,7 +261,6 @@ public final class GpuModel implements AutoCloseable {
 
     private final ModelIR.Material looked = new ModelIR.Material();
 
-    // the material as this draw sees it: the file's with the look's changes on top
     private ModelIR.Material effective(int materialIndex, ModelLook draw) {
         ModelIR.Material base = materialFor(materialIndex);
         if (draw == null) {
@@ -338,7 +331,6 @@ public final class GpuModel implements AutoCloseable {
 
     private final ArrayList<DrawInstance> casting = new ArrayList<>();
 
-    // a draw showing one piece only casts that piece, and a see-through look casts nothing
     private List<DrawInstance> casting(GpuPart part, List<DrawInstance> instances) {
         boolean plain = true;
         for (DrawInstance inst : instances) {
@@ -629,8 +621,6 @@ public final class GpuModel implements AutoCloseable {
         return false;
     }
 
-    /** whether these draws can write any glow: a material that emits, a look that adds emission, or a
-     *  surface snippet, which may set its own */
     public boolean mayEmit(List<Model.Draw> draws) {
         if (hasEmissiveMaterial() || nodeShading != null) return true;
         for (ModelIR.Material mat : ir.materials()) {
@@ -662,7 +652,6 @@ public final class GpuModel implements AutoCloseable {
         TextureFilter asked = look == null ? null : look.filter();
         int sampler = 0;
         if (ownBase) {
-            // a texture handed in may have no mip levels, so it is sampled without them
             sampler = sampler(asked == TextureFilter.NEAREST ? GL11.GL_NEAREST : GL11.GL_LINEAR,
                     asked == TextureFilter.NEAREST ? GL11.GL_NEAREST : GL11.GL_LINEAR);
             GL33.glBindSampler(0, sampler);
@@ -702,7 +691,6 @@ public final class GpuModel implements AutoCloseable {
         return true;
     }
 
-    // leaving a sampler bound would follow us out into vanilla's own draws
     private void clearSamplerState() {
         for (int unit = 0; unit < 4; unit++) {
             GL33.glBindSampler(unit, 0);

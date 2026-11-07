@@ -18,7 +18,6 @@ import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Owned RenderPearl attachments. Views are closed before their backing textures. */
 public final class NativeFramebuffer implements AutoCloseable {
     private static final Map<GpuFormat, NativeScreenProgram> BLITS =
             new EnumMap<>(GpuFormat.class);

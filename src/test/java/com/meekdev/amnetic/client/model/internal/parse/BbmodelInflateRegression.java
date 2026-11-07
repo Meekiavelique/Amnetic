@@ -9,7 +9,6 @@ import java.util.Base64;
 import java.util.zip.DeflaterOutputStream;
 
 public final class BbmodelInflateRegression {
-
     private static final int BOMB_BYTES = 512 * 1024 * 1024;
     private static final int CHUNK = 1 << 20;
 
@@ -23,7 +22,6 @@ public final class BbmodelInflateRegression {
                 () -> BbmodelParser.parse(compressed(Arrays.copyOf(whole, whole.length / 2)), "cut"));
     }
 
-    // zeros, deflated the way blockbench writes them, behind its marker byte
     private static byte[] deflated(int size) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         bytes.write(1);

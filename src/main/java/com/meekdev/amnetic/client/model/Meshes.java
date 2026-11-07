@@ -2,31 +2,17 @@ package com.meekdev.amnetic.client.model;
 
 import com.meekdev.amnetic.client.model.internal.ModelIR;
 
-/**
- * builds {@link Model}s from raw vertex arrays for procedural geometry that never comes from a
- * glTF/.ammesh source. interleaves separate position/normal/uv arrays into the packed vertex layout
- * (pos3, normal3, uv2 = {@value ModelIR#VERTEX_STRIDE_FLOATS} floats per vertex) and fills in
- * defaults so callers only supply what they have
- */
 public final class Meshes {
-
     private Meshes() {}
 
-    // positions only: smooth normals computed, UVs zero, sequential triangle-list indices
     public static Model build(float[] positions) {
         return build(positions, null, null, null, new ModelIR.Material());
     }
 
-    /**
-     * positions are xyz per vertex. normals, uvs and indices may each be null: null normals get
-     * smooth normals computed from the triangles, null uvs become (0,0), null indices become a
-     * sequential list (0,1,2,...)
-     */
     public static Model build(float[] positions, float[] normals, float[] uvs, int[] indices) {
         return build(positions, normals, uvs, indices, new ModelIR.Material());
     }
 
-    // same as build(positions, normals, uvs, indices) but with a caller-supplied material
     public static Model build(float[] positions, float[] normals, float[] uvs, int[] indices,
                               ModelIR.Material material) {
         if (positions == null || positions.length == 0 || positions.length % 3 != 0) {
@@ -61,7 +47,6 @@ public final class Meshes {
 
         ModelIR ir = new ModelIR();
         int mat = ir.addMaterial(material == null ? new ModelIR.Material() : material);
-        // nodeIndex -1 means no skeleton, GpuModel falls back to the part transform (identity here)
         ir.addPart(new ModelIR.Part(interleaved, null, indices, mat, -1, null, "procedural"));
         return Models.fromIR(ir);
     }
@@ -88,7 +73,6 @@ public final class Meshes {
             float e1x = bx - ax, e1y = by - ay, e1z = bz - az;
             float e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
 
-            // face normal e1 x e2 left unnormalized so larger triangles weight more
             float nx = e1y * e2z - e1z * e2y;
             float ny = e1z * e2x - e1x * e2z;
             float nz = e1x * e2y - e1y * e2x;

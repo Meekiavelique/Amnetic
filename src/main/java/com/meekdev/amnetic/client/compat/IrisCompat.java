@@ -6,7 +6,6 @@ import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.slf4j.LoggerFactory;
 
-/** Optional Iris access; neither Iris nor a shader pack is required. */
 public final class IrisCompat {
     private static final boolean INSTALLED = Platform.isModLoaded("iris") || Platform.isModLoaded("oculus");
     private static Object api, capturedState;

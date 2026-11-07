@@ -7,9 +7,7 @@ import imgui.ImGui;
 import imgui.type.ImBoolean;
 import imgui.type.ImInt;
 
-/** adapter exposing a {@link Light} to the editor (outliner entry + gizmo transform + inspector controls) */
 public final class LightSelectable implements Selectable, Transformable {
-
     private static final String[] IES = {"None", "Narrow", "Wide wash", "Multi-lobe", "Tight beam", "Ribbed"};
 
     private final Light light;

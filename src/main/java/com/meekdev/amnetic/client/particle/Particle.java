@@ -3,7 +3,6 @@ package com.meekdev.amnetic.client.particle;
 import com.meekdev.amnetic.client.anim.Easing;
 
 public final class Particle {
-
     public double x, y, z;
     public double vx, vy, vz;
 
@@ -37,8 +36,6 @@ public final class Particle {
     float rAge;
     float rUvOffX, rUvOffY, rUvScaleX = 1f, rUvScaleY = 1f;
 
-    // trail history: ring buffer of recent world positions (x,y,z per sample), null unless the material
-    // uses trails. trailHead is the next slot to write, trailCount is how many valid samples exist
     public double[] trail;
     public int trailHead, trailCount;
 
@@ -67,6 +64,6 @@ public final class Particle {
         alive = false;
         colliding = false;
         trailHead = 0;
-        trailCount = 0; // keep the array allocated for reuse from the pool
+        trailCount = 0;
     }
 }

@@ -5,14 +5,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * where each {@code uniform} a surface snippet declares lives in {@link SurfaceInputs}. the snippet
- * is written with ordinary declarations, {@code uniform float progress;} or
- * {@code uniform sampler2D mask;}, and {@link #parse(String)} turns them into slots and the snippet
- * into a body that reads those slots
- */
 public final class SurfaceLayout {
-
     public enum Kind { FLOAT, INT, BOOL, VEC2, VEC3, VEC4, TEXTURE }
 
     public record Slot(Kind kind, int index) {}

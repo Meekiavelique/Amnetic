@@ -77,7 +77,6 @@ public abstract class GameRendererMixin {
             ci.cancel();
             return;
         }
-        // 26.1 and later pass the camera model view here, the hand projection lives in hudProjection
         Matrix4fc handProjection = hudProjection.getMatrix(new Matrix4f());
     //?} else if >=1.21.5 {
     /*@Shadow @Final private Camera mainCamera;
@@ -222,12 +221,9 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "renderItemInHand", at = @At("TAIL"))
     private void amnetic$endHandLayer(CallbackInfo ci) {
-        // draw the custom held model now, same frame as its captured pose, so it tracks view bob 1:1
         HandModels.render();
-        // view-space models draw right after the hand, sharing the same FOV/frame
         ViewModels.render();
         LayerSystem.INSTANCE.end(RenderLayer.HAND);
-        // here and not at the OVERLAY injection, that one fires before the hand draws
         Pipeline.runStage(RenderStage.AFTER_HAND);
     }
 

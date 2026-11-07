@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class AfterWorldRender {
-
     private static final List<Runnable> CALLBACKS = new ArrayList<>();
 
     private AfterWorldRender() {}
@@ -18,7 +17,6 @@ public final class AfterWorldRender {
             try {
                 CALLBACKS.get(i).run();
             } catch (Throwable e) {
-                // never crash the frame
             }
         }
     }

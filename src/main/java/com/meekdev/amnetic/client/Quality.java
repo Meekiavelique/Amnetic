@@ -6,24 +6,17 @@ import com.meekdev.amnetic.client.ssao.Ssao;
 import com.meekdev.amnetic.client.ssgi.Ssgi;
 import com.meekdev.amnetic.client.ssr.Ssr;
 
-/** one-call quality presets for the whole screen-space effect stack. each preset tunes SSAO, SSGI, SSR
- *  and Bloom together to trade performance for fidelity. systems stay fully configurable afterwards via
- *  their own settings() (e.g. Ssr.settings().maxSteps(48)); a preset is just a starting point */
 public final class Quality {
-
     private Quality() {}
 
-    // everything off, cheapest, vanilla-ish look
     public static void off() {
         Ssao.disable();
         Ssgi.disable();
         Ssr.disable();
         Bloom.disable();
-        // reset lighting too, otherwise ultra's exposure bump sticks around
         ModelLighting.INSTANCE.tonemap(true).exposure(1.0f);
     }
 
-    // cheap AO + emissive bloom only, good for low-end / high-FPS
     public static void low() {
         Ssao.enable();
         Ssao.settings().scale(0.5f).intensity(0.9f).radius(0.6f).temporal(true);
@@ -34,7 +27,6 @@ public final class Quality {
         ModelLighting.INSTANCE.tonemap(true).exposure(1.0f);
     }
 
-    // balanced default: AO + GI + half-res temporal SSR + bloom
     public static void balanced() {
         Ssao.enable();
         Ssao.settings().scale(0.5f).intensity(1.0f).radius(0.7f).temporal(true);
@@ -49,7 +41,6 @@ public final class Quality {
         ModelLighting.INSTANCE.tonemap(true).exposure(1.0f);
     }
 
-    // full-res temporal SSR, high-quality AO/GI, big bloom
     public static void ultra() {
         Ssao.enable();
         Ssao.settings().scale(1.0f).intensity(1.0f).radius(0.8f).temporal(true);

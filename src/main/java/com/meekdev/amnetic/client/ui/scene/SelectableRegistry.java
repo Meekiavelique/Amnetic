@@ -12,12 +12,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
-/**
- * enumerates the live scene objects as {@link Selectable} adapters, rebuilt each frame
- * stable display names are cached by object identity
- */
 public final class SelectableRegistry {
-
     private static final Map<Object, String> NAMES = new IdentityHashMap<>();
     private static final List<Supplier<List<Selectable>>> PROVIDERS = new CopyOnWriteArrayList<>();
     private static int counter;
@@ -41,7 +36,6 @@ public final class SelectableRegistry {
                 List<Selectable> extra = provider.get();
                 if (extra != null) out.addAll(extra);
             } catch (RuntimeException ignored) {
-                // a broken provider must not take the outliner down with it
             }
         }
         return out;

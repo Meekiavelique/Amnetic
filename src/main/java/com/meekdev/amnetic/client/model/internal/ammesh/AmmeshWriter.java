@@ -11,10 +11,8 @@ import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 
 public final class AmmeshWriter {
-
     private AmmeshWriter() {}
 
-    // keeps an image somewhere else and names it by a key, null keeps the bytes in the file
     public interface Images {
         String put(byte[] image, boolean srgb);
     }
@@ -91,7 +89,6 @@ public final class AmmeshWriter {
             writeFloats(out, part.colors);
         }
 
-        // the coarser levels after the full one, a level the same as the one before is only said so
         int[][] lods = part.lods;
         float[] errors = part.lodErrors;
         int levels = lods == null || errors == null ? 0 : Math.min(lods.length, errors.length);
@@ -112,7 +109,6 @@ public final class AmmeshWriter {
         out.writeFloat(mat.metallic); out.writeFloat(mat.roughness); out.writeFloat(mat.transmission);
         out.writeFloat(mat.emR); out.writeFloat(mat.emG); out.writeFloat(mat.emB);
         out.writeFloat(mat.alphaCutoff);
-        // was the shading model id, now flags: 1 nearest base colour filter, 2 unlit
         out.writeInt((mat.baseColorFilter == TextureFilter.NEAREST ? 1 : 0) | (mat.unlit ? 2 : 0));
         out.writeBoolean(mat.blend);
         out.writeBoolean(mat.doubleSided);
@@ -123,8 +119,6 @@ public final class AmmeshWriter {
         writeTextureSlot(out, mat.emissiveTexture, mat.emissiveImageBytes, mat.emissiveImageKey, images, true);
     }
 
-    // texture reference: prefer an Identifier (path), only fall back to embedded bytes when the
-    // source glTF had no external path to reference (data-uri / bufferView image)
     private static void writeTextureSlot(DataOutputStream out, Identifier texId, byte[] bytes, String key, Images images, boolean srgb)
             throws IOException {
         out.writeBoolean(texId != null);
@@ -168,7 +162,6 @@ public final class AmmeshWriter {
         }
     }
 
-    // big arrays go out in one block, the same big endian bytes writeFloat makes
     private static void writeFloats(DataOutputStream out, float[] values) throws IOException {
         ByteBuffer block = ByteBuffer.allocate(values.length * Float.BYTES);
         block.asFloatBuffer().put(values);

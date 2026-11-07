@@ -1,17 +1,14 @@
 #version 330 core
 
-// dual source: the added light goes to index 0, how much of the surface shows through goes to index 1
 layout(location = 0, index = 0) out vec4 AddColor;
 layout(location = 0, index = 1) out vec4 Transmit;
 
 #include "amnetic:shaders/decal/film_common.glsl"
 #include "amnetic:shaders/decal/film_pixel.glsl"
 
-// copy of the frame before the films went on, for screen space reflections
 uniform sampler2D SceneColor;
 uniform mat4 ViewProj;
 uniform mat4 View;
-// strength 0..1 (0 skips the march), max ray length in world units
 uniform vec2 ScreenReflect;
 
 float filmLinZ(vec3 p) {
@@ -24,7 +21,6 @@ vec2 filmProject(vec3 p, out float w) {
     return (c.xy / max(c.w, 1e-5)) * 0.5 + 0.5;
 }
 
-// marches the reflected ray through the depth copy, rgb what it hit, a how much of it to trust
 vec4 filmTrace(vec3 P, vec3 R, float rough, float NdV) {
     const int STEPS = 14;
     float maxDist = ScreenReflect.y;
@@ -55,9 +51,7 @@ vec4 filmTrace(vec3 P, vec3 R, float rough, float NdV) {
             }
             vec2 huv = filmProject(b, w);
             float gap = filmLinZ(b) - filmLinZ(reconstruct(huv, texture(DepthSampler, huv).r));
-            // thin stuff in front of the ray isn't a hit, it'd smear foreground objects into the pool
             if (gap > 0.35 + travelled * 0.08) return vec4(0.0);
-            // a little blur that grows with roughness and how far the ray went, grazing views stay sharp
             vec2 blur = vec2(0.0015 + rough * 0.04) * clamp(travelled / 6.0, 0.15, 1.0) * (0.25 + 0.75 * NdV);
             blur.x *= float(textureSize(SceneColor, 0).y) / float(textureSize(SceneColor, 0).x);
             vec3 col = texture(SceneColor, huv).rgb * 0.4
@@ -70,7 +64,6 @@ vec4 filmTrace(vec3 P, vec3 R, float rough, float NdV) {
             return vec4(col, fade);
         }
     }
-    // missed everything: if the reflected direction lands on visible sky, show that sky with its clouds
     vec2 skyUv = filmProject(P + R * 400.0, w);
     if (w > 0.0 && all(greaterThan(skyUv, vec2(0.0))) && all(lessThan(skyUv, vec2(1.0)))
             && IS_SKY(texture(DepthSampler, skyUv).r)) {
@@ -88,26 +81,22 @@ void main() {
     FilmSample s;
     if (!filmSample(s)) discard;
 
-    // beer lambert through the liquid, ageing shifts it from bright red to brown
     vec3 absorb = mix(Absorb, AbsorbAged, s.age);
     vec3 liquid = exp(-absorb * s.t);
     vec3 T = mix(vec3(1.0), liquid, s.cov);
     T *= mix(vec3(1.0), StainTint, s.stain);
 
-    // light around this spot, from the texel's light levels
     float sky = s.sky * s.sky;
     float blk = s.block * s.block;
     vec3 ambient = SkyColor * sky + BlockColor * blk;
     vec3 add = Scatter * (1.0 - liquid.g) * s.cov * ambient;
 
-    // the wet top reflects, fresnel by view angle, a sharp sun glint where the sky reaches it
     float wet = s.wet * s.cov;
     float NdV = max(dot(s.N, s.V), 0.0);
     float F = Reflectance + (1.0 - Reflectance) * pow(1.0 - NdV, 5.0);
     vec3 R = reflect(-s.V, s.N);
     vec3 env = mix(SkyColor * 0.35, SkyColor, clamp(R.y * 2.0, 0.0, 1.0)) * sky + BlockColor * blk * 0.4;
     float rough = mix(Rough.y, Rough.x, s.wet);
-    // the actual scene in the wet top, the sky gradient stays as the fallback where the ray finds nothing
     if (ScreenReflect.x > 0.0 && wet * s.mask > 0.02 && R.y > 0.0) {
         vec4 hit = filmTrace(s.P, R, rough, NdV);
         env = mix(env, hit.rgb, hit.a * ScreenReflect.x);
@@ -122,10 +111,8 @@ void main() {
     float sunVis = smoothstep(0.6, 1.0, s.sky) * clamp(SunDir.y * 4.0, 0.0, 1.0);
     vec3 spec = SunColor * min(D * F * NdL * 0.25, 8.0) * sunVis * Specular;
     add += (env * F + spec) * wet;
-    // drops landing, a small bright fleck lit by whatever light is around
     add += (SkyColor * sky * 1.6 + BlockColor * blk + SunColor * sunVis * 0.5) * s.splash * 0.35;
 
-    // what gets reflected doesn't also come through from underneath
     T *= 1.0 - F * wet * 0.8;
     T = mix(vec3(1.0), T, s.mask);
     add *= s.mask;

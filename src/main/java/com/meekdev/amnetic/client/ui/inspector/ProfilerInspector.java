@@ -8,10 +8,7 @@ import imgui.flag.ImGuiTableColumnFlags;
 import imgui.flag.ImGuiTableFlags;
 import java.util.List;
 
-// every pass and outside timing, most expensive first, with a bar for its share of the frame.
-// timing only runs while this window is open
 public final class ProfilerInspector extends Inspector {
-
     private static final float BAR_HEIGHT = 5f;
 
     public ProfilerInspector() {

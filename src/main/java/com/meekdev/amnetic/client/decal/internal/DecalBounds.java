@@ -4,9 +4,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
-// screen rect of a projection box, so a decal only shades the pixels it can touch instead of the whole screen
 public final class DecalBounds {
-
     private final int[] rect = new int[4];
     private boolean savedScissor;
 
@@ -15,9 +13,6 @@ public final class DecalBounds {
         for (int i = 0; i < 8; i++) clip[i] = new Vector4f();
     }
 
-    // box maps local [0,1]^3 (or [-0.5,0.5]^3 when centered) to camera relative world. false means off screen, skip it
-    // corners behind the camera are handled by clipping the box edges against a plane just in front of the eye,
-    // so standing inside a pool still gives a tight rect instead of the whole screen
     public boolean compute(Matrix4f viewProj, Matrix4f boxToWorld, boolean centered, int width, int height) {
         int outLeft = 0, outRight = 0, outBottom = 0, outTop = 0;
         float lo = centered ? -0.5f : 0f, hi = centered ? 0.5f : 1f;
@@ -25,7 +20,6 @@ public final class DecalBounds {
             Vector4f c = clip[i].set((i & 1) == 0 ? lo : hi, (i & 2) == 0 ? lo : hi, (i & 4) == 0 ? lo : hi, 1f);
             boxToWorld.transform(c);
             viewProj.transform(c);
-            // side planes are plain half spaces in clip space, valid for points behind the eye too
             if (c.x < -c.w) outLeft++;
             if (c.x > c.w) outRight++;
             if (c.y < -c.w) outBottom++;
@@ -36,7 +30,6 @@ public final class DecalBounds {
         for (int i = 0; i < 8; i++) {
             Vector4f a = clip[i];
             if (a.w > EPS) add(a.x / a.w, a.y / a.w);
-            // the 3 edges leaving this corner along +x +y +z, each edge visited once
             for (int bit = 1; bit < 8; bit <<= 1) {
                 if ((i & bit) != 0) continue;
                 Vector4f b = clip[i | bit];
@@ -46,7 +39,7 @@ public final class DecalBounds {
                 add(x / EPS, y / EPS);
             }
         }
-        if (bx0 > bx1) return false; // whole box behind the camera
+        if (bx0 > bx1) return false;
         int x0 = (int) Math.floor((clampNdc(bx0) * 0.5f + 0.5f) * width) - 1;
         int y0 = (int) Math.floor((clampNdc(by0) * 0.5f + 0.5f) * height) - 1;
         int x1 = (int) Math.ceil((clampNdc(bx1) * 0.5f + 0.5f) * width) + 1;

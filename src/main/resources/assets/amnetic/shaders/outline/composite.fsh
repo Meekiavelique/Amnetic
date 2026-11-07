@@ -17,13 +17,11 @@ float sceneDist(vec2 uv) {
     float d = texture(SceneDepth, uv).r;
     float z = (ZeroToOne == 1) ? d : d * 2.0 - 1.0;
     vec4 p = InvProj * vec4(uv * 2.0 - 1.0, z, 1.0);
-    // far plane of an infinite projection, nothing there can hide the outline
     if (abs(p.w) < 1e-6) return 1e9;
     return length(p.xyz / p.w);
 }
 
 void main() {
-    // only the ring outside the shape, the shape itself stays untouched
     if (texture(MaskDist, vUV).r > 0.0) discard;
 
     float reach = Width + 0.5;
@@ -45,7 +43,6 @@ void main() {
     }
     if (best > 1e8) discard;
 
-    // walls in front of the shape hide its outline too
     float shape = texture(MaskDist, bestUv).r;
     if (sceneDist(vUV) < shape - max(0.08, shape * 0.02)) discard;
 

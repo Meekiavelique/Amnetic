@@ -1,9 +1,6 @@
 package com.meekdev.amnetic.client.shadow.internal;
 
-/** walks the sun shadow down a ladder of cheaper settings while the bake runs over its budget and
- * back up once it has room again. each step only ever lowers what the place set */
 final class ShadowGovernor {
-
     private static final int[] RESOLUTION_SHIFT = {0, 0, 1, 1, 1, 2, 2};
     private static final int[] CASCADES_DROPPED = {0, 0, 0, 1, 1, 2, 3};
     private static final float[] DISTANCE = {1f, 0.75f, 0.75f, 0.75f, 0.6f, 0.6f, 0.5f};
@@ -12,7 +9,6 @@ final class ShadowGovernor {
     private static final int OVER_FRAMES = 10;
     private static final int UNDER_FRAMES = 90;
     private static final int MAX_WAIT = 90 * 32;
-    // under this share of the budget there is room to go back up a step
     private static final float ROOM = 0.6f;
 
     private int step;
@@ -24,7 +20,6 @@ final class ShadowGovernor {
 
     int step() { return step; }
 
-    // true when the step changed
     boolean observe(float ms, float budget) {
         if (budget <= 0f) {
             boolean was = step != 0;
@@ -39,7 +34,6 @@ final class ShadowGovernor {
         if (average > budget) {
             under = 0;
             if (++over < OVER_FRAMES || step >= STEPS) return false;
-            // a step that went over again right after it was raised back waits longer next time
             if (sinceRaise < UNDER_FRAMES * 2) wait = Math.min(wait * 2, MAX_WAIT);
             step++;
             settle();

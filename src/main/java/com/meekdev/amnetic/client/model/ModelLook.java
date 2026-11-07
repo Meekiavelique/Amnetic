@@ -3,13 +3,7 @@ package com.meekdev.amnetic.client.model;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * what one draw of a model changes: the piece of the file it shows, and its materials, for every
- * material at once and per material name. it travels with the draw, so two draws of the same model
- * in one frame can look different
- */
 public final class ModelLook {
-
     private Model.Piece piece;
     private final MaterialLook all = new MaterialLook();
     private final Map<String, MaterialLook> named = new HashMap<>();
@@ -47,8 +41,6 @@ public final class ModelLook {
         return false;
     }
 
-    // whether a draw with this look and one with other come out the same, the same piece and the same changes
-    // a material named on one side only counts as the same when it changes nothing
     public boolean sameAs(ModelLook other) {
         if (other == this) return true;
         if (other == null || piece != other.piece || !all.sameAs(other.all)) return false;
@@ -65,7 +57,6 @@ public final class ModelLook {
 
     private static final MaterialLook PLAIN = new MaterialLook();
 
-    // equal for looks that are sameAs each other
     public int contentHash() {
         int h = System.identityHashCode(piece) * 31 + all.contentHash();
         for (Map.Entry<String, MaterialLook> entry : named.entrySet()) {
@@ -77,7 +68,6 @@ public final class ModelLook {
 
     private static final int PLAIN_HASH = PLAIN.contentHash();
 
-    /** the changes that land on the material called name, all-material ones first */
     public MaterialLook resolve(String name) {
         merged.reset();
         all.onto(merged);

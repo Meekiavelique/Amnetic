@@ -7,10 +7,9 @@ import java.util.Map;
 import java.util.Set;
 
 public final class OccluderMeshCache {
-
     private static final class Slot {
         OccluderMesh mesh;
-        List<OccluderEntry> builtFrom; // identity of the list the mesh was built from
+        List<OccluderEntry> builtFrom;
     }
 
     private final Map<Long, Slot> byId = new HashMap<>();

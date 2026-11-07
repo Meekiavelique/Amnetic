@@ -11,7 +11,6 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public final class ModelIR {
-
     public static final int VERTEX_STRIDE_FLOATS = 8;
 
     private final List<Part> parts = new ArrayList<>();
@@ -89,9 +88,6 @@ public final class ModelIR {
         public int[] jointNodes;
         public Matrix4f[] inverseBind;
 
-        // pregenerated LOD index lists over vertices (lods[0] = full detail, higher = coarser)
-        // null until ModelLod finishes on a background thread, volatile for that cross-thread publish
-        // skinned parts are not simplified
         public volatile int[][] lods;
 
         public Part(float[] vertices, float[] tangents, int[] indices, int materialIndex,
@@ -136,14 +132,14 @@ public final class ModelIR {
         public float metallic = 0f;
         public float roughness = 1f;
         public float transmission = 0f;
-        public int baseColorGlId = 0; // caller-owned live GL texture overriding the base colour map (0 = none)
+        public int baseColorGlId = 0;
         public TextureFilter baseColorFilter = TextureFilter.LINEAR;
-        public int emissiveGlId = 0; // caller-owned live GL texture overriding the emissive map (0 = none)
+        public int emissiveGlId = 0;
         public float emR = 0f;
         public float emG = 0f;
         public float emB = 0f;
         public float alphaCutoff = 0f;
-        public int shadingModelId = 0; // 0 = built-in default PBR, else ShadingModelRegistry id
+        public int shadingModelId = 0;
         public boolean blend = false;
         public boolean doubleSided = false;
 

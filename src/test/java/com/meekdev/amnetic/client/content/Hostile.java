@@ -1,9 +1,6 @@
 package com.meekdev.amnetic.client.content;
 
-// runs a hostile sample and proves it was refused quickly with a reason, not after hanging or allocating gigabytes
-// the regression runs on a small heap, so a decoder that allocates what a sample claims fails with out of memory
 public final class Hostile {
-
     private static final long FAST_MILLIS = 2000;
 
     public interface Sample {

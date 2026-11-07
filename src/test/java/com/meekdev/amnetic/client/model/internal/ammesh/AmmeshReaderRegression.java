@@ -7,7 +7,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 public final class AmmeshReaderRegression {
-
     private static final int MATRIX_FLOATS = 16;
 
     private AmmeshReaderRegression() {}
@@ -26,7 +25,6 @@ public final class AmmeshReaderRegression {
         System.out.println("PASS: a real .ammesh node tree reads");
     }
 
-    // a header and the start of one part whose vertex array claims count floats and holds none
     private static byte[] claimingVertices(int count) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bytes);

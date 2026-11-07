@@ -13,7 +13,6 @@ import com.mojang.blaze3d.systems.RenderSystem;
 //?}
 
 public final class ComputeCapabilities {
-
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final AtomicBoolean probed = new AtomicBoolean(false);
     private static volatile boolean computeAvailable;
@@ -39,7 +38,6 @@ public final class ComputeCapabilities {
         }
 
         GLCapabilities caps = GL.getCapabilities();
-        // either full GL 4.3 or the ARB extension works for us
         boolean hasCompute = caps.OpenGL43 || caps.GL_ARB_compute_shader;
         computeAvailable = hasCompute;
 

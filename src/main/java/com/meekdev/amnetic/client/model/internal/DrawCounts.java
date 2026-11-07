@@ -2,9 +2,7 @@ package com.meekdev.amnetic.client.model.internal;
 
 import com.meekdev.amnetic.client.model.ModelStats;
 
-// counts what the model pass sent to the graphics card, read back as the last whole frame
 public final class DrawCounts {
-
     public static final int LEVELS = 4;
 
     private static boolean counting;
@@ -40,7 +38,6 @@ public final class DrawCounts {
         levels[Math.min(Math.max(level, 0), LEVELS - 1)] += count;
     }
 
-    // shadow passes run between two main passes, they land in the next frame's numbers
     static void shadow() {
         shadowDraws++;
     }

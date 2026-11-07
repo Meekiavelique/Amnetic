@@ -31,7 +31,6 @@ import java.util.Optional;
 import java.util.function.Function;
 
 final class PostPipeline implements AutoCloseable {
-
     static final Identifier MAIN = Identifier.fromNamespaceAndPath("minecraft", "main");
 
     record Input(String sampler, Identifier target, Identifier texture, boolean depth, boolean bilinear) {}
@@ -145,7 +144,6 @@ final class PostPipeline implements AutoCloseable {
         return channels[3] << 24 | channels[0] << 16 | channels[1] << 8 | channels[2];
     }
 
-    // starts the links this effect needs and takes in the finished ones in order, true while some are left
     boolean warm() {
         if (programs.size() >= passes.size()) return false;
         startLinks();
@@ -154,7 +152,6 @@ final class PostPipeline implements AutoCloseable {
     }
 
     private void startLinks() {
-        // without parallel compiling a start compiles in place, so one at a time
         int most = ProgramLink.parallel() ? passes.size() : programs.size() + 1;
         while (links.size() < most) {
             Pass pass = passes.get(links.size());

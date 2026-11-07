@@ -7,10 +7,7 @@ import com.meekdev.amnetic.client.camera.effect.Spring;
 import com.meekdev.amnetic.client.camera.internal.CameraController;
 import net.minecraft.world.phys.Vec3;
 
-// shake, kick and spring are ordinary CameraModifiers, nothing here reaches past the same
-// api your own modifier would use
 public final class CameraEffects {
-
     private static Shake shake;
     private static Spring spring;
 
@@ -83,8 +80,6 @@ public final class CameraEffects {
         c().clear();
     }
 
-    // the shared instances drop out of the list when they settle, re-adding rather than
-    // remaking them is what keeps a shakeDecay or a stiffness set earlier
     private static Shake shake() {
         if (shake == null) shake = new Shake();
         addModifier(shake);

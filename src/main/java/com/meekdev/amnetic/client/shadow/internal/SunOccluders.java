@@ -13,9 +13,7 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 final class SunOccluders {
-
     private static final long BUDGET_NANOS = 1_000_000L;
-    // even a cold start has to stay under a frame, otherwise entering a new area hitches
     private static final long COLD_BUDGET_NANOS = 6_000_000L;
     private static final LongOpenHashSet DIRTY = new LongOpenHashSet();
 
@@ -90,7 +88,6 @@ final class SunOccluders {
     private int lastSx = Integer.MIN_VALUE, lastSy, lastSz;
     private float lastR = -1f;
 
-    // sections around the camera, nearest first. only redone when the camera changes section
     private void collectWanted(float cx, float cy, float cz, float r) {
         wanted.clear();
         wantedSet.clear();

@@ -10,7 +10,6 @@ import imgui.ImGui;
 import org.joml.Vector4f;
 
 public final class LightGizmo {
-
     public static boolean enabled = true;
     public static Light selected;
 
@@ -30,7 +29,7 @@ public final class LightGizmo {
         Light hit = null;
         float hitD2 = HIT_RADIUS * HIT_RADIUS;
 
-        ImDrawList dl = ImGui.getBackgroundDrawList(); // behind panels, over the world
+        ImDrawList dl = ImGui.getBackgroundDrawList();
         Vector4f tmp = new Vector4f();
         int idx = 0;
         for (Light light : LightRegistry.INSTANCE.all()) {
@@ -57,8 +56,6 @@ public final class LightGizmo {
             idx++;
         }
 
-        // click-select feeds the shared selection used by the transform gizmo
-        // skipped mid handle-drag so dragging doesn't re-pick, empty click clears
         if (clickable && !GizmoLayer.isDragging()) {
             selected = hit;
             EditorSelection.setTarget(hit);
@@ -74,11 +71,11 @@ public final class LightGizmo {
         switch (type) {
             case POINT -> {
                 Gizmos.ring(dl, cam, tmp, w, h, shape, light.x(), light.y(), light.z(),
-                        range, 0, 0, 0, 0, range, 24); // XZ
+                        range, 0, 0, 0, 0, range, 24);
                 Gizmos.ring(dl, cam, tmp, w, h, shape, light.x(), light.y(), light.z(),
-                        range, 0, 0, 0, range, 0, 24); // XY
+                        range, 0, 0, 0, range, 0, 24);
                 Gizmos.ring(dl, cam, tmp, w, h, shape, light.x(), light.y(), light.z(),
-                        0, range, 0, 0, 0, range, 24); // YZ
+                        0, range, 0, 0, 0, range, 24);
             }
             case SPOT -> {
                 float outer = (float) Math.acos(Math.max(-1f, Math.min(1f, light.cosOuter())));

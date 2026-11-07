@@ -9,7 +9,6 @@ import com.meekdev.amnetic.client.camera.CameraModifier;
 import net.minecraft.world.phys.Vec3;
 
 public final class Kick implements CameraModifier {
-
     private final Vec3 position;
     private final float pitch;
     private final float yaw;
@@ -32,7 +31,6 @@ public final class Kick implements CameraModifier {
     @Override
     public void modify(CameraFrame frame) {
         clock.update(frame.dt());
-        // full at the start, gone at the end
         float env = easing.apply(1f - clock.value());
         if (position.lengthSqr() > 0) {
             frame.addPosition(position.x * env, position.y * env, position.z * env);

@@ -18,7 +18,6 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-/** JSON post passes using owned native targets and copied feedback inputs. */
 final class NativePostPipeline implements AutoCloseable {
     private record Program(NativeScreenProgram shader, Map<String, List<String>> blocks, GpuFormat format) {}
     private final Identifier id;
@@ -110,7 +109,6 @@ final class NativePostPipeline implements AutoCloseable {
     }
 
     private static String flatten(String source,Map<String,List<String>> blocks) {
-        // Imported files may contain their own version directive.
         int first=source.indexOf('\n');
         source=source.substring(0,first+1)+source.substring(first+1).replaceAll("(?m)^\\s*#version[^\\r\\n]*","");
         var matcher=BLOCK.matcher(source);var result=new StringBuffer();
@@ -125,7 +123,6 @@ final class NativePostPipeline implements AutoCloseable {
             blocks.put(matcher.group(1),fields);matcher.appendReplacement(result,Matcher.quoteReplacement(declarations.toString()));
         }
         matcher.appendTail(result);
-        // Native fullscreen triangles expose the same normalized UV at location zero.
         return result.toString().replaceAll("\\btexCoord\\b","vUV");
     }
 

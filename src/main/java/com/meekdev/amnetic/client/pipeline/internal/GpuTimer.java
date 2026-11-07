@@ -6,11 +6,7 @@ import org.lwjgl.opengl.GL33;
 import com.mojang.renderpearl.api.commands.GpuQueryPool;
 //?}
 
-// a ring of GL_TIME_ELAPSED queries. CPU nanoTime only measures submit time, not what the GPU actually
-// spends, so a GPU-bound pass can look free on the CPU timeline. results are read a few frames later and
-// only once the driver says they are ready, so reading never stalls the frame
 public final class GpuTimer {
-
     private static final int RING = 4;
 
     private final int[] queries = new int[RING];
@@ -29,7 +25,6 @@ public final class GpuTimer {
         *///?}
     }
 
-    // false when every query is still in flight; the pass then runs untimed this frame
     public boolean begin() {
         if (pending[write]) return false;
         //? if >=26.2 {
@@ -50,7 +45,6 @@ public final class GpuTimer {
         write = (write + 1) % RING;
     }
 
-    // the oldest finished result in ms, -1 when none has landed since the last call
     public float poll() {
         float ms = -1f;
         //? if >=26.2 {

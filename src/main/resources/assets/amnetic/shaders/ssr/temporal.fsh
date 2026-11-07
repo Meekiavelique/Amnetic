@@ -3,8 +3,8 @@
 in vec2 vUV;
 out vec4 FragColor;
 
-uniform sampler2D Raw; // current reflection (rgb = colour, a = strength)
-uniform sampler2D History; // previous resolved reflection
+uniform sampler2D Raw;
+uniform sampler2D History;
 uniform sampler2D DepthSampler;
 uniform mat4 PrevViewProj;
 uniform mat4 InvViewProj;
@@ -14,9 +14,6 @@ uniform float Feedback;
 
 #include "amnetic:shaders/common/screen.glsl"
 
-// temporal accumulation: reproject this pixel into last frame and blend, which removes the
-// per-pixel ray-march noise. a neighbourhood colour clamp prevents ghosting when the reflection
-// changes on disocclusion or motion
 void main() {
     vec4 cur = texture(Raw, vUV);
     float depth = texture(DepthSampler, vUV).r;

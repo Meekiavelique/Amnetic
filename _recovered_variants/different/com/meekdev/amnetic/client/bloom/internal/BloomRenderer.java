@@ -25,7 +25,6 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL33;
 
 public final class BloomRenderer {
-
     private static final InstancePhase[] PHASES = {
             InstancePhase.WORLD_LAST, InstancePhase.WORLD_TRANSLUCENT };
     private static final ResourceLocation VSH = new ResourceLocation("amnetic", "shaders/bloom/fullscreen.vsh");
@@ -105,7 +104,7 @@ public final class BloomRenderer {
         if (instEmissive || hookEmissive) {
             if (s.isOcclude()) {
                 emissiveBuf.blitDepthFromMain();
-                GL11.glDepthFunc(GL11.GL_LEQUAL); // visible surfaces (equal depth) bloom
+                GL11.glDepthFunc(GL11.GL_LEQUAL);
             }
             if (instEmissive) {
                 for (InstancePhase phase : PHASES) {
@@ -144,8 +143,6 @@ public final class BloomRenderer {
         }
     }
 
-    // lets any renderer (entities, GeckoLib, a third-party mod) draw into the emissive buffer
-    // without Amnetic depending on it
     private void emitRegisteredSources(boolean occlude) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
@@ -153,8 +150,6 @@ public final class BloomRenderer {
         if (cam == null) return;
         emissiveBuf.begin();
         try {
-            // sources draw world geometry, so establish known state instead of inheriting
-            // whatever the previous pass left bound
             GlStateManager._enableBlend();
             GL11.glEnable(GL11.GL_BLEND);
             GlStateManager._blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ONE);
@@ -167,9 +162,6 @@ public final class BloomRenderer {
                 GlStateManager._enableDepthTest();
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
                 GL11.glDepthFunc(GL11.GL_LEQUAL);
-                // emissive block quads are coplanar with the world geometry already in this
-                // depth buffer, so exact-equality LEQUAL fails at grazing angles and drops
-                // every face except the one squarely facing the camera. bias them nearer.
                 GlStateManager._polygonOffset(-1.0f, -1.0f);
                 GlStateManager._enablePolygonOffset();
             } else {
@@ -212,7 +204,6 @@ public final class BloomRenderer {
         }
 
         Framebuffer result = mips[0];
-        // normalize for the mip accumulation so more levels don't blow out the scene
         float intensity = s.intensity() * (2f / mips.length);
         int prevFbo = MainTargetFramebuffer.bind();
         try {
@@ -249,8 +240,6 @@ public final class BloomRenderer {
         if (emissiveBuf != null) emissiveBuf.dispose();
         if (sceneCapture != null) sceneCapture.dispose();
 
-        // both buffers only feed the mip chain, which downsamples to `scale` immediately, so
-        // capturing/prefiltering at full resolution would be wasted GPU work
         FramebufferSpec.Builder emissive = FramebufferSpec.builder().color(ColorFormat.R11G11B10F);
         if (occlude) emissive.depthTexture();
         emissiveBuf = Framebuffers.screen("Bloom Emissive", scale, emissive.build());

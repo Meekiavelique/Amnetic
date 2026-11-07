@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class Gradient {
-
     private final float[] t;
     private final float[] r, g, b, a;
 
@@ -30,7 +29,7 @@ public final class Gradient {
     public static Builder builder() { return new Builder(); }
 
     public static final class Builder {
-        private final List<float[]> stops = new ArrayList<>(); // {t, r, g, b, a}
+        private final List<float[]> stops = new ArrayList<>();
 
         public Builder stop(float time, float r, float g, float b, float a) {
             stops.add(new float[]{time, r, g, b, a});

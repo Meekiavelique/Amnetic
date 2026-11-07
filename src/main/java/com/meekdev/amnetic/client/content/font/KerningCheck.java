@@ -1,8 +1,6 @@
 package com.meekdev.amnetic.client.content.font;
 
-// the kern table and the pair adjustments in GPOS, read only where stb_truetype reads them for kerning
 final class KerningCheck {
-
     private static final int KERN_PAIRS_AT = 10;
     private static final int KERN_FIRST_PAIR_AT = 18;
     private static final int KERN_PAIR = 6;
@@ -87,7 +85,6 @@ final class KerningCheck {
         }
     }
 
-    // how many coverage indices the table can hand out, the highest one plus one
     private static int coverage(FontSpan coverage) {
         int count = coverage.u16(COUNT_AT);
         return switch (coverage.u16(0)) {

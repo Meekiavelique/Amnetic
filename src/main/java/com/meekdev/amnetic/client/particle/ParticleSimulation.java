@@ -25,12 +25,11 @@ import org.joml.Matrix4fc;
 import org.joml.Vector4f;
 
 public final class ParticleSimulation {
-
     public static final float STEP = 1f / 60f;
 
     private static final float MAX_FRAME_DT = 0.1f;
     private static final int MAX_PENDING = 200_000;
-    private static final int TRAIL_MAX = 32; // ring-buffer capacity for per-particle trail history
+    private static final int TRAIL_MAX = 32;
 
     public static final ParticleSimulation INSTANCE = new ParticleSimulation();
 
@@ -44,8 +43,8 @@ public final class ParticleSimulation {
     private final Vector4f clip = new Vector4f();
     private Particle[] visibleBuf = new Particle[256];
     private long[] sortBuf = new long[256];
-    private final float[] rgbaScratch = new float[4]; // gradient eval scratch (render thread only)
-    private final Particle trailGhost = new Particle(); // reused for every trail ghost instance (written immediately)
+    private final float[] rgbaScratch = new float[4];
+    private final Particle trailGhost = new Particle();
     private float accumulator;
     private float simClock;
     private long lastNano;
@@ -54,7 +53,6 @@ public final class ParticleSimulation {
     private int meshCounter;
 
     private ParticleSimulation() {}
-
 
     synchronized void register(ParticleMaterial material) {
         materials.add(material);
@@ -77,7 +75,6 @@ public final class ParticleSimulation {
             prePhaseRegistered = true;
         }
     }
-
 
     public synchronized void clear() {
         for (ParticleMaterial m : materials) {
@@ -126,7 +123,6 @@ public final class ParticleSimulation {
         requestPool.offer(req);
     }
 
-    // defensive copy so the debug UI can list/spawn from it
     public List<ParticleMaterial> materials() {
         return new ArrayList<>(materials);
     }
@@ -136,7 +132,6 @@ public final class ParticleSimulation {
         for (ParticleMaterial m : materials) total += m.liveCount;
         return total;
     }
-
 
     private void preRender(InstanceRenderContext rctx) {
         drainIntake();
@@ -264,7 +259,6 @@ public final class ParticleSimulation {
         return false;
     }
 
-
     private void packMaterial(ParticleMaterial m, InstanceRenderContext rctx, InstanceBatch<Particle> batch) {
         int n = m.liveCount;
         if (n == 0) return;
@@ -281,7 +275,7 @@ public final class ParticleSimulation {
             Particle p = m.live[i];
             float cx = (float) (p.x - cam.x), cy = (float) (p.y - cam.y), cz = (float) (p.z - cam.z);
             float t = p.ageFraction();
-            float seed = p.seedX * 0.25f; // seedX is uniform [0,4); Track seeds want [0,1)
+            float seed = p.seedX * 0.25f;
             float size = m.sizeTrack != null
                     ? m.sizeTrack.eval(t, seed)
                     : lerp(p.size0, p.size1, p.sizeEasing.apply(t));
@@ -356,8 +350,6 @@ public final class ParticleSimulation {
         }
     }
 
-    // emits fading ghost billboards along the particle's recorded path. the single reusable ghost is
-    // written into the batch immediately (the writer copies its fields) so no per-instance allocation
     private void emitTrail(InstanceBatch<Particle> batch, ParticleMaterial m, Particle p, Vec3 cam) {
         if (p.trail == null || p.trailCount < 2) return;
         int pts = Math.min(m.trailPoints, p.trailCount);
@@ -365,12 +357,11 @@ public final class ParticleSimulation {
         g.rVx = p.rVx; g.rVy = p.rVy; g.rVz = p.rVz;
         g.rUvOffX = p.rUvOffX; g.rUvOffY = p.rUvOffY; g.rUvScaleX = p.rUvScaleX; g.rUvScaleY = p.rUvScaleY;
         g.rR = p.rR; g.rG = p.rG; g.rB = p.rB;
-        // the instance writer also reads these - copy so ghosts match the particle (else age==1, no rotation/seed)
         g.rot = p.rot; g.seedX = p.seedX; g.seedY = p.seedY; g.age = p.age; g.life = p.life;
         for (int k = 1; k <= pts; k++) {
             int hidx = ((p.trailHead - k) % TRAIL_MAX + TRAIL_MAX) % TRAIL_MAX;
             int slot = hidx * 3;
-            float f = 1f - (float) k / (pts + 1); // taper size + alpha toward the tail
+            float f = 1f - (float) k / (pts + 1);
             g.rSize = p.rSize * m.trailWidth * f;
             g.rA = p.rA * m.trailFade * f;
             if (g.rSize <= 0f || g.rA <= 0.002f) continue;
@@ -395,8 +386,6 @@ public final class ParticleSimulation {
 
     private static float lerp(float a, float b, float t) { return a + (b - a) * t; }
 
-    // smoothstep fade in over the first fadeIn fraction of life, fade out over the last fadeOut
-    // fraction, 1 in between. both 0 means no envelope
     private static float alphaEnvelope(float t, float fadeIn, float fadeOut) {
         float e = 1f;
         if (fadeIn > 1e-4f) { float x = Math.min(t / fadeIn, 1f); e *= x * x * (3f - 2f * x); }

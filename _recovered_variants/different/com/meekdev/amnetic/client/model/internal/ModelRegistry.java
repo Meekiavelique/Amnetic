@@ -38,7 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class ModelRegistry {
-
     public static final ModelRegistry INSTANCE = new ModelRegistry();
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Model");
 
@@ -364,8 +363,6 @@ public final class ModelRegistry {
         item.distance = model.internalGpu().distance(part, instance);
     }
 
-    // everything that blends is drawn once every solid model is in, farthest first, so each layer
-    // lands on what is really behind it whichever model it belongs to
     private void renderBlended(Matrix4f projView, float time, boolean capture, ModelShader current) {
         if (blendedCount == 0) {
             return;
@@ -384,8 +381,6 @@ public final class ModelRegistry {
                     if (prevFbo != -1) restoreTarget(useGBuffer, prevFbo);
                     useGBuffer = wantGBuffer;
                     prevFbo = useGBuffer ? GBufferTargets.INSTANCE.bind() : MainTargetFramebuffer.bind();
-                    // a layer in front must not replace the normal, material and colour the lights
-                    // read for what shows through it
                     colorMasks(!useGBuffer);
                 }
                 RenderState wanted = config.renderState() == null ? RenderState.DEFAULT : config.renderState();
@@ -456,9 +451,6 @@ public final class ModelRegistry {
                 if (piece != null) {
                     camRel.transformAab(piece.min(), piece.max(), cullMin, cullMax);
                 } else if (draw.pose() != null) {
-                    // a posed model can reach well outside its rest bounds - an arm swung out, a bone
-                    // driven by a cutscene - and culling it against the rest box makes it vanish while
-                    // it is still on screen. widen the box by how far the pose actually moved things
                     posedBounds(draw.pose(), boundsMin, boundsMax, poseMin, poseMax);
                     camRel.transformAab(poseMin, poseMax, cullMin, cullMax);
                 } else {

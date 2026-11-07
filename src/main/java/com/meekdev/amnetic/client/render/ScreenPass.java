@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 public abstract class ScreenPass {
-
     protected final Logger log;
     private final FailureGuard guard;
     private ShaderProgram program;
@@ -22,7 +21,6 @@ public abstract class ScreenPass {
         ALL.add(this);
     }
 
-    // builds the program objects of every pass made so far, the actual links happen in ShaderProgram.warm
     public static void prepareAll() {
         for (ScreenPass pass : new ArrayList<>(ALL)) {
             if (pass.program != null) continue;
@@ -42,7 +40,6 @@ public abstract class ScreenPass {
     protected boolean skipUnderIris() { return true; }
 
     protected final boolean alive() { return guard.alive(); }
-
 
     protected final void dispatchNative(Runnable render) {
         if (!guard.alive() || !enabled()) return;

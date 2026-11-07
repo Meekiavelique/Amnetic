@@ -5,7 +5,6 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 public final class Decal {
-
     ResourceLocation texture;
     Vec3 center;
     final Vector3f normal = new Vector3f(0f, -1f, 0f);
@@ -14,13 +13,11 @@ public final class Decal {
     float depth;
     float opacity = 1.0f;
     float angleFade = 0.3f;
-    final Vector3f tint = new Vector3f(1f, 1f, 1f); // white = show the texture as-is; darken for scorch marks
+    final Vector3f tint = new Vector3f(1f, 1f, 1f);
     boolean removed;
 
-    // optional gbuffer-writing (relightable) decal: tangent-space normal map and/or material override
-    // when any of these is set the decal also writes gbuffer normal/material so it relights
     ResourceLocation normalMap;
-    float roughness = -1f; // <0 = don't override the surface roughness
+    float roughness = -1f;
     float metallic = 0f;
 
     Decal(ResourceLocation texture, Vec3 center, Vector3f normal, float width, float height, float depth) {
@@ -44,7 +41,6 @@ public final class Decal {
     public Decal roughness(float v) { this.roughness = v; return this; }
     public Decal metallic(float v) { this.metallic = Math.max(0f, Math.min(1f, v)); return this; }
 
-    // true when this decal should also write the gbuffer (normal/material) so it relights
     public boolean writesGBuffer() { return normalMap != null || roughness >= 0f; }
     public ResourceLocation normalMap() { return normalMap; }
     public float roughnessOr(float fallback) { return roughness >= 0f ? roughness : fallback; }

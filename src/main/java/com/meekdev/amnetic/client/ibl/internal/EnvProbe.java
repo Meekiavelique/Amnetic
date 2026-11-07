@@ -13,12 +13,7 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL32;
 
-// the sky as a cube for image based lighting. the sky (a panorama when one is set, the
-// procedural one otherwise) is drawn into a source cube, then each mip of the probe is that
-// source convolved with a wider GGX lobe, and the last mip is the cosine irradiance, so a shader
-// reads diffuse at maxLod() and a reflection at roughness * maxLod()
 public final class EnvProbe {
-
     public static final EnvProbe INSTANCE = new EnvProbe();
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/bloom/fullscreen.vsh");
@@ -62,8 +57,6 @@ public final class EnvProbe {
     public int maxLod() { return LEVELS - 1; }
     public boolean usesPanorama() { return panorama != 0; }
 
-    // an equirectangular HDR texture to light with in place of the procedural sky, turned by the
-    // given rotation (world direction to panorama direction). 0 goes back to the procedural sky
     public void panorama(int texture, int width, Matrix4fc worldToPanorama) {
         if (texture == panorama && width == panoramaWidth && turn.equals(worldToPanorama)) return;
         panorama = texture;
@@ -79,7 +72,6 @@ public final class EnvProbe {
         panoramaChanged = true;
     }
 
-    // the sun quantized to a direction bucket, so a still sun never re-bakes
     private static int bucketOf(float x, float y, float z) {
         int bx = Math.round(x * SUN_STEPS);
         int by = Math.round(y * SUN_STEPS);
@@ -87,7 +79,6 @@ public final class EnvProbe {
         return (bx * 401 + by) * 401 + bz;
     }
 
-    // bake the cube from the panorama or the scene sun, only when either changed enough to matter
     public void update(float dayFraction) {
         ModelLighting lighting = ModelLighting.INSTANCE;
         float sunX;

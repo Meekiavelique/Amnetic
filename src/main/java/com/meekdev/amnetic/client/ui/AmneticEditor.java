@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class AmneticEditor {
-
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Editor");
 
     private static AmneticEditor instance;
@@ -110,8 +109,6 @@ public final class AmneticEditor {
         try {
             renderMenuBar();
             renderWindows();
-            // gizmo handles claim the click first (start a drag), the marker gizmos then skip
-            // select/deselect while a drag is active so grabbing a handle doesn't clear the selection
             GizmoLayer.draw();
             LightGizmo.draw();
             DecalGizmo.draw();

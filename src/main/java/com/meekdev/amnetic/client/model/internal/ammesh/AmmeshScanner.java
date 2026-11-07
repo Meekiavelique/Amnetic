@@ -17,9 +17,7 @@ import net.minecraft.server.packs.resources.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// background scan that keeps the .ammesh cache warm so Models.load stays a cheap binary read instead of a glTF parse
 public final class AmmeshScanner {
-
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Ammesh");
 
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(daemonThreadFactory());

@@ -6,7 +6,6 @@ import com.meekdev.amnetic.client.render.LevelCamera;
 import org.slf4j.LoggerFactory;
 
 public final class Bloom {
-
     private static final BloomSettings SETTINGS = new BloomSettings();
     private static final BloomRenderer RENDERER = new BloomRenderer();
 
@@ -29,7 +28,6 @@ public final class Bloom {
         try {
             RENDERER.render(camera, SETTINGS);
         } catch (Exception e) {
-            // never let a bloom failure take down world rendering
             LoggerFactory.getLogger("Amnetic/Bloom").error("bloom render failed", e);
             SETTINGS.enabled(false);
         }

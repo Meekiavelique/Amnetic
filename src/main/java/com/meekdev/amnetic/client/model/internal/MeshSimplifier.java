@@ -3,34 +3,22 @@ package com.meekdev.amnetic.client.model.internal;
 import java.util.Arrays;
 import java.util.PriorityQueue;
 
-// quadric edge collapse (garland and heckbert) over a part's triangles, giving coarser index lists over the same vertices
-// corners sharing a position are welded first, so a uv seam is one edge with two sides: a seam vertex only slides
-// along its seam with both sides moving together, and a vertex on an open edge never moves, which keeps material
-// boundaries and the outline of open meshes exactly where they were. corners apart only in their normal, a hard
-// edge, fold like any other, keeping one of their normals
-// error is how far the surface moved at worst, in the units of the vertices
 public final class MeshSimplifier {
-
     private static final int STRIDE = ModelIR.VERTEX_STRIDE_FLOATS;
     private static final byte FREE = 0;
     private static final byte SEAM = 1;
     private static final byte LOCKED = 2;
-    // how much a seam resists bending away from its line, against the surface itself
     private static final double SEAM_WEIGHT = 10;
     private static final int MIN_TRIANGLES = 8;
 
-    // one level: its index list and the worst error it reached
     public record Level(int[] indices, float error) {}
 
     private MeshSimplifier() {}
 
-    // about targetTriangles triangles over the same vertices, the original when it can not get smaller
     public static int[] simplify(float[] verts, int[] indices, int targetTriangles) {
         return levels(verts, indices, new int[] {targetTriangles}, new float[] {Float.MAX_VALUE})[0].indices();
     }
 
-    // one run that stops at each target in turn, or earlier once the next collapse would move the surface further than
-    // that level's most error, so every level is measured against the original surface and not the level before
     public static Level[] levels(float[] verts, int[] indices, int[] targets, float[] maxErrors) {
         Level[] out = new Level[targets.length];
         if (indices.length / 3 < MIN_TRIANGLES) {
@@ -45,10 +33,7 @@ public final class MeshSimplifier {
         final float[] verts;
         final int triangles;
         final int[] corner;
-        // the welded position of each vertex, and one vertex standing for each position
         final int[] position;
-        // a vertex at the same spot with the same texture coordinates, so corners only apart in their normal
-        // (a hard edge) count as one and the surface can still fold across it
         final int[] variant;
         final int[] standIn;
         final int positions;
@@ -57,7 +42,6 @@ public final class MeshSimplifier {
         final byte[] kind;
         final int[] version;
         final boolean[] gone;
-        // the triangles touching each position, grown as collapses hand them over
         final int[][] around;
         final int[] aroundCount;
         int living;
@@ -84,7 +68,6 @@ public final class MeshSimplifier {
             build();
         }
 
-        // gives vertices at the same spot one id
         private static int[] weld(float[] verts) {
             int count = verts.length / STRIDE;
             Integer[] order = new Integer[count];
@@ -146,7 +129,6 @@ public final class MeshSimplifier {
                 counts[c]++;
             }
             for (int p = 0; p < positions; p++) around[p] = new int[Math.max(4, counts[p])];
-            // a position is free with one set of attributes, a seam with two, locked with more
             int[] first = new int[positions];
             int[] second = new int[positions];
             Arrays.fill(first, -1);
@@ -219,7 +201,6 @@ public final class MeshSimplifier {
             return out;
         }
 
-        // the cheaper way of folding the edge a b, either end into the other, when either may move
         private void offer(PriorityQueue<Collapse> queue, int a, int b) {
             double[] sum = new double[10];
             addTo(sum, quadric[a], 1);
@@ -233,7 +214,6 @@ public final class MeshSimplifier {
             queue.add(new Collapse(from, to, Math.max(0, toB ? intoB : intoA), version[from], version[to]));
         }
 
-        // folds from into to when that keeps seams whole, the surface unfolded and the mesh a surface
         private boolean collapse(int from, int to) {
             int[] partner = partners(from, to);
             if (partner == null || flips(from, to) || !linked(from, to)) return false;
@@ -262,8 +242,6 @@ public final class MeshSimplifier {
             return position[corner[t * 3]] == p || position[corner[t * 3 + 1]] == p || position[corner[t * 3 + 2]] == p;
         }
 
-        // the vertex at to that each vertex at from turns into, as {from a, to a, from b, to b}
-        // null when one has none or both land on the same one, which would tear a seam
         private int[] partners(int from, int to) {
             int[] pair = {-1, -1, -1, -1};
             for (int i = 0; i < aroundCount[from]; i++) {
@@ -287,7 +265,6 @@ public final class MeshSimplifier {
             return pair;
         }
 
-        // whether moving from onto to turns a triangle around from over, or nearly
         private boolean flips(int from, int to) {
             for (int i = 0; i < aroundCount[from]; i++) {
                 int t = around[from][i];
@@ -302,7 +279,6 @@ public final class MeshSimplifier {
             return false;
         }
 
-        // the link condition: from and to share no neighbour other than the far corners of the triangles on their edge
         private boolean linked(int from, int to) {
             int[] near = new int[8];
             int count = 0;
@@ -336,7 +312,6 @@ public final class MeshSimplifier {
             return false;
         }
 
-        // the normal of triangle t, with position moved standing at onto
         private double[] normal(int t, int moved, int onto) {
             int a = spot(corner[t * 3], moved, onto), b = spot(corner[t * 3 + 1], moved, onto), c = spot(corner[t * 3 + 2], moved, onto);
             double ax = verts[a * STRIDE], ay = verts[a * STRIDE + 1], az = verts[a * STRIDE + 2];
@@ -355,7 +330,6 @@ public final class MeshSimplifier {
             return quadricOf(n[0], n[1], n[2], verts[a * STRIDE], verts[a * STRIDE + 1], verts[a * STRIDE + 2]);
         }
 
-        // a seam edge also pulls on a plane standing on it, so the seam keeps its line as it loses vertices
         void seam(int t, int v, int next) {
             double[] n = normal(t, -1, -1);
             double ex = verts[next * STRIDE] - verts[v * STRIDE];
@@ -377,7 +351,6 @@ public final class MeshSimplifier {
             return new double[] {nx * nx, nx * ny, nx * nz, nx * d, ny * ny, ny * nz, ny * d, nz * nz, nz * d, d * d};
         }
 
-        // the summed squared distance from position p to every plane in q
         private double error(double[] q, int p) {
             int v = standIn[p];
             double x = verts[v * STRIDE], y = verts[v * STRIDE + 1], z = verts[v * STRIDE + 2];
@@ -387,7 +360,6 @@ public final class MeshSimplifier {
         }
     }
 
-    // welded edges, how many triangles hold each and whether its two sides disagree on attributes
     private static final class Edges {
         final long[] keys;
         final int[] count;
@@ -395,7 +367,6 @@ public final class MeshSimplifier {
         final int[] to;
         final boolean[] split;
         final int mask;
-        // every corner's edge in the order they were added, as slot, triangle, vertex, next vertex
         final int[] added;
         int addedCount;
 
@@ -430,7 +401,6 @@ public final class MeshSimplifier {
             addedCount++;
         }
 
-        // locks both ends of an open or shared edge, and makes seams resist bending
         void mark(Run run) {
             for (int n = 0; n < addedCount; n++) {
                 int slot = added[n * 4];

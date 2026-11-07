@@ -27,10 +27,7 @@ import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// linked programs saved as driver binaries under amnetic/program_cache, so a later run skips compiling
-// even when the driver keeps no cache of its own. keyed by the driver and the exact sources, a driver update just misses
 final class ProgramCache {
-
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/ProgramCache");
     private static final int VERSION = 1;
     private static final int MAX_FILES = 1024;
@@ -78,12 +75,10 @@ final class ProgramCache {
         }
     }
 
-    // asks for the binary to be kept, has to be set before linking
     static void retrievable(int program) {
         GL41C.glProgramParameteri(program, GL41C.GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL11.GL_TRUE);
     }
 
-    // a linked program from the cache, 0 when there is none or the driver turned it down
     static int load(String key) {
         Path file = dir.resolve(key + ".bin");
         byte[] bytes;
@@ -133,7 +128,6 @@ final class ProgramCache {
         WRITER.execute(() -> write(file, bytes));
     }
 
-    // whether these sources compiled before on this driver
     static boolean checked(String key) {
         Path file = dir.resolve(key + ".ok");
         if (!Files.isRegularFile(file)) return false;
@@ -161,7 +155,6 @@ final class ProgramCache {
         }
     }
 
-    // keeps the newest files, programs nobody used in a while go first
     private static void prune(Path folder) {
         try (Stream<Path> files = Files.list(folder)) {
             List<Path> all = files.filter(p -> !p.toString().endsWith(".part")).sorted(Comparator.comparing(ProgramCache::modified).reversed()).toList();

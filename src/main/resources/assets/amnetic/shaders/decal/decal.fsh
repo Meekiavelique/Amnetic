@@ -6,14 +6,14 @@ uniform sampler2D DepthSampler;
 uniform sampler2D DecalSampler;
 uniform int HasTexture;
 uniform mat4 InvViewProj;
-uniform mat4 DecalInv; // camera-relative world -> decal local (box is [-0.5, 0.5])
+uniform mat4 DecalInv;
 uniform int ZeroToOne;
 uniform float Opacity;
 uniform float AngleFade;
-uniform vec3 DecalAxis; // projection axis (camera-relative world)
+uniform vec3 DecalAxis;
 uniform vec3 Tint;
-uniform int Multiply; // 1 = multiply onto the surface (blend dst_color, zero), keeps its lighting
-uniform int FlipV; // 1 = image top row at the top of the box
+uniform int Multiply;
+uniform int FlipV;
 uniform int TppLitWater;
 uniform int TppWorldLit;
 uniform sampler2D TppLightmap;
@@ -35,17 +35,15 @@ vec3 normalFromDepth(vec2 uv, vec3 P) {
 void main() {
     vec2 uv = gl_FragCoord.xy / vec2(textureSize(DepthSampler, 0));
     float depth = texture(DepthSampler, uv).r;
-    if (IS_SKY(depth)) discard; // sky
+    if (IS_SKY(depth)) discard;
 
     vec3 P = reconstruct(uv, depth);
     vec3 local = (DecalInv * vec4(P, 1.0)).xyz;
     if (abs(local.x) > 0.5 || abs(local.y) > 0.5 || abs(local.z) > 0.5) discard;
 
-    vec2 duv = local.xz + 0.5; // project along the box's axis (local Y)
+    vec2 duv = local.xz + 0.5;
     if (FlipV == 1) duv.y = 1.0 - duv.y;
 
-    // DecalAxis is the surface normal the decal sticks to (up for a floor), fade by how aligned the surface is with it
-    // angle fade at 0 skips the depth normal and its two extra depth reads
     float fade = AngleFade > 0.0 ? smoothstep(AngleFade, 1.0, dot(normalFromDepth(uv, P), normalize(DecalAxis))) : 1.0;
     fade *= 1.0 - smoothstep(0.35, 0.5, abs(local.y));
     if (fade <= 0.0) discard;
@@ -57,7 +55,7 @@ void main() {
         col = t.rgb * Tint;
         a = t.a;
     } else {
-        float r = length(duv - 0.5) * 2.0; // procedural soft scorch
+        float r = length(duv - 0.5) * 2.0;
         a = 1.0 - smoothstep(0.55, 1.0, r);
         col = Tint;
     }

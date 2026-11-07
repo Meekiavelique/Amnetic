@@ -28,7 +28,6 @@ import java.util.Iterator;
 import java.util.Map;
 
 public final class UiBatcher {
-
     public static final UiBatcher INSTANCE = new UiBatcher();
 
     private static final int FLOATS = 18;
@@ -84,8 +83,6 @@ public final class UiBatcher {
         m00 = n00; m01 = n01; m10 = n10; m11 = n11; m02 = n02; m12 = n12;
     }
 
-    // the same batch, projected by any matrix instead of the screen: a flat surface in the world hands
-    // in its camera and plane, and everything the fragment shader does is in canvas pixels either way
     public void begin(float guiW, float guiH, Matrix4fc projection) {
         begin(guiW, guiH);
         ortho.set(projection);
@@ -363,8 +360,6 @@ public final class UiBatcher {
         vert(x + w, y + h, 1, 1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
-    // part of a texture, by its corners in uv. nearest keeps texel edges hard however far it is scaled,
-    // which is what a pixel font or pixel art wants
     public void imageRegion(int texture, float x0, float y0, float x1, float y1,
                             float u0, float v0, float u1, float v1, int argb, boolean nearest) {
         segment(texture, nearest);
@@ -379,7 +374,6 @@ public final class UiBatcher {
         vert(x1, y1, u1, v1, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
-    // one textured triangle with its own uv per corner, for shapes a quad can not make like a pie slice
     public void imageTriangle(int texture, float x0, float y0, float u0, float v0, float x1, float y1, float u1, float v1,
                               float x2, float y2, float u2, float v2, int argb, boolean nearest) {
         segment(texture, nearest);
@@ -391,8 +385,6 @@ public final class UiBatcher {
         vert(x2, y2, u2, v2, r, g, b, a, 2f, 0, 0, 0, 0, 0);
     }
 
-    // part of a texture on any four corners, top left, top right, bottom right, bottom left, which is
-    // what slanted or turning text needs
     public void imageQuad(int texture, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
                           float u0, float v0, float u1, float v1, int argb, boolean nearest) {
         segment(texture, nearest);
@@ -407,10 +399,6 @@ public final class UiBatcher {
         vert(x2, y2, u1, v1, r, g, b, a, 2f, u0, v0, u1, v1, 0);
     }
 
-    // what was queued so far is drawn, then everything queued inside draw is drawn through program
-    // instead of the surface's own shader. the program gets Ortho, Tex, ScreenSize and whatever
-    // uniforms sets; each vertex carries its uv rect in Params, so a shader can tell where inside a
-    // glyph it is
     public void withProgram(ShaderProgram custom, Consumer<ShaderProgram> uniforms, Runnable draw) {
         flush();
         draw.run();
@@ -488,7 +476,6 @@ public final class UiBatcher {
             GL11.glDrawArrays(GL11.GL_TRIANGLES, offset, segCount[i]);
             offset += segCount[i];
         }
-        // left bound, the sampler would override whatever the game draws on unit zero next
         GL33.glBindSampler(0, 0);
 
         GlState.resetVertexArray();

@@ -6,15 +6,12 @@ import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
 
 public final class Fonts {
-
     private static final Map<List<ResourceLocation>, SdfFont> CACHE = new HashMap<>();
     private static final Map<List<ResourceLocation>, Boolean> FAILED = new HashMap<>();
     private static final Map<ResourceLocation, byte[]> REGISTERED = new HashMap<>();
 
     private Fonts() {}
 
-    // a font file that is not in a resource pack, held under an id of the caller's choosing. naming an
-    // id again with other bytes replaces it, and anything baked from the old bytes is dropped
     public static void register(ResourceLocation fontId, byte[] ttf) {
         REGISTERED.put(fontId, ttf.clone());
         CACHE.keySet().removeIf(key -> key.contains(fontId));

@@ -13,7 +13,6 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
 public final class ComputeTexture implements AutoCloseable {
-
     private final int id;
     private final int width;
     private final int height;
@@ -33,10 +32,10 @@ public final class ComputeTexture implements AutoCloseable {
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int argb = img.getRGB(x, y);
-                pixels.put((byte) (argb >> 16)); // R
-                pixels.put((byte) (argb >> 8));  // G
-                pixels.put((byte) argb);         // B
-                pixels.put((byte) (argb >> 24)); // A
+                pixels.put((byte) (argb >> 16));
+                pixels.put((byte) (argb >> 8));
+                pixels.put((byte) argb);
+                pixels.put((byte) (argb >> 24));
             }
         }
         pixels.flip();

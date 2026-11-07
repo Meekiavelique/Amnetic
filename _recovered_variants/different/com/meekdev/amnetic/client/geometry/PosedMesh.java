@@ -10,7 +10,6 @@ import net.minecraft.client.model.Model;
 import net.minecraft.world.entity.Entity;
 
 public final class PosedMesh {
-
     private final Entity entity;
     private final CapturingConsumer consumer = new CapturingConsumer();
     private volatile boolean captured;
@@ -53,7 +52,7 @@ public final class PosedMesh {
     //? if >=1.21.2 {
     /*@SuppressWarnings({"unchecked", "rawtypes"})
     public void captureFrom(Model model, EntityRenderState state, PoseStack poseStack) {
-        ((Model) model).setupAnim(state);   // ensure this frame's pose (deferred draw poses at draw time)
+        ((Model) model).setupAnim(state);
     *///?} else {
     public void captureFrom(Model model, PoseStack poseStack) {
     //?}

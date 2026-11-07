@@ -19,7 +19,6 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 
 public final class SsgiPass extends ScreenPass {
-
     public static final SsgiPass INSTANCE = new SsgiPass();
 
     private static final ResourceLocation VSH = new ResourceLocation("amnetic", "shaders/ssgi/ssgi.vsh");
@@ -29,10 +28,8 @@ public final class SsgiPass extends ScreenPass {
 
     private ShaderProgram composite;
     private ShaderProgram temporal;
-    private Framebuffer capture; // scene color + depth
-    private Framebuffer gi; // scaled raw single-sample indirect result
-    // ping-ponged temporal history: rgb = accumulated GI, a = camera-relative distance at that sample
-    // (used for the disocclusion check next frame)
+    private Framebuffer capture;
+    private Framebuffer gi;
     private Framebuffer historyA;
     private Framebuffer historyB;
     private boolean historyPingIsA = true;
@@ -153,16 +150,12 @@ public final class SsgiPass extends ScreenPass {
             if (gi != null) gi.dispose();
             if (historyA != null) historyA.dispose();
             if (historyB != null) historyB.dispose();
-            // capture scene color/depth at the same reduced scale the GI trace and temporal passes
-            // read at, avoids blitting a full-res copy neither of them uses
             capture = Framebuffers.screen("SSGI Capture", scale,
                     FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
             gi = Framebuffers.screen("SSGI GI", scale, FramebufferSpec.builder().color(ColorFormat.RGBA8).build());
             FramebufferSpec historySpec = FramebufferSpec.builder().color(ColorFormat.RGBA16F).build();
             historyA = Framebuffers.screen("SSGI History A", scale, historySpec);
             historyB = Framebuffers.screen("SSGI History B", scale, historySpec);
-            // force allocation up front: the read side of the ping-pong is sampled via
-            // colorTextureGlId() before ever having begin() called on it otherwise
             historyA.begin();
             historyA.clear(0f, 0f, 0f, 0f);
             historyA.end();

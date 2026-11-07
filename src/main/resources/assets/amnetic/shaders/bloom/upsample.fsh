@@ -4,8 +4,8 @@ in vec2 vUV;
 out vec4 FragColor;
 
 uniform sampler2D Sampler;
-uniform vec2 TexelSize; // 1.0 / source (smaller) resolution
-uniform float Radius;   // filter spread in source texels
+uniform vec2 TexelSize;
+uniform float Radius;
 
 void main() {
     float x = TexelSize.x * Radius;

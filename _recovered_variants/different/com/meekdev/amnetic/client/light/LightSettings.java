@@ -3,19 +3,18 @@ package com.meekdev.amnetic.client.light;
 import net.minecraft.resources.ResourceLocation;
 
 public final class LightSettings {
-
     private static final LightSettings INSTANCE = new LightSettings();
 
     private int maxLights = 256;
 
     private boolean frustumCull = true;
     private boolean lightVolumes = true;
-    private float lodFadeStart = 64f; // blocks past a light's range where it starts fading out
-    private float lodFadeEnd = 128f; // blocks past range where it's fully culled
+    private float lodFadeStart = 64f;
+    private float lodFadeEnd = 128f;
 
     private boolean volumetric = false;
-    private int volumetricSteps = 16; // 0 disables
-    private float volumetricStrength = 1.0f; // overall scatter scale
+    private int volumetricSteps = 16;
+    private float volumetricStrength = 1.0f;
     private float volumetricDensity = 0.4f;
     private float volumetricAniso = 0.6f;
     private boolean volumetricShadows = true;
@@ -24,8 +23,8 @@ public final class LightSettings {
 
     private boolean contactShadows = false;
     private int contactSteps = 12;
-    private float contactDistance = 0.5f; // march length, blocks
-    private float contactThickness = 0.5f; // occluder thickness tolerance
+    private float contactDistance = 0.5f;
+    private float contactThickness = 0.5f;
 
     private ResourceLocation cookieTexture;
 

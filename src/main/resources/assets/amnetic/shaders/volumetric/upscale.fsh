@@ -1,11 +1,10 @@
 #version 410 core
 
-
 in vec2 vUV;
 out vec4 FragColor;
 
-uniform sampler2D Scatter; // half-res: rgb = scatter, a = scene depth
-uniform sampler2D DepthSampler; // full-res scene depth
+uniform sampler2D Scatter;
+uniform sampler2D DepthSampler;
 
 void main() {
     vec2 ts = 1.0 / vec2(textureSize(Scatter, 0));

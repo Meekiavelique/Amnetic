@@ -12,7 +12,6 @@ import foundry.imgui.api.ImGuiTextureProvider;
 import imgui.ImGui;
 
 public final class TexturePreview {
-
     private int glId = -1;
     private int width;
     private int height;
@@ -36,7 +35,6 @@ public final class TexturePreview {
             //?}
         }
         if (provider != null) {
-            // GL textures are bottom-up, flip V so the preview isn't upside down
             ImGuiMC.image(provider, displayW, displayH, 0f, 1f, 1f, 0f);
         } else {
             ImGui.textDisabled("(no provider)");

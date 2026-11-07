@@ -38,7 +38,6 @@ loom {
         "amnetic-examples" {
             sourceSet sourceSets.main
         }
-        // load the Amnetic lib as a mod in the examples dev run (the examples mod depends on it)
         "amnetic" {
             sourceSet project(":26.1.2-fabric").sourceSets.main
         }

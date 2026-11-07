@@ -6,9 +6,7 @@ import java.nio.ByteOrder;
 import de.javagl.jgltf.model.AccessorData;
 import de.javagl.jgltf.model.AccessorModel;
 
-// reads glTF accessor data into plain float/int arrays, honoring component type and normalization
 final class GltfAccessorReaders {
-
     private static final int COMPONENT_UNSIGNED_BYTE = 5121;
     private static final int COMPONENT_UNSIGNED_SHORT = 5123;
     private static final int COMPONENT_UNSIGNED_INT = 5125;

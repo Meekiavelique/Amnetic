@@ -7,7 +7,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.resources.Identifier;
 
 public final class PostEffectRegistry {
-
     public static final PostEffectRegistry INSTANCE = new PostEffectRegistry();
 
     private final List<PostEffectEntry> entries = new CopyOnWriteArrayList<>();
@@ -21,7 +20,6 @@ public final class PostEffectRegistry {
         return entry;
     }
 
-    // priority can change after registration (configurator, handle.setPriority), callers resort
     public void resort() {
         entries.sort(Comparator.comparingInt(PostEffectEntry::getPriority).reversed());
     }
@@ -45,7 +43,6 @@ public final class PostEffectRegistry {
         }
     }
 
-    // starts and takes in the programs of every effect, true while some are left
     public boolean warm() {
         boolean worked = false;
         for (PostEffectEntry entry : new java.util.ArrayList<>(entries)) {

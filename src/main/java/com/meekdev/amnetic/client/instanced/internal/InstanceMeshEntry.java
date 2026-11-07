@@ -36,7 +36,6 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 public final class InstanceMeshEntry<T> implements AutoCloseable {
-
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Instance");
 
     private final Identifier id;
@@ -103,7 +102,6 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         //?} else {
         /*ensureVao();
         ensureShader();
-        // nothing draws until the driver is done with the shader, no frame waits on it
         if (!shader.ready()) return;
         syncGeometry();
         if (mesh.geometry().vertexCount() == 0) return;
@@ -161,7 +159,6 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         return lastInstanceCount > 0;
     }
 
-    // the depth of a static mesh ahead of its colour, which then only shades what ends up in front
     public void renderDepth(InstanceRenderContext ctx) {
         prepassed = false;
         //? if <26.2 {
@@ -279,7 +276,6 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         }
     }
 
-    // one depth-only program for every mesh that opts out of baking its shadow with its own shader
     private static CompiledShader depthProgram() {
         if (depthProgram == null) {
             depthProgram = CompiledShader.load(DEPTH_VSH, DEPTH_FSH);
@@ -302,7 +298,6 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
     private void drawNow(Matrix4f projView, Matrix4fc projection, Matrix4fc view, float time,
                          Vec3 cameraPos, int instanceCount) {
         mesh.renderState().apply();
-        // the depth is already there, writing it again only keeps the card from skipping hidden pixels early
         boolean kept = prepassed && !depthPass;
         if (kept) GlStateManager._depthMask(false);
 
@@ -421,9 +416,6 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         if (textureGlId > 0) {
             GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             GlStateManager._bindTexture(textureGlId);
-            // a sampler object bound to this unit by whatever drew last wins over the texture's own
-            // parameters, so the mesh inherited a filter nobody chose. that is a texel sized skin
-            // drawn blurred, with the transparent black around a face bleeding into its edges
             GL33.glBindSampler(0, 0);
             boolean nearest = mesh.textureFilter() != TextureFilter.LINEAR;
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER,

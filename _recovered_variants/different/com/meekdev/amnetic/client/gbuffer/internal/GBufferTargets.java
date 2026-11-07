@@ -13,7 +13,6 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
 
 public final class GBufferTargets {
-
     public static final GBufferTargets INSTANCE = new GBufferTargets();
 
     private int fbo;
@@ -30,8 +29,6 @@ public final class GBufferTargets {
     private int cachedEmissive = -1;
     private int cachedAlbedo = -1;
     private final int[] savedViewport = new int[4];
-    // outer framebuffer to restore to. querying it (glGetInteger) drains the GL pipeline so we read it at
-    // most once per main-target (re)creation, keyed on the main color texture's GL id
     private int outerFbo;
     private int outerKey = -1;
     private boolean attachedThisFrame;
@@ -60,16 +57,9 @@ public final class GBufferTargets {
         ensureTextures(main.width, main.height);
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
 
-        // outer FBO/viewport were captured once this frame in captureOuterState, reusing them avoids a
-        // glGetInteger driver sync on every per-object bind
         int prevFbo = outerFbo;
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
 
-        // re-attach only once per frame (or when an attachment id changes), not on every per-object bind.
-        // GL reuses freed texture ids so an id-only cache can miss a resize that hands back the same id at a
-        // new size (model rendered into limbo after going fullscreen). targets never change size mid-frame and
-        // captureOuterState() clears attachedThisFrame each frame, so re-attaching once per frame keeps the
-        // resize safety while cutting per-model churn
         if (!attachedThisFrame || colorId != cachedColor || depthId != cachedDepth
                 || normalTex != cachedNormal || materialTex != cachedMaterial || emissiveTex != cachedEmissive || albedoTex != cachedAlbedo) {
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorId, 0);
@@ -112,7 +102,6 @@ public final class GBufferTargets {
         GlStateManager._viewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
     }
 
-    // the outer FBO captured once this frame, lets other passes (shadows) restore it without a glGet sync
     public int outerFboId() {
         return outerFbo;
     }
@@ -120,15 +109,11 @@ public final class GBufferTargets {
     public void captureOuterState() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null) return;
-        // new frame: force one FBO re-attach for resize safety, then skip it for later binds
         attachedThisFrame = false;
-        // viewport at bind() time is always the main target's full size, derive it instead of querying GL
         savedViewport[0] = 0;
         savedViewport[1] = 0;
         savedViewport[2] = main.width;
         savedViewport[3] = main.height;
-        // only re-read the bound FBO when the main target was (re)created (its color texture id changes on
-        // resize / same-size reload). steady state does no GL query at all, so no pipeline drain
         int colorId = VanillaCompat.colorTextureGlId(main);
         if (colorId != outerKey) {
             outerFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);

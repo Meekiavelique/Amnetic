@@ -12,9 +12,9 @@ uniform int HasTexture;
 uniform mat4 InvViewProj;
 uniform int ZeroToOne;
 uniform int Multiply;
-uniform mat4 DecalInvs[BATCH]; // camera-relative world -> decal local (box is [-0.5, 0.5])
-uniform vec4 Axes[BATCH]; // xyz = surface normal the decal sticks to
-uniform vec4 Params[BATCH]; // x = opacity, y = angle fade, z = flip v
+uniform mat4 DecalInvs[BATCH];
+uniform vec4 Axes[BATCH];
+uniform vec4 Params[BATCH];
 uniform vec4 Tints[BATCH];
 
 #include "amnetic:shaders/common/screen.glsl"

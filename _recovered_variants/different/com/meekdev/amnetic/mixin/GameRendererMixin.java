@@ -199,12 +199,9 @@ public abstract class GameRendererMixin implements NaturalFov {
 
     @Inject(method = "renderItemInHand", at = @At("TAIL"))
     private void amnetic$endHandLayer(CallbackInfo ci) {
-        // draw the custom held model now, same frame as its captured pose, so it tracks view bob 1:1
         HandModels.render();
-        // view-space models draw right after the hand, sharing the same FOV/frame
         ViewModels.render();
         LayerSystem.INSTANCE.end(RenderLayer.HAND);
-        // here and not at the OVERLAY injection, that one fires before the hand draws
         Pipeline.runStage(RenderStage.AFTER_HAND);
     }
 

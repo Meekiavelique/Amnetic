@@ -1,19 +1,19 @@
 #version 330 core
 
-layout(location = 1) out vec4 OutNormal; // xyz = world normal, a = coverage (drives the blend weight)
-layout(location = 2) out vec4 OutMaterial; // r = roughness, g = metallic, b = materialId/255, a = coverage
+layout(location = 1) out vec4 OutNormal;
+layout(location = 2) out vec4 OutMaterial;
 
 uniform sampler2D DepthSampler;
 uniform sampler2D NormalSampler;
 uniform int HasNormalMap;
 uniform mat4 InvViewProj;
-uniform mat4 DecalInv; // camera-relative world -> decal local (box is [-0.5, 0.5])
+uniform mat4 DecalInv;
 uniform int ZeroToOne;
 uniform float Opacity;
 uniform float AngleFade;
-uniform vec3 DecalAxis; // decal facing = surface normal it sticks to
-uniform vec3 DecalRight; // tangent basis (local X)
-uniform vec3 DecalUp; // tangent basis (local Z)
+uniform vec3 DecalAxis;
+uniform vec3 DecalRight;
+uniform vec3 DecalUp;
 uniform float Roughness;
 uniform float Metallic;
 uniform sampler2D TppWaterColor;
@@ -72,5 +72,5 @@ void main() {
 
     TppAlbedo=vec4(pigment.rgb*TppTint,cov);
     OutNormal = vec4(wN, cov);
-    OutMaterial = vec4(clamp(Roughness, 0.0, 1.0), clamp(Metallic, 0.0, 1.0), 0.0, cov); // materialId 0 = default PBR
+    OutMaterial = vec4(clamp(Roughness, 0.0, 1.0), clamp(Metallic, 0.0, 1.0), 0.0, cov);
 }

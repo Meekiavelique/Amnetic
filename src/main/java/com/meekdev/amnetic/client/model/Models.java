@@ -16,21 +16,12 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 
 public final class Models {
-
     private Models() {}
 
-    /**
-     * glTF sources are never parsed on the calling thread, they go through the background-converted
-     * .ammesh cache (see AmmeshScanner). if conversion hasn't finished this returns a not-ready
-     * Model the renderer silently skips until it completes
-     */
     public static Model load(Identifier id) {
         ModelFormat format = ModelFormat.fromIdentifier(id);
 
         if (format == ModelFormat.GLTF) {
-            // even on a cache hit go through the pending/completeLoad path instead of building the Model
-            // (and its GPU upload) here. Models.load can be called off the render thread, and GpuModel
-            // construction only happens in ModelRegistry's per-frame render-thread drain
             Optional<byte[]> cached = AmmeshCache.INSTANCE.getCachedByIdentifierOnly(id);
             if (cached.isPresent()) {
                 Model model = Model.pending(id.toString());
@@ -77,7 +68,6 @@ public final class Models {
         ModelRegistry.INSTANCE.onFrame(callback);
     }
 
-    // what the model pass drew in the last frame
     public static ModelStats stats() {
         return DrawCounts.last();
     }

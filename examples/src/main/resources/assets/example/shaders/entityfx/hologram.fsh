@@ -1,8 +1,8 @@
 #version 330
 
-#moj_import <minecraft:globals.glsl>   // ScreenSize, GameTime
+#moj_import <minecraft:globals.glsl>
 
-uniform sampler2D Sampler0;        // entity skin
+uniform sampler2D Sampler0;
 uniform sampler2D SceneColorSampler;
 uniform sampler2D UniformSampler;
 
@@ -28,7 +28,7 @@ void main() {
     float glitch = c1.b;
     float flickerAmt = c1.a;
 
-    float t = GameTime * 1000.0;   // GameTime is fractional; scale for visible motion
+    float t = GameTime * 1000.0;
 
     vec4 skin = texture(Sampler0, vUV);
     if (skin.a < 0.1) discard;

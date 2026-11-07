@@ -1,19 +1,15 @@
 package com.meekdev.amnetic.client.anim;
 
 public enum Easing implements EasingFunction {
-
     LINEAR {
         @Override public float apply(float t) { return t; }
     },
-    /** Quadratic ease-in ({@code t^2}). */
     EASE_IN {
         @Override public float apply(float t) { return t * t; }
     },
-    /** Quadratic ease-out ({@code 1 - (1-t)^2}). */
     EASE_OUT {
         @Override public float apply(float t) { float u = 1f - t; return 1f - u * u; }
     },
-    /** Smoothstep ({@code 3t^2 - 2t^3}). */
     SMOOTH {
         @Override public float apply(float t) { return t * t * (3f - 2f * t); }
     },

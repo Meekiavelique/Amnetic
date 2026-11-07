@@ -3,9 +3,9 @@
 in vec2 vUV;
 out vec4 FragColor;
 
-uniform sampler2D Raw; // current half-res scatter: rgb = scatter, a = scene depth
-uniform sampler2D History; // previous resolved scatter
-uniform sampler2D DepthSampler; // full-res scene depth
+uniform sampler2D Raw;
+uniform sampler2D History;
+uniform sampler2D DepthSampler;
 uniform mat4 PrevViewProj;
 uniform mat4 InvViewProj;
 uniform vec3 EyeDelta;
@@ -20,9 +20,6 @@ void main() {
     vec3 outc = cur.rgb;
 
     if (Feedback > 0.0) {
-        // sky pixels have no surface to reproject. treat them as a direction and reproject by camera
-        // rotation alone (PrevViewProj is rotation + projection, so dropping EyeDelta drops the
-        // translation). the neighbourhood clamp below bounds the error from ignoring parallax
         vec3 P = !IS_SKY(depth) ? reconstruct(vUV, depth) + EyeDelta : reconstruct(vUV, 0.5);
         vec4 pc = PrevViewProj * vec4(P, 1.0);
         if (pc.w > 0.0) {
@@ -40,5 +37,5 @@ void main() {
             }
         }
     }
-    FragColor = vec4(outc, cur.a); // keep depth in alpha for the upscale
+    FragColor = vec4(outc, cur.a);
 }

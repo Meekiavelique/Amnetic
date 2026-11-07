@@ -1,15 +1,6 @@
 package com.meekdev.amnetic.client.model;
 
-/**
- * tunable lighting/grading for the glTF model PBR shader, e.g.
- * {@code ModelLighting.INSTANCE.sunIntensity(1.2f).exposure(1.1f);}
- *
- * <p>The sun direction set here is the one the whole renderer reads: model shading, instanced
- * shading and the environment probe. It points towards the sun. A game that never sets it gets
- * a sun derived from the world's time of day instead.
- */
 public final class ModelLighting {
-
     public static final ModelLighting INSTANCE = new ModelLighting();
 
     private boolean sunSet;

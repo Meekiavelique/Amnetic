@@ -4,13 +4,10 @@ import com.meekdev.amnetic.client.content.Bounded;
 import com.meekdev.amnetic.client.content.ContentLimits;
 import java.util.Arrays;
 
-// every truetype outline stb_truetype could walk, and that composite glyphs never loop or nest too deep
 final class GlyphCheck {
-
     private static final int SHORT_LOCA = 0;
     private static final int LONG_LOCA = 1;
     private static final int HEADER = 10;
-    // stb_truetype sets aside two more vertices for each contour it closes
     private static final int VERTICES_PER_CONTOUR = 2;
     private static final int X_SHORT = 0x02;
     private static final int Y_SHORT = 0x04;
@@ -22,7 +19,6 @@ final class GlyphCheck {
     private static final int MORE_COMPONENTS = 0x0020;
     private static final int HAS_XY_SCALE = 0x0040;
     private static final int HAS_TWO_BY_TWO = 0x0080;
-    // flags and glyph index, then two offsets as bytes or as words
     private static final int COMPONENT_HEADER = 4;
     private static final int BYTE_ARGS = 2;
     private static final int WORD_ARGS = 4;
@@ -54,7 +50,6 @@ final class GlyphCheck {
         for (int glyph = 0; glyph < glyphs; glyph++) check.points(glyph, 0);
     }
 
-    // depth is how many composite glyphs hold this one, nesting how many it holds below itself
     private int points(int glyph, int depth) {
         if (glyph >= points.length) return 0;
         Bounded.require(points[glyph] != COUNTING, "the font's glyph " + glyph + " is made of itself");

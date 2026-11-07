@@ -1,6 +1,5 @@
 package com.meekdev.amnetic.client.model.internal;
 
-
 import com.meekdev.amnetic.client.model.ModelLighting;
 import com.meekdev.amnetic.client.render.ProgramLink;
 import com.meekdev.amnetic.client.render.ShaderProgram;
@@ -19,7 +18,6 @@ import com.meekdev.amnetic.client.material.SurfaceInputs;
 import org.lwjgl.system.MemoryStack;
 
 final class ModelShader implements AutoCloseable {
-
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Model");
 
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/model/model.vsh");
@@ -87,7 +85,6 @@ final class ModelShader implements AutoCloseable {
         this.link = link;
     }
 
-    // true once it can draw. false while the driver is still on it, and for good when it did not build
     boolean ready() {
         if (program != 0) return true;
         if (failed || link == null || !link.ready()) return false;
@@ -163,7 +160,6 @@ final class ModelShader implements AutoCloseable {
         return Identifier.fromNamespaceAndPath(id.getNamespace(), "shaders/" + id.getPath() + ext);
     }
 
-    // starts compiling, it draws once ready() says so
     private static ModelShader loadResolved(Identifier vshId, Identifier fshId) {
         ProgramLink link = ProgramLink.builder("model shader " + vshId + "/" + fshId)
                 .vertex(loadSource(vshId), vshId)

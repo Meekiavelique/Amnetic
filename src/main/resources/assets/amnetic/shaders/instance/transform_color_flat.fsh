@@ -8,10 +8,7 @@ out vec4 FragColor;
 void main() {
     if (vColor.a < 0.001) discard;
 
-    // instanced geometry has no normals, so the face normal is the derivative of the position,
-    // which is constant across a triangle and is what keeps this flat rather than smooth
     vec3 n = normalize(cross(dFdx(vPos), dFdy(vPos)));
-    // vPos is relative to the camera, so the outward face is the one pointing back at it
     if (dot(n, vPos) > 0.0) {
         n = -n;
     }

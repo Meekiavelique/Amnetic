@@ -43,16 +43,11 @@ void main() {
     vec4 gn = (HasGBuffer == 1) ? texture(GNormalSampler, vUV) : vec4(0.0);
     vec3 N = (gn.a > 0.5) ? normalize(gn.xyz) : betterNormal(vUV, P);
 
-    // robust TBN that won't NaN out if N aligns with a hardcoded world vector
     vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
     vec3 tangent = normalize(cross(up, N));
     vec3 bitangent = cross(N, tangent);
     mat3 TBN = mat3(tangent, bitangent, N);
 
-    // 4x4 dither rotated in tangent space. the ordered offset decorrelates neighbouring pixels,
-    // the per-frame golden-ratio advance rotates the kernel every frame so the temporal pass
-    // integrates fresh samples instead of freezing on one estimate. Frame is held at 0 when
-    // temporal accumulation is off so the pattern stays stable, no flicker
     ivec2 px = ivec2(gl_FragCoord.xy);
     float base = float((px.x & 3) * 4 + (px.y & 3)) / 16.0;
     float a = fract(base + float(Frame) * 0.6180339887) * 6.2831853;
@@ -67,9 +62,6 @@ void main() {
     float pz = viewZ(P);
     float occlusion = 0.0;
     for (int i = 0; i < 16; i++) {
-        // cluster samples toward the origin (quadratic) so most taps land in the near field where
-        // contact occlusion lives. normalising first removes the >1.0 magnitudes in the hardcoded
-        // kernel that used to sample past Radius and inflate variance
         float scale = mix(0.1, 1.0, float(i * i) / 256.0);
         vec3 sp = P + (TBN * (normalize(KERNEL[i]) * scale)) * Radius;
         vec4 clip = ViewProj * vec4(sp, 1.0);
@@ -84,7 +76,6 @@ void main() {
         float sampleZ = viewZ(sp);
         float sceneZ = viewZ(sceneP);
 
-        // linear falloff that hits exactly 0 at Radius, kills the background halo
         float rangeCheck = smoothstep(0.0, 1.0, max(1.0 - abs(pz - sceneZ) / Radius, 0.0));
         if (sceneZ < sampleZ - Bias) occlusion += rangeCheck;
     }

@@ -9,15 +9,9 @@ import imgui.ImDrawList;
 import imgui.ImGui;
 import org.joml.Vector4f;
 
-/**
- * in-world transform gizmo for the {@link EditorSelection}: move along X/Y/Z plus a free-move centre,
- * aim the facing, and resize. handles are projected to screen and dragged with the mouse, panels win
- * the mouse via WantCaptureMouse. screen-space math only via {@link Gizmos#project}, no world raycast
- */
 public final class GizmoLayer {
-
-    private static final float AXIS_LEN = 0.85f; // world length of the move arrows
-    private static final float HIT = 8f; // pixel pick threshold
+    private static final float AXIS_LEN = 0.85f;
+    private static final float HIT = 8f;
     private static final int NONE = 0, AX_X = 1, AX_Y = 2, AX_Z = 3, PLANE = 4, AIM = 5, RESIZE = 6;
 
     public static boolean enabled = true;
@@ -41,7 +35,7 @@ public final class GizmoLayer {
         float mx = ImGui.getMousePosX(), my = ImGui.getMousePosY();
         boolean down = ImGui.isMouseDown(0);
         boolean wantCapture = ImGui.getIO().getWantCaptureMouse();
-        ImDrawList dl = ImGui.getBackgroundDrawList(); // behind panels (panels win the mouse via WantCaptureMouse)
+        ImDrawList dl = ImGui.getBackgroundDrawList();
 
         float[] o = Gizmos.project(cam, tmp, t.posX(), t.posY(), t.posZ(), w, h);
         if (o == null) { active = NONE; return; }
@@ -50,7 +44,6 @@ public final class GizmoLayer {
         float[] ey = axisEnd(cam, tmp, t, 0, 1, 0, w, h);
         float[] ez = axisEnd(cam, tmp, t, 0, 0, 1, w, h);
 
-        // drag in progress
         if (active != NONE) {
             if (!down) { active = NONE; }
             else {
@@ -62,7 +55,6 @@ public final class GizmoLayer {
             }
         }
 
-        // hover + maybe start
         int hover = NONE;
         float best = HIT;
         float d;
@@ -106,15 +98,15 @@ public final class GizmoLayer {
         float sx = end[0] - o[0], sy = end[1] - o[1];
         float len = (float) Math.sqrt(sx * sx + sy * sy);
         if (len < 1e-3f) return;
-        float along = (dx * sx + dy * sy) / len; // mouse delta projected onto the axis on screen
+        float along = (dx * sx + dy * sy) / len;
         float worldPerPx = AXIS_LEN / len;
         float wd = along * worldPerPx;
         t.setPosition(t.posX() + ax * wd, t.posY() + ay * wd, t.posZ() + az * wd);
     }
 
     private static void movePlane(Transformable t, CameraSnapshot cam, Vector4f tmp, float dx, float dy) {
-        float rx = cam.view.m00(), ry = cam.view.m10(), rz = cam.view.m20(); // camera right (world)
-        float ux = cam.view.m01(), uy = cam.view.m11(), uz = cam.view.m21(); // camera up (world)
+        float rx = cam.view.m00(), ry = cam.view.m10(), rz = cam.view.m20();
+        float ux = cam.view.m01(), uy = cam.view.m11(), uz = cam.view.m21();
         float wpp = extentPerPixel(t, cam, tmp);
         double nx = t.posX() + rx * dx * wpp - ux * dy * wpp;
         double ny = t.posY() + ry * dx * wpp - uy * dy * wpp;
@@ -132,7 +124,6 @@ public final class GizmoLayer {
         t.setDirection((float) (hc * Math.sin(y)), (float) Math.sin(p), (float) (-hc * Math.cos(y)));
     }
 
-    // world units per screen pixel at the object, measured via camera right
     private static float extentPerPixel(Transformable t, CameraSnapshot cam, Vector4f tmp) {
         float w = ImGui.getIO().getDisplaySizeX(), h = ImGui.getIO().getDisplaySizeY();
         float[] o = Gizmos.project(cam, tmp, t.posX(), t.posY(), t.posZ(), w, h);
@@ -164,7 +155,6 @@ public final class GizmoLayer {
         arrow(dl, o, ex, EditorTheme.AXIS_X, hl == AX_X);
         arrow(dl, o, ey, EditorTheme.AXIS_Y, hl == AX_Y);
         arrow(dl, o, ez, EditorTheme.AXIS_Z, hl == AX_Z);
-        // centre free-move
         int c = hl == PLANE ? 0xFF66E0FF : 0xC0FFFFFF;
         dl.addRectFilled(o[0] - 4f, o[1] - 4f, o[0] + 4f, o[1] + 4f, c);
         CameraSnapshot cam = CameraSnapshot.current();

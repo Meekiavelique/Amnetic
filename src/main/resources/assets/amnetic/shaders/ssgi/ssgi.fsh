@@ -37,7 +37,6 @@ void main() {
 
     ivec2 px = ivec2(gl_FragCoord.xy);
     float a = float((px.x & 3) * 4 + (px.y & 3)) / 16.0 * 6.2831853 + float(Frame % 64) * 2.39996323;
-    // robust basis that won't NaN when N aligns with the dither plane, the source of black splotches
     vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
     vec3 T0 = normalize(cross(up, N));
     vec3 B0 = cross(N, T0);
@@ -61,7 +60,7 @@ void main() {
         vec3 dir = sP - P;
         float distanceSquared = dot(dir, dir);
         if (distanceSquared < 1e-6 || distanceSquared > Radius * Radius) continue;
-        float dist = sqrt(distanceSquared); // reject far hits so distant geometry can't bleed colour in
+        float dist = sqrt(distanceSquared);
         dir /= dist;
 
         float ndl = max(dot(N, dir), 0.0);
@@ -71,14 +70,12 @@ void main() {
             vec4 sn = texture(GNormalSampler, suv);
             if (sn.a > 0.5) facing = max(dot(normalize(sn.xyz), -dir), 0.0);
         }
-        // smooth distance falloff + weight-normalised accumulation, dividing by sample count washed out
         float atten = 1.0 - dist / Radius;
         float w = ndl * facing * atten * atten;
         gi += texture(ColorSampler, suv).rgb * w;
         wsum += w;
     }
     gi = (wsum > 1e-4) ? gi / wsum : vec3(0.0);
-    // one bounce: tint by the receiving surface's albedo so it reads as reflected light, not additive haze
     gi *= texture(ColorSampler, vUV).rgb * Intensity;
     FragColor = vec4(clamp(gi, 0.0, 4.0), 1.0);
 }

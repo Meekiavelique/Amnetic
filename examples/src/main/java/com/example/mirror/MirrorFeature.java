@@ -30,7 +30,6 @@ import java.util.HashSet;
 import java.util.List;
 
 public final class MirrorFeature {
-
     public static final Identifier ID = Identifier.fromNamespaceAndPath("example", "mirror");
     private static final Identifier REFLECTION_ID = Identifier.fromNamespaceAndPath("example", "mirror_reflection");
     private static final Identifier FACE_ID = Identifier.fromNamespaceAndPath("example", "mirror_face");
@@ -148,7 +147,7 @@ public final class MirrorFeature {
             surface.add(p);
             for (Direction d : Direction.values()) {
                 Vec3i dv = d.getUnitVec3i();
-                if (dv.getX() * nv.getX() + dv.getY() * nv.getY() + dv.getZ() * nv.getZ() != 0) continue; // in-plane only
+                if (dv.getX() * nv.getX() + dv.getY() * nv.getY() + dv.getZ() * nv.getZ() != 0) continue;
                 BlockPos np = p.relative(d);
                 if (!seen.add(np)) continue;
                 BlockState st = mc.level.getBlockState(np);
@@ -172,7 +171,7 @@ public final class MirrorFeature {
         Vector3f up = new Vector3f(right).cross(n).normalize();
 
         Vec3 cam = ctx.cameraPos();
-        float s = 1.0f; // full-block faces tile seamlessly
+        float s = 1.0f;
         for (BlockPos pos : surface) {
             float cx = (float) (pos.getX() + 0.5 + n.x * 0.501 - cam.x);
             float cy = (float) (pos.getY() + 0.5 + n.y * 0.501 - cam.y);

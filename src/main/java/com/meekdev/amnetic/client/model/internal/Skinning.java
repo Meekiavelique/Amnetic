@@ -3,13 +3,10 @@ package com.meekdev.amnetic.client.model.internal;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
-// linear blend skinning on the cpu, the same sum model.vsh does on the gpu
 public final class Skinning {
-
     private Skinning() {
     }
 
-    // node indices with every parent before its children, files do not promise that order
     public static int[] order(ModelIR ir) {
         int count = ir.nodes().size();
         int[] out = new int[count];
@@ -26,7 +23,6 @@ public final class Skinning {
             return at;
         }
         int parent = ir.nodes().get(node).parent;
-        // depth guard keeps a broken file with a parent loop from recursing forever
         if (parent >= 0 && parent < placed.length && parent != node && depth < placed.length) {
             at = place(ir, parent, placed, out, at, depth + 1);
         }
@@ -38,7 +34,6 @@ public final class Skinning {
         return at + 1;
     }
 
-    // world matrix of every node at rest
     public static Matrix4f[] restPose(ModelIR ir) {
         int count = ir.nodes().size();
         Matrix4f[] world = new Matrix4f[count];
@@ -52,7 +47,6 @@ public final class Skinning {
         return world;
     }
 
-    // joint j of a part posed, pose is the world matrix of every node
     public static Matrix4f joint(ModelIR.Part part, Matrix4f[] pose, int j, Matrix4f out) {
         int node = part.jointNodes[j];
         if (pose == null || node < 0 || node >= pose.length || pose[node] == null) {
@@ -69,7 +63,6 @@ public final class Skinning {
         return out;
     }
 
-    // where vertex v of a skinned part lands for a palette of joint matrices
     public static Vector3f position(ModelIR.Part part, Matrix4f[] palette, int v, Vector3f out) {
         int o = v * ModelIR.VERTEX_STRIDE_FLOATS;
         float x = part.vertices[o];
@@ -92,7 +85,6 @@ public final class Skinning {
         return out.set(sx, sy, sz);
     }
 
-    // grows min and max to hold a skinned part at a pose
     public static void bounds(ModelIR.Part part, Matrix4f[] pose, Vector3f min, Vector3f max) {
         Matrix4f[] palette = palette(part, pose);
         Vector3f v = new Vector3f();

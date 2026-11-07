@@ -7,14 +7,12 @@ import java.util.function.Function;
 import net.minecraft.resources.Identifier;
 
 public final class AmmeshConverter {
-
     private AmmeshConverter() {}
 
     public static byte[] convert(byte[] gltfBytes, Identifier source) {
         return convert(gltfBytes, source, null);
     }
 
-    // files reads images the gltf names by a relative uri, see GltfParser.parse
     public static byte[] convert(byte[] gltfBytes, Identifier source, Function<String, byte[]> files) {
         ModelIR ir = GltfParser.parse(gltfBytes, source, files);
         ModelLod.build(ir);

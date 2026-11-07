@@ -3,9 +3,7 @@ package com.meekdev.amnetic.client.content.font;
 import com.meekdev.amnetic.client.content.Bounded;
 import com.meekdev.amnetic.client.content.RejectedContentException;
 
-// the character map stb_truetype picks, the same way it picks it, with every lookup it can make kept inside
 final class CmapCheck {
-
     private static final int PLATFORM_UNICODE = 0;
     private static final int PLATFORM_MICROSOFT = 3;
     private static final int MICROSOFT_BMP = 1;
@@ -60,7 +58,6 @@ final class CmapCheck {
         }
     }
 
-    // format 4, its binary search must run on the counts the spec derives, and every glyph array read must fit
     private static void segments(FontSpan map) {
         int segments = map.u16(SEGMENTS_AT) >> 1;
         Bounded.require(segments > 0, "the font's character map has no segments");

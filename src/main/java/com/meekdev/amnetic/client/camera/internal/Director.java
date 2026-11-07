@@ -8,7 +8,6 @@ import java.util.function.Supplier;
 import net.minecraft.world.phys.Vec3;
 
 public final class Director {
-
     public static final class Pose {
         public Vec3 pos;
         public float yaw, pitch;
@@ -20,33 +19,27 @@ public final class Director {
 
     private final Mode mode;
     private final Easing easing;
-    private final float duration;   // <= 0 means indefinite
+    private final float duration;
     private float elapsed;
 
-    // captured start pose (for MOVE / blends)
     private final Vec3 startPos;
     private final float startYaw, startPitch, startFov;
 
-    // MOVE
     private Vec3 endPos;
     private float endYaw, endPitch;
     private boolean endFovSet;
     private float endFov;
 
-    // ORBIT
     private Vec3 center;
     private double radius;
     private float speedDegPerS;
     private float orbitHeight;
     private float orbitAngle;
 
-    // PATH
     private List<CameraDirector.Keyframe> keys;
 
-    // LOCK
     private Supplier<Vec3> lockTarget;
 
-    // release blend
     private boolean releasing;
     private float releaseElapsed;
     private float releaseDuration;
@@ -89,7 +82,6 @@ public final class Director {
         d.radius = radius;
         d.speedDegPerS = speedDegPerS;
         d.orbitHeight = (float) (start.y - center.y);
-        // begin at the angle the camera currently sits at, for a seamless entry
         d.orbitAngle = (float) Math.toDegrees(Math.atan2(start.z - center.z, start.x - center.x));
         return d;
     }

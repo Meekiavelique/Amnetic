@@ -35,7 +35,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class AssimpParser {
-
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Model");
 
     private static final int IMPORT_FLAGS =
@@ -335,9 +334,6 @@ public final class AssimpParser {
         m.roughness = getFloat(mat, Assimp.AI_MATKEY_ROUGHNESS_FACTOR, m.roughness);
         float opacity = getFloat(mat, Assimp.AI_MATKEY_OPACITY, 1f);
         m.baseA *= opacity;
-        // KHR_materials_transmission: glass-like surfaces carry a transmission factor instead of alpha,
-        // assimp imports it as $mat.transmission.factor. fold it into opacity so glass renders see-through
-        // instead of opaque white, with a small floor so the pane stays visible
         float transmission = getFloat(mat, Assimp.AI_MATKEY_TRANSMISSION_FACTOR, 0f);
         if (transmission > 0f) {
             m.baseA *= Math.max(1f - transmission, 0.08f);

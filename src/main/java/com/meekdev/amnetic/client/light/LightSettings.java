@@ -4,7 +4,6 @@ import net.minecraft.resources.Identifier;
 import java.util.Locale;
 
 public final class LightSettings {
-
     private static final LightSettings INSTANCE = new LightSettings();
 
     private int maxLights = 256;
@@ -12,12 +11,12 @@ public final class LightSettings {
     private boolean frustumCull = true;
     private boolean lightVolumes = true;
     private float surfaceScale = initialSurfaceScale();
-    private float lodFadeStart = 64f; // blocks past a light's range where it starts fading out
-    private float lodFadeEnd = 128f; // blocks past range where it's fully culled
+    private float lodFadeStart = 64f;
+    private float lodFadeEnd = 128f;
 
     private boolean volumetric = false;
-    private int volumetricSteps = 16; // 0 disables
-    private float volumetricStrength = 1.0f; // overall scatter scale
+    private int volumetricSteps = 16;
+    private float volumetricStrength = 1.0f;
     private float volumetricDensity = 0.4f;
     private float volumetricAniso = 0.6f;
     private boolean volumetricShadows = true;
@@ -27,8 +26,8 @@ public final class LightSettings {
     private boolean contactShadows = false;
     private float sceneAmbient = 1f;
     private int contactSteps = 12;
-    private float contactDistance = 0.5f; // march length, blocks
-    private float contactThickness = 0.15f; // occluder thickness tolerance
+    private float contactDistance = 0.5f;
+    private float contactThickness = 0.15f;
 
     private Identifier cookieTexture;
 
@@ -46,7 +45,6 @@ public final class LightSettings {
         return INSTANCE;
     }
 
-    /** Resolution of local surface lighting; the world image remains full resolution. */
     public LightSettings surfaceScale(float scale) {
         if (!Float.isFinite(scale)) throw new IllegalArgumentException("Lighting scale must be finite");
         surfaceScale = Math.max(0.5f, Math.min(1f, scale));

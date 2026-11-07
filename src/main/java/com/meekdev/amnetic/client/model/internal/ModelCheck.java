@@ -5,9 +5,7 @@ import com.meekdev.amnetic.client.content.ContentLimits;
 import java.util.Arrays;
 import java.util.List;
 
-// what every parsed model must be before anything walks it: nodes form trees and every index points at something
 public final class ModelCheck {
-
     private static final int ROOT = -1;
     private static final int UNKNOWN = -2;
 
@@ -48,7 +46,6 @@ public final class ModelCheck {
         }
     }
 
-    // parent links must form trees no deeper than a model may go, a loop never ends so it runs past that depth
     public static void trees(int[] parents) {
         int[] depth = new int[parents.length];
         Arrays.fill(depth, UNKNOWN);

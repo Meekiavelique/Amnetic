@@ -4,12 +4,10 @@ import com.meekdev.amnetic.client.dev.ShaderHotReload;
 import org.slf4j.Logger;
 
 public final class FailureGuard {
-
     private final int maxConsecutive;
     private final String name;
     private int consecutive;
     private boolean dead;
-    // reload generation at death, a newer one means new shader source arrived so retry
     private long deadGeneration;
     private Logger log;
 

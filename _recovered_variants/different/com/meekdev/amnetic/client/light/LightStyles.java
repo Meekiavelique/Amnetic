@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 
 public final class LightStyles {
-
     public static final ResourceLocation HOOK =
             new ResourceLocation("amnetic", "shaders/light/styles.glsl");
 
@@ -61,7 +60,6 @@ public final class LightStyles {
                     .append(i + 1).append(") {\n")
                     .append(BODIES.get(i)).append("\n    }\n");
         }
-        // the parameters go unread when nothing is registered, and some drivers warn on that
         out.append("    p = p; atten = atten; color = color;\n}\n");
         return out.toString();
     }

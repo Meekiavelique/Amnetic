@@ -12,7 +12,7 @@ out vec3 vViewPos;
 out vec3 vViewNormal;
 out vec4 vColor;
 out vec2 vUV;
-out float vModelY;     // body-space height, for scanlines that ride the figure
+out float vModelY;
 
 void main() {
     vec4 viewPos = ModelViewMat * vec4(Position, 1.0);

@@ -6,7 +6,6 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 public final class Spring implements CameraModifier {
-
     private final Vector3f position = new Vector3f();
     private final Vector3f velocity = new Vector3f();
     private final Vector3f target = new Vector3f();
@@ -33,7 +32,6 @@ public final class Spring implements CameraModifier {
                 && velocity.lengthSquared() < 1.0e-6f;
     }
 
-    // substepped so a long frame cannot make the spring explode
     private void integrate(float dt) {
         int steps = Math.max(1, (int) Math.ceil(dt / 0.008f));
         float h = dt / steps;

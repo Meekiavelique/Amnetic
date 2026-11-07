@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.util.Comparator;
 
 public final class TextureCacheRegression {
-
     private TextureCacheRegression() {}
 
     public static void verify() throws IOException {
@@ -37,7 +36,6 @@ public final class TextureCacheRegression {
         }
     }
 
-    // the header writes what the test claims, the one level holds as many bytes as the claimed size says up to 64
     private static void amtex(Path dir, String key, int format, int width, int height, int levels, int size) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bytes);

@@ -35,13 +35,7 @@ import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * pure-java glTF/GLB parser on jgltf. reads UVs, materials and textures straight from the accessors
- * per primitive so nothing gets reordered or merged like the Assimp path does, and emits the same
- * {@link ModelIR} the rest of the pipeline consumes
- */
 public final class GltfParser {
-
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Gltf");
 
     private static final int MODE_TRIANGLES = 4;
@@ -53,7 +47,6 @@ public final class GltfParser {
         return parse(bytes, source, null);
     }
 
-    // files reads an image the file points at by a relative uri, given the decoded uri, null when it has none
     public static ModelIR parse(byte[] bytes, Identifier source, Function<String, byte[]> files) {
         try {
             GltfPreflight.checkJson(bytes);
@@ -99,10 +92,9 @@ public final class GltfParser {
 
             float[] m = node.getMatrix();
             if (m != null && m.length == 16) {
-                out.local.set(m); // jgltf matrices are column-major, same as JOML
+                out.local.set(m);
                 out.local.getTranslation(out.t);
                 out.local.getScale(out.s);
-                // a mirrored node keeps its mirror as a negative x scale, or posing it would flip it back
                 Matrix4f turn = new Matrix4f(out.local);
                 if (out.local.determinant3x3() < 0f) {
                     out.s.x = -out.s.x;
@@ -111,7 +103,6 @@ public final class GltfParser {
                 turn.getUnnormalizedRotation(out.r);
                 out.r.normalize();
             } else {
-                // the file's own parts are kept as they are, decomposing them again would lose a negative scale
                 float[] t = node.getTranslation();
                 float[] r = node.getRotation();
                 float[] s = node.getScale();
@@ -215,7 +206,6 @@ public final class GltfParser {
         return part;
     }
 
-    // joints and weights of a skinned primitive, the 4 heaviest influences kept and summed to 1
     private static void readSkin(ModelIR.Part part, Map<String, AccessorModel> attrs, SkinModel skin,
                                  Map<NodeModel, Integer> nodeIndices, String model) {
         if (skin == null || !attrs.containsKey("JOINTS_0") || !attrs.containsKey("WEIGHTS_0")) {
@@ -333,7 +323,6 @@ public final class GltfParser {
             out.baseColorImageBytes = imageBytes(v2.getBaseColorTexture(), extras);
             if (nearest(v2.getBaseColorTexture())) out.baseColorFilter = TextureFilter.NEAREST;
             out.normalImageBytes = imageBytes(v2.getNormalTexture(), extras);
-            // glTF metallicRoughness packs roughness in G and metallic in B, same layout model.fsh reads
             out.ormImageBytes = imageBytes(v2.getMetallicRoughnessTexture(), extras);
             out.emissiveImageBytes = imageBytes(v2.getEmissiveTexture(), extras);
         }
@@ -352,8 +341,6 @@ public final class GltfParser {
     }
 
     private static float transmissionFactor(MaterialModelV2 v2) {
-        // KHR_materials_transmission isn't in MaterialModelV2's typed API, read the raw extension map
-        // instead. best effort, any failure just means opaque
         try {
             Object props = v2.getExtensions();
             if (props instanceof Map<?, ?> ext) {
@@ -363,7 +350,7 @@ public final class GltfParser {
                     if (f instanceof Number n) {
                         return n.floatValue();
                     }
-                    return 1.0f; // present with default factor 1.0
+                    return 1.0f;
                 }
             }
         } catch (Throwable ignored) {
@@ -371,7 +358,6 @@ public final class GltfParser {
         return 0f;
     }
 
-    // a sampler asking for nearest magnification, the way pixel art and psx exports come out
     private static boolean nearest(TextureModel texture) {
         if (texture == null) return false;
         Integer mag = texture.getMagFilter();
@@ -388,7 +374,6 @@ public final class GltfParser {
         }
         ByteBuffer data = image.getImageData();
         if (data == null) {
-            // an image by uri, a data uri or a file next to the model
             return extras.image(image.getUri());
         }
         ByteBuffer dup = data.slice();
@@ -469,8 +454,6 @@ public final class GltfParser {
         return out;
     }
 
-    // the file with every buffer and image it names by uri filled in through files, one it cannot find comes in empty
-    // jgltf reads image data while building the model, so an image left unresolved would fail the whole file
     private static GltfModel read(byte[] bytes, Function<String, byte[]> files) throws java.io.IOException {
         GltfAsset asset = new GltfAssetReader().readWithoutReferences(byteStream(bytes));
         GltfPreflight.check(asset);

@@ -9,7 +9,6 @@ import java.util.zip.CRC32;
 import javax.imageio.ImageIO;
 
 final class ImageProbeRegression {
-
     private static final int HUGE = 100_000;
 
     static void verify() throws IOException {
@@ -28,7 +27,6 @@ final class ImageProbeRegression {
         System.out.println("PASS: a real png decodes");
     }
 
-    // a png that is only its signature, a header claiming width by height, and its end
     static byte[] png(int width, int height) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bytes);

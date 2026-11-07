@@ -16,7 +16,6 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
 
 public final class FlatProgram implements AutoCloseable {
-
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/util/flat.vsh");
     private static final Identifier FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/util/flat.fsh");
 
@@ -91,7 +90,6 @@ public final class FlatProgram implements AutoCloseable {
         }
     }
 
-    // dev hot reload, next ensure() recompiles from the new source
     public void invalidate() {
         close();
     }

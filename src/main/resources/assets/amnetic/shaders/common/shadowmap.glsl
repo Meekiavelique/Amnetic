@@ -1,6 +1,5 @@
-
 uniform sampler2D SpotShadowAtlas;
-uniform sampler2D SpotShadowColor; // nearest-occluder tint for colored shadows
+uniform sampler2D SpotShadowColor;
 #ifdef AMNETIC_NATIVE
 uniform sampler2D PointShadowArray;
 uniform int PointShadowRows;
@@ -30,25 +29,25 @@ uniform samplerCubeArray PointShadowArray;
 #define AMNETIC_POINT_DEPTH(d, slot) texture(PointShadowArray, vec4(d, float(slot))).r
 #define AMNETIC_POINT_TEXEL 0.0025
 #endif
-uniform mat4 SpotViewProj[16]; // camera-relative spot view-projection per atlas tile
-uniform float ShadowAtlasSize; // atlas edge, px
-uniform float ShadowTileSize; // spot tile edge, px
-uniform int ShadowGridX; // tiles per atlas row
+uniform mat4 SpotViewProj[16];
+uniform float ShadowAtlasSize;
+uniform float ShadowTileSize;
+uniform int ShadowGridX;
 uniform float ShadowBias;
-uniform float ShadowNormalBias; // world-space push along N, in blocks
+uniform float ShadowNormalBias;
 uniform float ShadowSoftnessTexels;
-uniform float ShadowFadeStart; // camera distance where shadows begin fading to lit
-uniform float ShadowFadeEnd; // camera distance where shadows are fully gone
-uniform int ShadowPcss; // 1 = contact-hardening
+uniform float ShadowFadeStart;
+uniform float ShadowFadeEnd;
+uniform int ShadowPcss;
 uniform float ShadowLightSize;
 uniform int ShadowActive;
 
-uniform sampler2DArrayShadow SunShadowMap; // depth per cascade, tightest first
-uniform mat4 SunViewProj[4]; // camera-relative ortho view-projection per cascade
-uniform float SunCascadeRadius[4]; // cascade world radius; texel = 2r / SunShadowRes
+uniform sampler2DArrayShadow SunShadowMap;
+uniform mat4 SunViewProj[4];
+uniform float SunCascadeRadius[4];
 uniform int SunCascadeCount;
 uniform float SunShadowRes;
-uniform float SunShadowDistance; // far edge of the loosest cascade, shadows fade out toward it
+uniform float SunShadowDistance;
 uniform int SunShadowActive;
 
 const vec2 AMNETIC_POISSON[16] = vec2[16](
@@ -112,7 +111,7 @@ vec3 amnetic_sampleSpot(int tile, vec3 fragPos, vec3 N) {
             float d = texture(SpotShadowAtlas, (vec2(ox, oy) + tilePx) * texel).r;
             if (d < fragDepth - spotBias) { blockerSum += d; blockers++; }
         }
-        if (blockers == 0) return vec3(1.0); // nothing in front, fully lit
+        if (blockers == 0) return vec3(1.0);
         float avgBlocker = blockerSum / float(blockers);
         float penumbra = (fragDepth - avgBlocker) / max(avgBlocker, 1e-4);
         radius = clamp(penumbra * ShadowLightSize * 8.0, 0.5, ShadowLightSize * 3.0);
@@ -141,7 +140,7 @@ float amnetic_pointLinear(float stored, float n, float f) {
 }
 
 vec3 amnetic_samplePoint(int slot, vec3 fragPos, vec3 lightPosRel, float range) {
-    vec3 d = fragPos - lightPosRel; // world-space light
+    vec3 d = fragPos - lightPosRel;
     float ze = max(max(abs(d.x), abs(d.y)), abs(d.z));
     float n = 0.05;
     float f = max(range, n + 0.1);
@@ -185,21 +184,19 @@ vec3 amnetic_samplePoint(int slot, vec3 fragPos, vec3 lightPosRel, float range) 
         float stored = AMNETIC_POINT_DEPTH(sampleDir, slot);
         lit += (fragDepth - pointBias <= stored) ? 1.0 : 0.0;
     }
-    return vec3(lit / 16.0); // point shadows are grayscale, no color map for the cube array yet
+    return vec3(lit / 16.0);
 }
 
-// cascaded sun shadows: first-fit cascade selection (tightest wins), hardware-filtered PCF
 float amnetic_sampleSun(vec3 fragPos, vec3 N) {
     if (SunShadowActive == 0) return 1.0;
     for (int c = 0; c < SunCascadeCount; c++) {
         float worldTexel = 2.0 * SunCascadeRadius[c] / SunShadowRes;
         vec3 biased = fragPos + N * max(ShadowNormalBias, worldTexel * 1.75);
-        vec3 ndc = (SunViewProj[c] * vec4(biased, 1.0)).xyz; // ortho: w == 1
-        // keep a border so the PCF disk never reads outside this cascade; fall through to the next one
+        vec3 ndc = (SunViewProj[c] * vec4(biased, 1.0)).xyz;
         if (abs(ndc.x) > 0.97 || abs(ndc.y) > 0.97 || ndc.z < -1.0 || ndc.z > 1.0) continue;
 
         vec2 uv = ndc.xy * 0.5 + 0.5;
-        float ref = ndc.z * 0.5 + 0.5 - ShadowBias * (1.0 + float(c)); // looser cascades span more depth per unit
+        float ref = ndc.z * 0.5 + 0.5 - ShadowBias * (1.0 + float(c));
         float radius = max(ShadowSoftnessTexels, 0.0);
         if (radius < 1.0) return texture(SunShadowMap, vec4(uv, float(c), ref));
 
@@ -213,7 +210,7 @@ float amnetic_sampleSun(vec3 fragPos, vec3 N) {
         }
         return lit / 8.0;
     }
-    return 1.0; // beyond the loosest cascade
+    return 1.0;
 }
 
 vec3 shadowVisibility(int shadowRef, vec3 fragPos, vec3 N, vec3 lightPosRel, float range) {

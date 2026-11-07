@@ -3,19 +3,17 @@
 in vec2 vUV;
 out vec4 FragColor;
 
-uniform sampler2D ColorSampler; // current frame (rendered with sub-pixel jitter)
-uniform sampler2D History; // previous resolved frame
+uniform sampler2D ColorSampler;
+uniform sampler2D History;
 uniform sampler2D DepthSampler;
-uniform mat4 PrevViewProj; // previous frame view-proj, including jitter
-uniform mat4 InvViewProj; // current frame inverse view-proj, including jitter
-uniform vec3 EyeDelta; // current eye - previous eye
+uniform mat4 PrevViewProj;
+uniform mat4 InvViewProj;
+uniform vec3 EyeDelta;
 uniform int ZeroToOne;
 uniform int ReversedDepth;
 uniform float Feedback;
-uniform float ClipSigma; // neighbourhood clip width, in standard deviations
+uniform float ClipSigma;
 
-// local copy of the camera-relative position reconstruct, screen.glsl also drags in
-// depth-derivative normal helpers this pass doesn't want
 vec3 reconstruct(vec2 uv, float depth) {
     float z = (ZeroToOne == 1) ? depth : depth * 2.0 - 1.0;
     vec4 clip = vec4(uv * 2.0 - 1.0, z, 1.0);
@@ -33,8 +31,6 @@ vec3 ycocg2rgb(vec3 c) {
     return vec3(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z);
 }
 
-// clip (not clamp) the history colour toward the neighbourhood box centre, clipping keeps
-// the hue instead of snapping each channel independently
 vec3 clipAABB(vec3 minc, vec3 maxc, vec3 hist) {
     vec3 center = 0.5 * (maxc + minc);
     vec3 extents = 0.5 * (maxc - minc) + 1e-5;
@@ -44,8 +40,6 @@ vec3 clipAABB(vec3 minc, vec3 maxc, vec3 hist) {
     return (t > 1.0) ? center + v / t : hist;
 }
 
-// catmull-rom history filter (5 bilinear fetches, corners dropped), a plain bilinear tap
-// re-blurs the accumulation every frame and the image goes soft in motion
 vec3 sampleHistory(vec2 uv, vec2 texSize) {
     vec2 samplePos = uv * texSize;
     vec2 texPos1 = floor(samplePos - 0.5) + 0.5;
@@ -74,9 +68,6 @@ float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 void main() {
     vec3 cur = texture(ColorSampler, vUV).rgb;
 
-
-    // camera-only reprojection, works for everything static (terrain, the far field this
-    // pass exists for), moving objects fall back to the neighbourhood clip below
     float depth = texture(DepthSampler, vUV).r;
     if ((ReversedDepth == 1 && depth <= 0.0) || (ReversedDepth == 0 && depth >= 1.0)) {
         FragColor = vec4(cur, 0.0); return;
@@ -102,8 +93,6 @@ void main() {
     }
     vec3 hist = sampleHistory(puv, texSize);
 
-    // 3x3 neighbourhood variance box in YCoCg. the box width is the only defence against a moving
-    // object's stale history, since reprojection here is camera only, so it is tunable
     ivec2 ip = ivec2(gl_FragCoord.xy);
     ivec2 maxIp = ivec2(texSize) - 1;
     vec3 m1 = vec3(0.0), m2 = vec3(0.0);
@@ -119,8 +108,6 @@ void main() {
     vec3 box = sigma * ClipSigma;
     hist = ycocg2rgb(clipAABB(mu - box, mu + box, rgb2ycocg(hist)));
 
-    // less history when the pixel moved far across the screen, and inverse-luminance
-    // weighting so a single bright frame (firefly) can't dominate the blend
     float velPx = length((vUV - puv) * texSize);
     float f = Feedback * (1.0 - clamp(velPx / 80.0, 0.0, 0.5));
     float luminanceChange = abs(luma(cur) - luma(hist)) / max(max(luma(cur), luma(hist)), 0.05);

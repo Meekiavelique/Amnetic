@@ -6,10 +6,6 @@ vec3 reconstruct(vec2 uv, float depth) {
     return p.xyz / p.w;
 }
 
-// picks the neighbour with the smaller depth jump for the finite-difference derivative. if both
-// neighbours jump past a relative threshold the uv sits on a silhouette with disocclusion on both
-// sides and either derivative would extrapolate across it, so return zero and let betterNormal
-// fall back
 vec3 betterAxis(vec2 uv, vec3 P, vec2 offset, float dNeg, float dPos, float c) {
     float threshold = max(FORWARD_DEPTH(c) * 0.01, 1e-5);
     bool negBad = abs(dNeg - c) > threshold;

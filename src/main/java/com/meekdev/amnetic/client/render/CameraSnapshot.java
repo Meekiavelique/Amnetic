@@ -8,7 +8,6 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 public final class CameraSnapshot {
-
     public final Vec3 eye;
     public final Matrix4f projection;
     public final Matrix4f view;
@@ -57,7 +56,6 @@ public final class CameraSnapshot {
         if (IrisCompat.compositing()) {
             IrisCompat.projection(projection);
             IrisCompat.view(view);
-            // Iris uses the OpenGL shader-pack projection, including on 26.1.
             zeroToOne = false;
         }
 

@@ -8,7 +8,6 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
  *  pass; draw the processed result into the framebuffer the pipeline has already bound (same size).
  *  the pipeline alpha-blends that result back over the scene after all the layer's passes have run */
 public final class Layer {
-
     private final RenderLayer kind;
     private final int inputTexture;
     private final int width;
@@ -36,7 +35,6 @@ public final class Layer {
         return kind;
     }
 
-    // GL id of the captured layer colour (RGBA, transparent where the layer drew nothing)
     public int inputTexture() {
         return inputTexture;
     }

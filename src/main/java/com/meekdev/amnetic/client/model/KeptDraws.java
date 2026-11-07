@@ -8,19 +8,12 @@ import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 
-// draws of one model that stay where they are, handed in once and drawn every frame until cleared
-// for things that do not move: nothing about them is worked out again each frame but culling and level of detail
-// a look or inputs handed in are still read when the frame is drawn, so the caller may keep changing them
 public final class KeptDraws {
-
-    // a draw's light is sampled again this many frames apart, a few of them each frame
     private static final int RELIGHT_FRAMES = 64;
 
     private final Model model;
     private final List<Model.Draw> draws = new ArrayList<>();
-    // the box each draw fills in the world, min then max
     private float[] boxes = new float[0];
-    // block light and the sky light before the time of day darkens it, NaN until sampled
     private float[] light = new float[0];
     private int[] levels = new int[0];
     private int relight;
@@ -72,7 +65,6 @@ public final class KeptDraws {
         return draws.size();
     }
 
-    // goes up whenever a draw is added or they are cleared
     public int version() {
         return version;
     }
@@ -97,7 +89,6 @@ public final class KeptDraws {
         return levels;
     }
 
-    // which draws sample their light again this frame, a slice at a time
     public boolean internalRelight(int index) {
         return Float.isNaN(light[index * 2]) || index % RELIGHT_FRAMES == relight;
     }

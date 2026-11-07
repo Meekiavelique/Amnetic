@@ -4,7 +4,6 @@ import com.meekdev.amnetic.client.anim.internal.Updatable;
 import java.util.function.Consumer;
 
 public final class Tween<T> implements Updatable {
-
     private final T start;
     private final T end;
     private final float duration;
@@ -12,7 +11,7 @@ public final class Tween<T> implements Updatable {
 
     private EasingFunction easing = Easing.LINEAR;
     private float delay;
-    private int repeat;          // additional cycles after the first; -1 == infinite
+    private int repeat;
     private boolean yoyo;
     private float speed = 1f;
 
@@ -20,7 +19,6 @@ public final class Tween<T> implements Updatable {
     private Consumer<T> onUpdate;
     private Runnable onComplete;
 
-    // runtime state
     private float delayRemaining;
     private float elapsed;
     private int cycle;
@@ -126,7 +124,7 @@ public final class Tween<T> implements Updatable {
         if (delayRemaining > 0f) {
             delayRemaining -= dt;
             if (delayRemaining > 0f) return false;
-            dt = -delayRemaining; // carry the remainder into the first real step
+            dt = -delayRemaining;
             delayRemaining = 0f;
         }
 

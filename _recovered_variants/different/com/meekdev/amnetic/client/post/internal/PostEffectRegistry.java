@@ -7,7 +7,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.resources.ResourceLocation;
 
 public final class PostEffectRegistry {
-
     public static final PostEffectRegistry INSTANCE = new PostEffectRegistry();
 
     private final List<PostEffectEntry> entries = new CopyOnWriteArrayList<>();
@@ -21,7 +20,6 @@ public final class PostEffectRegistry {
         return entry;
     }
 
-    // priority can change after registration (configurator, handle.setPriority), callers resort
     public void resort() {
         entries.sort(Comparator.comparingInt(PostEffectEntry::getPriority).reversed());
     }

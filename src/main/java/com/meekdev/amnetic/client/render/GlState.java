@@ -20,7 +20,6 @@ import com.mojang.blaze3d.systems.RenderSystem;
 //?}
 
 public final class GlState {
-
     private static final int MAX_UNIT = 3;
 
     private static volatile int geometryPolygonMode = GL11.GL_FILL;
@@ -54,7 +53,6 @@ public final class GlState {
         GlStateManager._disableCull(); GL11.glDisable(GL11.GL_CULL_FACE);
     }
 
-    // draw fbo as GlStateManager last bound it, no glGet so no driver sync
     public static int drawFramebuffer() {
         //? if >=1.21.5 {
         return GlStateManager.getFrameBuffer(GL30.GL_DRAW_FRAMEBUFFER);
@@ -64,9 +62,6 @@ public final class GlState {
     }
 
     public static void bindTexture(int unit, int glId) {
-        // raw bind forces real GL correct for our pass; the matching GlStateManager call keeps its cache in
-        // sync so vanilla's next (cached) bind of the same unit isn't skipped - otherwise vanilla samples our
-        // leftover texture and the world renders dark
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
         GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
@@ -93,7 +88,7 @@ public final class GlState {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + u);
             GlStateManager._activeTexture(GL13.GL_TEXTURE0 + u);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-            GlStateManager._bindTexture(0); // keep GlStateManager's cache in sync with the real unbind
+            GlStateManager._bindTexture(0);
             GL33.glBindSampler(u, 0);
         }
         GL13.glActiveTexture(GL13.GL_TEXTURE0);

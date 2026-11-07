@@ -22,12 +22,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HexFormat;
 
-// images decoded once into their whole mip chain on disk, named by what they hold, so drawing never decodes
-// no gl in here, a server can fill it too
 public final class TextureCache {
-
     private static final byte[] MAGIC = {'A', 'M', 'T', 'X'};
-    // bump AmmeshFormat.CONVERTER too when this changes, models name their textures by key
     private static final int VERSION = 1;
     private static final int HEADER = 4 + 4 * 6;
 
@@ -49,12 +45,10 @@ public final class TextureCache {
         }
     }
 
-    // levels are tightly packed, rgba8 or dxt blocks, level n is width >> n by height >> n
     public record Image(int format, int width, int height, boolean opaque, ByteBuffer[] levels) {}
 
     private TextureCache() {}
 
-    // srgb images get their mips averaged in linear light, so a colour map and a normal map of the same bytes differ
     public static String key(byte[] image, boolean srgb) {
         return hash(image).substring(0, 32) + (srgb ? "s" : "l");
     }
@@ -75,7 +69,6 @@ public final class TextureCache {
         return Files.isRegularFile(file(dir, key, false));
     }
 
-    // decodes the image and writes its mips under key, refused when it is no image a model can use or too big
     public static void store(Path dir, String key, byte[] image, boolean srgb) throws IOException {
         if (has(dir, key)) return;
         BufferedImage decoded = ImageProbe.decode(image, ImageProbe.TEXTURES);
@@ -103,13 +96,10 @@ public final class TextureCache {
         write(file(dir, key, false), RGBA, w, h, opaque, levels);
     }
 
-    // the same mips as the driver compressed them, kept beside the plain ones
     public static void storeCompressed(Path dir, String key, int format, int width, int height, boolean opaque, byte[][] levels) throws IOException {
         write(file(dir, key, true), format, width, height, opaque, levels);
     }
 
-    // mapped, so uploading reads straight from the file, null when missing or from another version
-    // a file that claims more than it holds is refused before any of it reaches the driver
     public static Image read(Path dir, String key, boolean compressed) {
         Path file = file(dir, key, compressed);
         if (!Files.isRegularFile(file)) return null;
@@ -144,7 +134,6 @@ public final class TextureCache {
         }
     }
 
-    // what one level of an image takes, rgba8 or dxt blocks of four by four texels
     static int levelBytes(int format, int w, int h) {
         if (format == RGBA) return w * h * RGBA_TEXEL;
         int blocks = ((w + DXT_BLOCK - 1) / DXT_BLOCK) * ((h + DXT_BLOCK - 1) / DXT_BLOCK);
@@ -155,7 +144,6 @@ public final class TextureCache {
         return 32 - Integer.numberOfLeadingZeros(Math.max(w, h));
     }
 
-    // box filter down one level, an odd edge repeats its last texel like the driver does
     static byte[] half(byte[] from, int w, int h, boolean srgb) {
         int nw = Math.max(1, w >> 1);
         int nh = Math.max(1, h >> 1);
@@ -209,7 +197,6 @@ public final class TextureCache {
         atomicWrite(file, buf.toByteArray());
     }
 
-    // written beside and moved in, a reader never sees half a file and two writers of one key both win
     static void atomicWrite(Path file, byte[] bytes) throws IOException {
         Files.createDirectories(file.getParent());
         Path temporary = Files.createTempFile(file.getParent(), ".part-", ".tmp");

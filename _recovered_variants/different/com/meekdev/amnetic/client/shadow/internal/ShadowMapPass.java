@@ -35,12 +35,10 @@ import java.util.List;
 import java.util.Set;
 
 public final class ShadowMapPass {
-
     public static final ShadowMapPass INSTANCE = new ShadowMapPass();
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Shadows");
 
     private static final float NEAR = 0.05f;
-    // OccluderCache key for the sun's block occluders, real light ids start at 1 so no collision
     private static final long SUN_OCCLUDER_ID = -1L;
     private static final ResourceLocation DEPTH_VSH = new ResourceLocation("amnetic", "shaders/shadow/depth.vsh");
     private static final ResourceLocation DEPTH_FSH = new ResourceLocation("amnetic", "shaders/shadow/depth.fsh");
@@ -53,7 +51,7 @@ public final class ShadowMapPass {
     private final Set<Long> liveIds = new HashSet<>();
     private final HashMap<Long, long[]> bakeState = new HashMap<>();
     private final ArrayList<Light> candidates = new ArrayList<>();
-    private int dirtyBaked; // dirty GPU bakes done this frame
+    private int dirtyBaked;
 
     private static double dist2(Light l, double ex, double ey, double ez) {
         double dx = l.x() - ex, dy = l.y() - ey, dz = l.z() - ez;
@@ -66,8 +64,6 @@ public final class ShadowMapPass {
     private final Matrix4f proj = new Matrix4f();
     private final Matrix4f view = new Matrix4f();
     private final Matrix4f viewProj = new Matrix4f();
-    // view-proj pair for custom models/instanced meshes: unlike the occluder bake (relative to an int
-    // block-grid anchor) these are relative to the light itself, since neither system knows the anchor grid
     private final Matrix4f dynamicView = new Matrix4f();
     private final Matrix4f dynamicViewProj = new Matrix4f();
     private boolean dynamicCasters;
@@ -75,9 +71,8 @@ public final class ShadowMapPass {
     private static final int CASTER_FLUSH_FRAMES = 4;
 
     private final float[] spotViewProj = new float[ShadowSettings.MAX_SPOT * 16];
-    private final int[] savedViewport = new int[4]; // reused each bake frame (no per-frame allocation)
+    private final int[] savedViewport = new int[4];
 
-    // sun cascades: camera-relative sampling matrices plus world radius per cascade, tightest first
     private final float[] sunViewProj = new float[ShadowSettings.MAX_CASCADES * 16];
     private final float[] sunCascadeRadius = new float[ShadowSettings.MAX_CASCADES];
     private final Matrix4f sunCamViewProj = new Matrix4f();
@@ -99,7 +94,6 @@ public final class ShadowMapPass {
     private float sunDistance;
 
     private ShadowMapPass() {
-        // dev hot reload, closing a depth program makes its next begin() recompile
         ShaderHotReload.onReload(() -> {
             if (opaqueProgram != null) opaqueProgram.close();
             if (cutoutProgram != null) cutoutProgram.close();
@@ -118,12 +112,9 @@ public final class ShadowMapPass {
     public float[] sunCascadeRadius() { return sunCascadeRadius; }
 
     public float lastBakeMs() { return lastBakeNanos / 1_000_000f; }
-    /** how many steps the budget has taken the sun shadow down from what was set, 0 = none */
     public int reduction() { return governor.step(); }
-    /** how far the sun shadow reaches this frame, after the budget */
     public float sunDistance() { return sunDistance > 0f ? sunDistance : ShadowSettings.defaults().sunDistance(); }
 
-    // the sun values in use, worked out again only when a setting or the budget step changed
     private void settle(ShadowSettings s) {
         if (s.version() == settingsVersion && sunCascades > 0) return;
         settingsVersion = s.version();
@@ -163,9 +154,6 @@ public final class ShadowMapPass {
         float maxDist2 = s.maxDistance() * s.maxDistance();
         partialTick = VanillaCompat.partialTick(false);
 
-        // gather candidates before any GL work so a lightless scene skips it all, notably the glGetInteger
-        // state save which drains the GL pipeline (worse under the profiler's per-pass timer queries).
-        // most frames with no nearby casters exit right here
         candidates.clear();
         Light sun = null;
         for (Light l : LightRegistry.INSTANCE.all()) {
@@ -173,7 +161,7 @@ public final class ShadowMapPass {
             if (!l.isEnabled() || !l.castsShadow()) continue;
             LightType t = l.type();
             if (t == LightType.DIRECTIONAL) {
-                if (sun == null) sun = l; // first directional caster is the sun; extras don't cast
+                if (sun == null) sun = l;
                 continue;
             }
             if (t != LightType.SPOT && t != LightType.POINT) continue;
@@ -182,7 +170,6 @@ public final class ShadowMapPass {
             candidates.add(l);
         }
         if (candidates.isEmpty() && sun == null) {
-            // no casters this frame, drop cached occluders/bake state without touching GL state
             liveIds.clear();
             meshes.retainOnly(liveIds);
             OccluderCache.retainOnly(liveIds);
@@ -195,9 +182,6 @@ public final class ShadowMapPass {
         if (cutoutProgram == null) cutoutProgram = new ShadowDepthProgram(CUTOUT_VSH, CUTOUT_FSH);
         if (translucentProgram == null) translucentProgram = new ShadowDepthProgram(CUTOUT_VSH, TRANSLUCENT_FSH);
 
-        // no glGet* state saves here, three synchronous reads per frame drain the GL queue. the outer FBO
-        // was captured once in beginFrame(), the world-pass viewport is always the main target's full size,
-        // and the world never renders with scissor on (GlStateManager re-establishes it for the GUI)
         int savedFbo = GBufferTargets.INSTANCE.outerFboId();
         var mainRt = mc.getMainRenderTarget();
         savedViewport[0] = 0;
@@ -216,8 +200,8 @@ public final class ShadowMapPass {
             GL11.glDepthFunc(GL11.GL_LESS);
             GL11.glDepthMask(true);
             GL11.glDisable(GL11.GL_CULL_FACE);
-            GL11.glColorMask(true, true, true, true); // spot atlas has a color attachment
-            GL11.glClearColor(1f, 1f, 1f, 1f); // unoccluded color-map texels = white
+            GL11.glColorMask(true, true, true, true);
+            GL11.glClearColor(1f, 1f, 1f, 1f);
             GL11.glEnable(GL11.GL_SCISSOR_TEST);
 
             dirtyBaked = 0;
@@ -235,7 +219,7 @@ public final class ShadowMapPass {
                     if (!atlasReady) { SpotShadowAtlas.ensure(res); atlasReady = true; }
                     l.setShadowRef(spotCount);
                     liveIds.add(l.id());
-                    bakeSpot(l, cam, level, spotCount, s); // static-skips internally
+                    bakeSpot(l, cam, level, spotCount, s);
                     spotCount++;
                 } else if (type == LightType.POINT && pointCount < s.maxPointShadows()) {
                     if (!arrayReady) { PointShadowArray.ensure(s.pointFaceSize(), s.maxPointShadows()); arrayReady = true; }
@@ -312,7 +296,6 @@ public final class ShadowMapPass {
                 l.dirX(), l.dirY(), l.dirZ()));
         drawAll(mesh, ents, viewProj);
 
-        // custom models/instanced meshes are light-relative, not block-anchor-relative (see field note)
         dynamicViewProj.set(proj).mul(lookAt(dynamicView, 0f, 0f, 0f, l.dirX(), l.dirY(), l.dirZ()));
         ModelRegistry.INSTANCE.renderShadow(dynamicViewProj, l.x(), l.y(), l.z(), l.range());
         dynamicViewProj.set(proj).mul(lookAt(dynamicView, (float) l.x(), (float) l.y(), (float) l.z(),
@@ -357,12 +340,6 @@ public final class ShadowMapPass {
         }
     }
 
-    // bakes the sun's cascaded shadow maps. each cascade fits an ortho to the bounding sphere of a
-    // camera-frustum slice (sphere fit keeps the radius rotation-stable, so texel-snapping the center is
-    // enough to kill shimmer) and draws the same caster sources as the spot path, each in its own frame:
-    // blocks/entities anchor-relative, custom models cascade-center-relative, instanced meshes
-    // camera-relative. re-baked every frame, the casters move with the camera so there is no stable
-    // signature to cache on
     private void bakeSun(Light sun, CameraSnapshot cam, Level level, ShadowSettings s) {
         float dx = sun.dirX(), dy = sun.dirY(), dz = sun.dirZ();
         float dl = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
@@ -374,8 +351,6 @@ public final class ShadowMapPass {
         SunShadowCascades.ensure(sunResolution, cascades);
         int res = SunShadowCascades.resolution();
 
-        // light-space basis in double precision so world-space texel snapping stays exact far from origin
-        // up choice mirrors lookAt() so the snap axes match the view matrix
         float upx = 0f, upy = 1f, upz = 0f;
         if (Math.abs(dy) > 0.99f) { upy = 0f; upz = 1f; }
         double rxd = (double) dy * upz - (double) dz * upy;
@@ -387,13 +362,11 @@ public final class ShadowMapPass {
         double uyd = rzd * dx - rxd * dz;
         double uzd = rxd * dy - ryd * dx;
 
-        // camera frustum shape from the projection (reversed-Z only changes the depth rows)
         cam.view.positiveZ(camFwd).negate();
         float tanH = 1f / cam.projection.m00();
         float tanV = 1f / cam.projection.m11();
         float k2 = tanH * tanH + tanV * tanV;
 
-        // practical split scheme: blend of logarithmic (tight near the camera) and uniform
         float near = NEAR, far = sunDistance, lambda = s.sunSplitLambda();
         float[] splits = new float[cascades + 1];
         splits[0] = near;
@@ -407,8 +380,6 @@ public final class ShadowMapPass {
 
         float ext = s.sunCasterExtension();
 
-        // block occluders: one collection around the camera, snapped to an 8-block grid so the cached mesh
-        // survives camera motion. every cascade draws the same mesh, the ortho clips the rest for free
         OccluderCache.Collected col = null;
         OccluderMesh mesh = null;
         float blockR = Math.min(s.sunBlockOccluderRadius(), far);
@@ -429,14 +400,12 @@ public final class ShadowMapPass {
 
         for (int i = 0; i < cascades; i++) {
             float a = splits[i], b = splits[i + 1];
-            // bounding-sphere center distance t equalizes the near/far corner distances of the slice
             float t = Math.min(Math.max((a + b) * (1f + k2) * 0.5f, a), b);
             float radius = (float) Math.sqrt(Math.max(
                     b * b * k2 + (t - b) * (t - b),
                     a * a * k2 + (t - a) * (t - a)));
-            radius = (float) Math.ceil(radius * 2f) / 2f; // quantize so float noise doesn't wobble the texel size
+            radius = (float) Math.ceil(radius * 2f) / 2f;
 
-            // cascade center in absolute world coords, snapped to the light-space texel grid
             double cx = cam.eye.x + camFwd.x * t;
             double cy = cam.eye.y + camFwd.y * t;
             double cz = cam.eye.z + camFwd.z * t;
@@ -458,20 +427,16 @@ public final class ShadowMapPass {
             GL11.glClearDepth(1.0);
             GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
 
-            // blocks and entities live in anchor-relative space
             float eax = (float) (cx - ax) - dx * eyeDist;
             float eay = (float) (cy - ay) - dy * eyeDist;
             float eaz = (float) (cz - az) - dz * eyeDist;
             viewProj.set(proj).mul(lookAtUp(view, eax, eay, eaz, dx, dy, dz, upx, upy, upz));
             drawAll(mesh, ents, viewProj);
 
-            // custom models are cascade-center-relative (same precision trick as the spot path)
             dynamicViewProj.set(proj).mul(lookAtUp(dynamicView,
                     -dx * eyeDist, -dy * eyeDist, -dz * eyeDist, dx, dy, dz, upx, upy, upz));
             ModelRegistry.INSTANCE.renderShadow(dynamicViewProj, cx, cy, cz, radius + ext);
 
-            // instanced matrices and the deferred pass's fragment positions are both camera-relative,
-            // so one matrix serves both the instanced bake and the shader-side sampling
             float ecx = (float) (cx - cam.eye.x) - dx * eyeDist;
             float ecy = (float) (cy - cam.eye.y) - dy * eyeDist;
             float ecz = (float) (cz - cam.eye.z) - dz * eyeDist;

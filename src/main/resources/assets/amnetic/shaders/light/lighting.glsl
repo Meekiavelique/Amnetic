@@ -1,9 +1,9 @@
 uniform sampler2D AlbedoSampler;
 uniform sampler2D DepthSampler;
 uniform sampler2D GNormalSampler;
-uniform sampler2D GMaterialSampler; // r = roughness, g = metallic, b = materialId/255, a = (blockLevel*16 + skyLevel)/255
+uniform sampler2D GMaterialSampler;
 uniform sampler2D GShadeSampler;
-uniform sampler2D GAlbedoSampler; // rgb = the material colour a forward pass published, a = whether it did
+uniform sampler2D GAlbedoSampler;
 uniform sampler2D LightmapSampler;
 uniform int HasGBuffer;
 uniform int ShaderPackComposite;
@@ -19,8 +19,6 @@ bool skyDepth(float depth) {
 }
 
 vec3 lightMaterial(vec3 scene) {
-    // The shader pack has already shaded and tonemapped the image. Keep local lamps
-    // visible on dark ground without assuming a pack-specific colortex layout.
     return ShaderPackComposite == 1 ? max(scene, vec3(0.2)) : scene;
 }
 
@@ -34,21 +32,21 @@ uniform sampler2D LocalLightSampler;
 uniform mat4 InvViewProj;
 uniform int ZeroToOne;
 uniform int LightCount;
-uniform float LightTime; // seconds, wrapping every hour, for styles that move
+uniform float LightTime;
 uniform int SkipLocalLights;
 uniform int VolumetricSteps;
 uniform float VolumetricStrength;
 uniform float VolumetricDensity;
-uniform float VolumetricAniso; // henyey-greenstein g value, 0 to 0.95
+uniform float VolumetricAniso;
 uniform int DebugMode;
 
 uniform mat4 ViewProj;
-uniform int ContactSteps; // 0 = off
+uniform int ContactSteps;
 uniform float ContactDistance;
-uniform float ContactThickness; // how thick an occluder needs to be to count
+uniform float ContactThickness;
 uniform int VolumetricShadows;
-uniform int VolumetricOnly; // late pass, runs over translucents
-uniform float TemporalOffset; // jitter seed changes each frame
+uniform int VolumetricOnly;
+uniform float TemporalOffset;
 uniform sampler2D CookieSampler;
 uniform int HasCookie;
 
@@ -58,7 +56,6 @@ uniform samplerBuffer MaterialTexels;
 #include "amnetic:shaders/common/screen.glsl"
 #include "amnetic:shaders/common/shadowmap.glsl"
 
-// fake ies profiles by id, shapes the angular falloff
 float iesProfile(int id, float c) {
     c = clamp(c, 0.0, 1.0);
     if (id == 1) return smoothstep(0.0, 1.0, c);
@@ -69,7 +66,6 @@ float iesProfile(int id, float c) {
     return 1.0;
 }
 
-// distance in front of the camera in blocks, clip w for perspective and clip z for ortho
 float viewDistance(vec3 p) {
     vec3 w = vec3(ViewProj[0][3], ViewProj[1][3], ViewProj[2][3]);
     if (dot(w, w) > 1e-10) return dot(w, p) + ViewProj[3][3];
@@ -77,7 +73,6 @@ float viewDistance(vec3 p) {
     return dot(z, p) / max(length(z), 1e-10);
 }
 
-// how far a march point sits behind the depth buffer, huge off screen and very negative over sky
 float contactBehind(vec3 p, out vec2 ndc) {
     vec4 clip = ViewProj * vec4(p, 1.0);
     ndc = vec2(2.0);
@@ -89,15 +84,11 @@ float contactBehind(vec3 p, out vec2 ndc) {
     return viewDistance(p) - viewDistance(reconstruct(ndc * 0.5 + 0.5, sd));
 }
 
-// screen-space contact shadows, catches small occluders shadow maps miss
-// four interleaved marches with a per pixel offset are averaged, so neighbours differ by a quarter step instead of a whole one
 float contactShadow(vec3 P, vec3 N, vec3 L) {
     if (ContactSteps <= 0) return 1.0;
     float viewDepth = viewDistance(P);
-    // fades out with distance, past that the shadow maps cover it and a march would only alias
     float far = 1.0 - smoothstep(24.0, 40.0, viewDepth);
     if (far <= 0.0) return 1.0;
-    // a pixel's footprint grows with depth, so the start push and the bias grow with it
     float pixel = max(viewDepth, 0.1) * 0.002;
     vec3 start = P + N * (0.01 + pixel * 2.0);
     int steps = max(ContactSteps / 2, 3);
@@ -115,7 +106,6 @@ float contactShadow(vec3 P, vec3 N, vec3 L) {
             float behind = contactBehind(start + L * (ContactDistance * t), ndc);
             if (behind > 1e8) break;
             if (behind > bias && behind < thickness) {
-                // a ray grazing an edge counts for little, weaker toward the end of the march and the screen border
                 vec2 border = smoothstep(vec2(1.0), vec2(0.9), abs(ndc));
                 float solid = smoothstep(bias, bias * 3.0, behind) * (1.0 - smoothstep(thickness * 0.7, thickness, behind));
                 hit = max(hit, solid * (1.0 - t) * (1.0 - t) * border.x * border.y);
@@ -126,7 +116,6 @@ float contactShadow(vec3 P, vec3 N, vec3 L) {
     return 1.0 - shadow * 0.25 * far;
 }
 
-// projects the cookie texture through the spot cone to tint the light
 vec3 cookieTint(vec3 fragPos, vec3 pos, vec3 dir, float cosOut, vec3 tangent) {
     vec3 fdir = normalize(dir);
     vec3 d = normalize(fragPos - pos);
@@ -140,7 +129,6 @@ vec3 cookieTint(vec3 fragPos, vec3 pos, vec3 dir, float cosOut, vec3 tangent) {
     return texture(CookieSampler, uv).rgb;
 }
 
-// distance attenuation curves
 float falloff(float dist, float range, int curve, float param) {
     float t = clamp(dist / max(range, 1e-4), 0.0, 1.0);
     if (curve == 0) {
@@ -148,7 +136,7 @@ float falloff(float dist, float range, int curve, float param) {
         return window * window;
     }
     if (curve == 1) return 1.0 - t;
-    if (curve == 2) { // inverse square, windowed so it hits zero at range
+    if (curve == 2) {
         float d2 = dist * dist;
         float win = clamp(1.0 - (d2 * d2) / (range * range * range * range), 0.0, 1.0);
         return (win * win) / (d2 + 1.0);
@@ -156,7 +144,6 @@ float falloff(float dist, float range, int curve, float param) {
     return pow(1.0 - t, param);
 }
 
-// nearest point on a line segment, used for tube lights
 vec3 closestSegment(vec3 p, vec3 a, vec3 b) {
     vec3 ab = b - a;
     float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
@@ -165,7 +152,6 @@ vec3 closestSegment(vec3 p, vec3 a, vec3 b) {
 
 #include "amnetic:shaders/light/styles.glsl"
 
-// diffuse + specular for one light, specular goes into specOut so it skips albedo multiply
 vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f0, inout vec3 specOut, inout float sunShadowOut) {
     vec3 pos = texelFetch(LightTexels, i * 8 + 0).xyz;
     float range = texelFetch(LightTexels, i * 8 + 0).w;
@@ -173,7 +159,6 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     float intens = texelFetch(LightTexels, i * 8 + 1).w;
     vec3 dir = texelFetch(LightTexels, i * 8 + 2).xyz;
     int type = int(texelFetch(LightTexels, i * 8 + 2).w + 0.5);
-    // Shader packs own their sun and shadow maps; only add Amnetic's local lights.
     if (ShaderPackComposite == 1 && type == 2) return vec3(0.0);
     float cosIn = texelFetch(LightTexels, i * 8 + 3).x;
     float cosOut = texelFetch(LightTexels, i * 8 + 3).y;
@@ -204,26 +189,26 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     vec3 L;
     float atten;
     float ndotl;
-    if (type == 2) { // directional, no position
+    if (type == 2) {
         L = -normalize(dir);
         ndotl = max(dot(N, L), 0.0);
         if (ndotl <= 0.0) return vec3(0.0);
         atten = 1.0;
     } else {
-        vec3 src = pos; // representative point, area lights move this around
-        if (type == 3) { // rect: clamp to the light's local uv extent
+        vec3 src = pos;
+        if (type == 3) {
             vec3 u = normalize(tangent);
             vec3 v = normalize(cross(dir, u));
             vec3 d = lp - pos;
             src = pos + u * clamp(dot(d, u), -areaW, areaW) + v * clamp(dot(d, v), -areaH, areaH);
-        } else if (type == 4) { // disc: clamp to radius
+        } else if (type == 4) {
             vec3 n = normalize(dir);
             vec3 d = lp - pos;
             vec3 proj = d - n * dot(d, n);
             float pl = length(proj);
             if (pl > areaW) proj *= areaW / pl;
             src = pos + proj;
-        } else if (type == 5) { // tube: nearest point along the capsule axis
+        } else if (type == 5) {
             vec3 u = normalize(tangent);
             src = closestSegment(lp, pos - u * tubeL * 0.5, pos + u * tubeL * 0.5);
         }
@@ -234,7 +219,7 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
         ndotl = max(dot(N, L), 0.0);
         if (ndotl <= 0.0) return vec3(0.0);
         atten = falloff(dist, range, curve, param);
-        if (type == 1) { // spot cone attenuation
+        if (type == 1) {
             vec3 Lc = normalize(pos - lp);
             float cd = dot(-Lc, normalize(dir));
             atten *= smoothstep(0.0, 1.0, clamp((cd - cosOut) / max(cosIn - cosOut, 1e-4), 0.0, 1.0));
@@ -260,7 +245,7 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
     if (shadowRef >= 0) {
         float sStrength = texelFetch(LightTexels, i * 8 + 4).w;
         float camDist = length(fragPos);
-        if (type == 2) { // sun: fade toward the loosest cascade's reach, no light-position falloff
+        if (type == 2) {
             float sFade = clamp((SunShadowDistance - camDist) / max(SunShadowDistance * 0.15, 1e-3), 0.0, 1.0);
             vis = mix(vec3(1.0), vis, sStrength * sFade);
         } else {
@@ -268,20 +253,13 @@ vec3 lightContribution(int i, vec3 fragPos, vec3 N, vec3 V, float rough, float f
             vis = mix(vec3(1.0), vis, sStrength * sFade);
         }
     }
-    // directional sun: the forward base lighting is already full daylight and AlbedoSampler holds the
-    // lit scene, not material albedo, so adding sun radiance would double-light everything. that goes
-    // for its highlight too, which otherwise washes a matte floor out to white. instead the sun only
-    // carves shadows: it reports how much direct light the shadow removes and main() darkens by that
-    // amount. intensity therefore controls shadow depth, not brightness
     if (type == 2) {
         float visL = dot(vis, vec3(1.0 / 3.0));
-        // a surface either faces the sun or it does not; scaling by ndotl left shadows half lit
         float facing = smoothstep(0.0, 0.35, ndotl);
         sunShadowOut += intens * facing * (1.0 - visL);
         return vec3(0.0);
     }
 
-    // a fully shadowed pixel still has to be reported above, so this comes after the sun
     if (vis.r + vis.g + vis.b <= 0.0) return vec3(0.0);
 
     float gloss = 1.0 - smoothstep(0.35, 0.75, rough);

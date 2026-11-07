@@ -12,7 +12,6 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 public final class CameraController {
-
     public static final CameraController INSTANCE = new CameraController();
 
     private static final float MAX_FRAME_DT = 0.1f;
@@ -45,7 +44,7 @@ public final class CameraController {
 
     private final List<CameraModifier> modifiers = new ArrayList<>();
     private final CameraFrame frame = new CameraFrame(this);
-    private float frameClock; // accumulated render seconds, handed to modifiers
+    private float frameClock;
 
     private Director director;
 
@@ -97,7 +96,6 @@ public final class CameraController {
             if (director.done()) director = null;
         }
 
-        // a director is a takeover and wins, a held pose only applies when none is running
         if (!override && poseActive) {
             override = true;
             overrideKeepsOffsets = true;
@@ -181,12 +179,10 @@ public final class CameraController {
         return overrideRoll;
     }
 
-    // a director replaces the shot outright, a held pose still takes shake and kick on top
     public boolean overrideKeepsOffsets() {
         return overrideKeepsOffsets;
     }
 
-    // a lens can be held without a pose: the game still places the camera and only the field of view is set
     public boolean hasFovOverride() {
         return overrideFovSet;
     }

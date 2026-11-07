@@ -36,8 +36,6 @@ float distributionGGX(float NoH, float a) {
     return a2 / max(PI * d * d, 1e-7);
 }
 
-// split-sum prefilter with the view along the normal. each sample reads the source mip whose texel
-// covers about the solid angle the sample stands for, so a few dozen samples come out smooth
 void main() {
     vec2 c = vUV * 2.0 - 1.0;
     vec3 N = normalize(Forward + Right * c.x + Up * c.y);

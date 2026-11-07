@@ -7,15 +7,14 @@ import org.joml.Vector3f;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class Light {
-
     private static final AtomicLong NEXT_ID = new AtomicLong(1);
 
     private final long id = NEXT_ID.getAndIncrement();
     private final LightType type;
 
     private double x, y, z;
-    private float dx, dy = -1f, dz; // spot/area/directional facing
-    private float tx = 1f, ty, tz; // area "right" axis, up = cross(dir, tangent)
+    private float dx, dy = -1f, dz;
+    private float tx = 1f, ty, tz;
 
     private float r = 1f, g = 1f, b = 1f;
     private float temperature = 6500f;
@@ -26,24 +25,24 @@ public final class Light {
     private float cosOuter = (float) Math.cos(Math.toRadians(25));
 
     private FalloffCurve falloff = FalloffCurve.SMOOTH;
-    private float falloffParam = 2f; // only used by FalloffCurve.EXPONENT
+    private float falloffParam = 2f;
 
-    private float areaW = 1f, areaH = 1f; // rect half-extents, or disc radius (areaW)
+    private float areaW = 1f, areaH = 1f;
     private float tubeLen = 2f;
 
     private boolean castsShadow;
-    private float shadowStrength = 1f; // 0 = no darkening, 1 = full
+    private float shadowStrength = 1f;
     private int shadowRef = -1;
     private float shadowBlend = 1f;
 
-    private boolean cookie; // project the global cookie texture (spot only)
-    private int iesProfile; // 0 = none, 1-5 = analytic angular curves
-    private float godray = 1f; // 0 = no shaft
+    private boolean cookie;
+    private int iesProfile;
+    private float godray = 1f;
     private int godraySteps = 16;
     private float godrayDensity = 0.4f;
-    private float godrayAniso = 0.6f; // henyey-greenstein g, 0..0.95
-    private boolean godrayShadows = true; // shaft samples this light's shadow map
-    private int style; // 0 = amnetic's own lighting, else a LightStyles id
+    private float godrayAniso = 0.6f;
+    private boolean godrayShadows = true;
+    private int style;
 
     private boolean enabled = true;
     private boolean removed;
@@ -115,7 +114,6 @@ public final class Light {
         else bb = clamp255(138.52f * (float) Math.log(t - 10f) - 305.04f);
         return setColor(rr / 255f, gg / 255f, bb / 255f);
     }
-
 
     public float temperature() { return temperature; }
 
@@ -235,12 +233,10 @@ public final class Light {
         LightRegistry.INSTANCE.remove(this);
     }
 
-    /** False once the light has been removed, or dropped by a resource reload. */
     public boolean isRegistered() {
         return !removed;
     }
 
-    /** Marks the light detached when the registry drops it wholesale. */
     public void markRemoved() {
         removed = true;
     }

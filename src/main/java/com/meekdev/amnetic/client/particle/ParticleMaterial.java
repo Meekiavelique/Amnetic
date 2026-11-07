@@ -10,7 +10,6 @@ import java.util.List;
 import net.minecraft.resources.Identifier;
 
 public final class ParticleMaterial {
-
     final String displayName;
 
     final Identifier fragmentShaderId;
@@ -44,12 +43,11 @@ public final class ParticleMaterial {
     Track alphaTrack;
     Gradient colorGradient;
 
-    // motion trail: each particle leaves fading billboard ghosts along its recent path
     boolean trail;
-    int trailPoints = 8; // ghost billboards behind each particle
-    float trailWidth = 0.6f; // ghost size as a fraction of the particle's size, tapers to the tail
-    float trailFade = 0.7f; // ghost alpha multiplier, tapers to the tail
-    int trailInterval = 2; // sim steps between recorded path samples, higher = longer coarser trail
+    int trailPoints = 8;
+    float trailWidth = 0.6f;
+    float trailFade = 0.7f;
+    int trailInterval = 2;
 
     int flipCols, flipRows;
     float flipFps;
@@ -251,7 +249,6 @@ public final class ParticleMaterial {
 
         public Builder color(Gradient gradient) { this.colorGradient = gradient; return this; }
 
-        // motion trail of fading billboard ghosts along each particle's path
         public Builder trail(int points, float width, float fade, int sampleInterval) {
             this.trail = points > 0;
             this.trailPoints = Math.max(0, Math.min(32, points));

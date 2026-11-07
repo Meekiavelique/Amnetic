@@ -8,7 +8,6 @@ import java.util.function.Consumer;
 import org.joml.Vector3f;
 
 public final class WorldSurface {
-
     private final Stack outer = new Stack();
     private final Stack root = new Stack();
     private final Stack overlay = new Stack();
@@ -56,16 +55,12 @@ public final class WorldSurface {
         return this;
     }
 
-    // lays the surface on any plane: right is where the canvas runs left to right as its reader sees
-    // it, up is where it runs bottom to top. overrides facing and billboard
     public WorldSurface orient(float rx, float ry, float rz, float ux, float uy, float uz) {
         orientRight = new Vector3f(rx, ry, rz).normalize();
         orientUp = new Vector3f(ux, uy, uz).normalize();
         return this;
     }
 
-    // draws the widgets straight into the world instead of onto a canvas texture first, so text and
-    // edges stay sharp at any distance. flat surfaces only: a curved one still goes through the canvas
     public WorldSurface direct(boolean d) { direct = d; return this; }
     public WorldSurface filter(Consumer<Framebuffer> f) { filter = f; return this; }
     public Consumer<Framebuffer> filterValue() { return filter; }
@@ -82,7 +77,6 @@ public final class WorldSurface {
     public WorldSurface maxDistance(float meters) { maxDistance = meters; return this; }
     public WorldSurface alwaysOnTop(boolean top) { alwaysOnTop = top; return this; }
 
-    // placed relative to the eye instead of the world and drawn only by renderView, for first person panels
     public WorldSurface view(boolean v) { view = v; return this; }
     public boolean viewValue() { return view; }
 

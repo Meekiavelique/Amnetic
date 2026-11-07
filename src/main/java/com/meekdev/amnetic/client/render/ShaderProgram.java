@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 public final class ShaderProgram implements AutoCloseable {
-
     private static final Map<Identifier, Supplier<String>> VIRTUAL_SOURCES = new ConcurrentHashMap<>();
 
     public static void registerVirtualSource(Identifier id, Supplier<String> source) {
@@ -39,8 +38,6 @@ public final class ShaderProgram implements AutoCloseable {
     private boolean closed, warmFailed;
     private ProgramLink link;
 
-    // starts every program nobody used yet and takes in the ones the driver finished, so the first use
-    // does not wait on a link mid game. false once everything is linked
     public static boolean warm() {
         boolean worked = false;
         int starts = ProgramLink.parallel() ? Integer.MAX_VALUE : 1;
@@ -153,8 +150,6 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     public void draw() {
-        // Other render passes can bind VAO 0 directly while Mojang's cached
-        // vertex-array state still points at this fullscreen VAO.
         GL30.glBindVertexArray(vao);
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3);
     }
@@ -272,7 +267,6 @@ public final class ShaderProgram implements AutoCloseable {
         return out.toString();
     }
 
-    // lets shared shaders tell which way depth runs, common/depth.glsl reads it
     private static void defineAfterVersion(StringBuilder src, String name) {
         int version = src.indexOf("#version");
         if (version < 0) return;

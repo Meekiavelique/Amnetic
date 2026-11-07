@@ -16,7 +16,6 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 
 public final class VolumetricPass {
-
     public static final VolumetricPass INSTANCE = new VolumetricPass();
 
     private static final ResourceLocation VSH = new ResourceLocation("amnetic", "shaders/light/deferred.vsh");
@@ -26,8 +25,8 @@ public final class VolumetricPass {
 
     private ShaderProgram temporal;
     private ShaderProgram upscale;
-    private Framebuffer capture; // full-res scene depth
-    private Framebuffer raw, historyA, historyB; // half-res scatter + ping-pong history
+    private Framebuffer capture;
+    private Framebuffer raw, historyA, historyB;
     private boolean usingA;
     private float scale = -1f;
     private boolean initialized;

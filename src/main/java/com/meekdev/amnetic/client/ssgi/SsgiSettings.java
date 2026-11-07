@@ -1,7 +1,6 @@
 package com.meekdev.amnetic.client.ssgi;
 
 public final class SsgiSettings {
-
     private boolean enabled;
     private float radius = 2.0f;
     private float intensity = 1.0f;
@@ -15,10 +14,7 @@ public final class SsgiSettings {
     public SsgiSettings intensity(float v) { this.intensity = Math.max(0f, v); return this; }
     public SsgiSettings scale(float v) { this.scale = Math.max(0.25f, Math.min(1f, v)); return this; }
 
-    /** exponential moving-average weight given to reprojected history each frame (0 = no temporal
-     *  accumulation, close to 1 = very slow to update but very stable) */
     public SsgiSettings historyBlend(float v) { this.historyBlend = Math.max(0f, Math.min(0.98f, v)); return this; }
-
 
     public SsgiSettings maxHistoryFrames(int v) { this.maxHistoryFrames = Math.max(1, v); return this; }
 

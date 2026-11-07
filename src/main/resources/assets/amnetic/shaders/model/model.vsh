@@ -40,7 +40,6 @@ out vec4 vLight;
 out vec3 vWorldPos;
 out vec3 vMotion;
 out vec4 vColor;
-// the same uv without perspective correction, mixed in by TextureWarp
 noperspective out vec2 vUVFlat;
 
 #include "amnetic:shaders/material/custom_vertex_ladder.glsl"

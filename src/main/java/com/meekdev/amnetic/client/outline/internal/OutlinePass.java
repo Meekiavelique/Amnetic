@@ -30,9 +30,7 @@ import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// draws queued shapes into a mask, then grows the mask by a few pixels over the main image
 public final class OutlinePass {
-
     public static final OutlinePass INSTANCE = new OutlinePass();
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Outline");
@@ -40,12 +38,9 @@ public final class OutlinePass {
     private static final Identifier MASK_VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/outline/mask.vsh");
     private static final Identifier MASK_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/outline/mask.fsh");
     private static final Identifier COMPOSITE_FSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/outline/composite.fsh");
-    // x y z u v r g b a
     private static final int STRIDE = 9;
-    // matches MAX_RADIUS in composite.fsh
     private static final float MAX_WIDTH = 8f;
 
-    // null key holds solid geometry
     private final Map<Identifier, Batch> batches = new LinkedHashMap<>();
     private final FailureGuard guard = new FailureGuard("Outline", 60);
     private final Matrix4f invProj = new Matrix4f();
@@ -64,10 +59,8 @@ public final class OutlinePass {
     }
 
     public void quad(Identifier texture, float[] corners, float r, float g, float b, float a) {
-        // capture renders replay entity submits from another camera, those must not leak into the real frame
         if (CaptureManager.INSTANCE.isCapturing()) return;
         Batch batch = batches.computeIfAbsent(texture, k -> new Batch());
-        // two triangles, 0 1 2 and 0 2 3
         batch.vertex(corners, 0, r, g, b, a);
         batch.vertex(corners, 1, r, g, b, a);
         batch.vertex(corners, 2, r, g, b, a);
@@ -78,7 +71,6 @@ public final class OutlinePass {
 
     public void render() {
         try {
-            // empty batches linger a while for reuse, skipping on them would composite last frame's stale mask
             if (queuedFloats() == 0 || !guard.alive() || CaptureManager.INSTANCE.isCapturing()) return;
             CameraSnapshot cam = CameraSnapshot.current();
             RenderTarget main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
@@ -174,10 +166,8 @@ public final class OutlinePass {
         int prev = MainTargetFramebuffer.bind();
         if (prev < 0) return;
         try {
-            // main depth gets sampled below, so it can't stay attached
             GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, 0, 0);
             GlStateManager._enableBlend(0); GL11.glEnable(GL11.GL_BLEND);
-            // keeps the main target's alpha untouched
             GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
 

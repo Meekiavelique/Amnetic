@@ -10,7 +10,6 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
 public final class MainTargetFramebuffer {
-
     private static int fbo;
     private static int cachedColorId = -1;
     private static int cachedDepthId = -1;
@@ -38,13 +37,9 @@ public final class MainTargetFramebuffer {
         savedReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
         GL11.glGetIntegerv(GL11.GL_VIEWPORT, SAVED_VIEWPORT);
         if (fbo == 0) fbo = GL30.glGenFramebuffers();
-        // a glGet waits for the driver to drain its queue, ms a frame here, so read GlStateManager's copy
-        // iris binds fbos behind GlStateManager's back, so ask GL then
         int previousFbo = IrisCompat.shadersActive()
                 ? GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)
                 : GlState.drawFramebuffer();
-        // re-attach every bind: GL reuses freed texture ids after a resize, so an id-equality cache can keep us
-        // pointing at stale storage (model/effects rendered into limbo after going fullscreen). cheap + correct
         GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, fbo);
         GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorId, 0);
         GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, depthId, 0);

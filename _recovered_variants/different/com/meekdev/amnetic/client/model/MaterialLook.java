@@ -1,11 +1,6 @@
 package com.meekdev.amnetic.client.model;
 
-/**
- * what one draw changes on a model's material. a value left unset keeps the file's, so a look that
- * only sets a tint leaves roughness, emission and the rest as the model was exported
- */
 public final class MaterialLook {
-
     float tintR = 1f;
     float tintG = 1f;
     float tintB = 1f;
@@ -83,37 +78,31 @@ public final class MaterialLook {
         return this;
     }
 
-    /** a caller-owned GL texture drawn in place of the base colour map, 0 keeps the file's */
     public MaterialLook baseColorGlTexture(int glId) {
         baseColorGlId = glId;
         return this;
     }
 
-    /** a tangent-space normal map, +Y up, drawn in place of the file's, 0 keeps the file's */
     public MaterialLook normalGlTexture(int glId) {
         normalGlId = glId;
         return this;
     }
 
-    /** a grey image whose red channel multiplies the roughness, in place of the file's */
     public MaterialLook roughnessGlTexture(int glId) {
         roughnessGlId = glId;
         return this;
     }
 
-    /** a grey image whose red channel multiplies the metallic, in place of the file's */
     public MaterialLook metallicGlTexture(int glId) {
         metallicGlId = glId;
         return this;
     }
 
-    /** a grey image whose red channel darkens the light from the sky, in place of the file's */
     public MaterialLook occlusionGlTexture(int glId) {
         occlusionGlId = glId;
         return this;
     }
 
-    /** an image multiplying the glow colour, in place of the file's */
     public MaterialLook emissiveGlTexture(int glId) {
         emissiveGlId = glId;
         return this;

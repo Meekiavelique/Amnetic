@@ -1,9 +1,6 @@
 package com.meekdev.amnetic.client.pipeline.internal;
 //? if >=26.3 {
-
-
 import com.meekdev.amnetic.client.pipeline.RenderLayer;
-
 
 public final class LayerSystem {
     public static final LayerSystem INSTANCE=new LayerSystem();
@@ -43,12 +40,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-// isolates a screen layer (hand / GUI) into its own transparent texture, runs the registered LayerPasses
-// on it, and composites the result back over the scene. driven by GameRendererMixin via begin/end around
-// the layer's vanilla draw. inert unless a pass is registered for the layer (begin returns false), so it
-// never touches normal rendering until a dev opts in
 public final class LayerSystem {
-
     public static final LayerSystem INSTANCE = new LayerSystem();
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Layers");
@@ -58,13 +50,12 @@ public final class LayerSystem {
     private final Map<RenderLayer, CaptureTarget> targets = new EnumMap<>(RenderLayer.class);
     private final Map<RenderLayer, Boolean> active = new EnumMap<>(RenderLayer.class);
 
-    private Framebuffer work; // ping-pong scratch (B); the captured target colour is A
-    private int rawFbo; // lets us bind an arbitrary colour+depth texture as the draw target
+    private Framebuffer work;
+    private int rawFbo;
     private ShaderProgram composite;
 
     private LayerSystem() {}
 
-    // begin isolating a layer: redirect vanilla's draws into a cleared transparent target. no-op if unused
     public boolean begin(RenderLayer layer) {
         if (!Pipeline.hasLayer(layer) || CaptureManager.INSTANCE.isCapturing()) return false;
         CaptureTarget t = targets.computeIfAbsent(layer, k -> new CaptureTarget());
@@ -77,7 +68,6 @@ public final class LayerSystem {
         return true;
     }
 
-    // finish a layer: run its passes on the captured texture and composite the result over the scene
     public void end(RenderLayer layer) {
         if (!Boolean.TRUE.equals(active.remove(layer))) return;
         LayerRedirect.set(null);

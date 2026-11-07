@@ -35,7 +35,6 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 public final class InstanceMeshEntry<T> implements AutoCloseable {
-
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/Instance");
 
     private final ResourceLocation id;
@@ -196,7 +195,6 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         }
     }
 
-    // one depth-only program for every mesh that opts out of baking its shadow with its own shader
     private static CompiledShader depthProgram() {
         if (depthProgram == null) {
             depthProgram = CompiledShader.load(DEPTH_VSH, DEPTH_FSH);
@@ -333,9 +331,6 @@ public final class InstanceMeshEntry<T> implements AutoCloseable {
         if (textureGlId > 0) {
             GlStateManager._activeTexture(GL13.GL_TEXTURE0);
             GlStateManager._bindTexture(textureGlId);
-            // a sampler object bound to this unit by whatever drew last wins over the texture's own
-            // parameters, so the mesh inherited a filter nobody chose. that is a texel sized skin
-            // drawn blurred, with the transparent black around a face bleeding into its edges
             GL33.glBindSampler(0, 0);
             boolean nearest = mesh.textureFilter() != TextureFilter.LINEAR;
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER,

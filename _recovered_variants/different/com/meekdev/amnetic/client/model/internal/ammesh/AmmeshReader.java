@@ -9,7 +9,6 @@ import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
 
 public final class AmmeshReader {
-
     private AmmeshReader() {}
 
     public static ModelIR read(byte[] bytes) {
@@ -101,7 +100,7 @@ public final class AmmeshReader {
         mat.metallic = in.readFloat(); mat.roughness = in.readFloat(); mat.transmission = in.readFloat();
         mat.emR = in.readFloat(); mat.emG = in.readFloat(); mat.emB = in.readFloat();
         mat.alphaCutoff = in.readFloat();
-        in.readInt(); // legacy shading model id slot, runtime-order-dependent so always ignored
+        in.readInt();
         mat.shadingModelId = 0;
         mat.blend = in.readBoolean();
         mat.doubleSided = in.readBoolean();

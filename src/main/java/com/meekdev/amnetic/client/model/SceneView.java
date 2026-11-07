@@ -12,16 +12,7 @@ import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
-/**
- * offscreen composition of several models with a free camera, the multi-model sibling of
- * {@link ModelView} (which auto-frames a single model). meant for menu backdrops and dioramas: add
- * (model, world transform) entries once, point the camera, call {@link #render()} each frame, and
- * draw {@link #textureId()} (or the {@link #register(Identifier) registered} texture) wherever GUI
- * textures go. forward-lit via the stock model shader, no deferred pipeline, shadows or post.
- * entries whose model isn't uploaded yet are skipped so the scene fills in as async loads finish
- */
 public final class SceneView {
-
     private record Entry(Model model, Matrix4f world) {}
 
     private final int width;
@@ -36,7 +27,7 @@ public final class SceneView {
     private float fov = (float) Math.toRadians(60.0);
     private float near = 0.1f;
     private float far = 600f;
-    private float clearR = 0.55f, clearG = 0.72f, clearB = 0.86f; // sky-ish default
+    private float clearR = 0.55f, clearG = 0.72f, clearB = 0.86f;
     private float blockLight = 1f;
     private float skyLight = 1f;
     private boolean disposed;
@@ -46,7 +37,6 @@ public final class SceneView {
         this.height = Math.max(1, height);
     }
 
-    // adds a model drawn with the given absolute world matrix (referenced, not copied, mutate to animate)
     public SceneView add(Model model, Matrix4f world) {
         entries.add(new Entry(model, world));
         return this;
@@ -98,8 +88,6 @@ public final class SceneView {
         }
 
         float aspect = (float) width / (float) height;
-        // match the device's clip-space convention: MC 26 runs 0..1 depth (glClipControl), a -1..1
-        // JOML projection under that produces torn, z-fighting depth
         boolean zeroToOne = VanillaCompat.zeroToOne();
         Matrix4f projView = VanillaCompat.matchDepth(new Matrix4f().perspective(fov, aspect, near, far, zeroToOne))
                 .mul(new Matrix4f().lookAt(eye, look, UP));
@@ -107,7 +95,7 @@ public final class SceneView {
         framebuffer.begin();
         framebuffer.clear(clearR, clearG, clearB, 1f);
         for (Entry e : entries) {
-            if (e.model() == null || !e.model().isReady()) continue; // async load still in flight, pops in later
+            if (e.model() == null || !e.model().isReady()) continue;
             renderer.draw(e.model().internalGpu(), projView, e.world(), null, blockLight, skyLight, 1f);
         }
         framebuffer.end();
@@ -122,7 +110,6 @@ public final class SceneView {
         return framebuffer == null ? 0 : framebuffer.depthTextureGlId();
     }
 
-    // exposes the color texture under an Identifier so vanilla GUI blits can draw it, call after render()
     public SceneView register(Identifier id) {
         if (framebuffer != null) {
             framebuffer.registerColorTexture(id);

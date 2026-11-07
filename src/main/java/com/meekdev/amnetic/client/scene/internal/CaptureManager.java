@@ -37,11 +37,10 @@ import java.util.Comparator;
 import java.util.List;
 
 public final class CaptureManager {
-
     public static final CaptureManager INSTANCE = new CaptureManager();
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Capture");
-    private static final int MAX_CAPTURES = 4; // nearest-first cap
+    private static final int MAX_CAPTURES = 4;
 
     private final List<PerspectiveCapture> registry = new ArrayList<>();
     private final List<PerspectiveCapture> active = new ArrayList<>();
@@ -80,7 +79,6 @@ public final class CaptureManager {
         /*LOG.warn("[Capture] perspective captures are not supported on this Minecraft version yet");
         enabled = false;
         *///?} else {
-
         Minecraft mc = Minecraft.getInstance();
         LevelRenderer lr = mc.levelRenderer;
         Camera cam = renderer.mainCamera();
@@ -110,7 +108,6 @@ public final class CaptureManager {
         //?}
     }
     //? if >=26.1 {
-
     private void renderOne(PerspectiveCapture capture, GameRenderer renderer, DeltaTracker ticker,
                            Minecraft mc, LevelRenderer lr, Camera cam, CameraRenderState crs, float pt) {
         PerspectiveView view = capture.view();
@@ -177,12 +174,12 @@ public final class CaptureManager {
             *///?}
             crs.viewRotationMatrix.set(view.viewRotation());
             crs.projectionMatrix.set(obliqueProj);
-            crs.pos = eye; // entities read crs.pos
+            crs.pos = eye;
             uploadCameraGlobals(renderer, ticker, eye);
             //? if >=26.3 {
             renderer.renderLevel();
             //?} else {
-            /*renderer.renderLevel(ticker); // into the capture target (redirected)
+            /*renderer.renderLevel(ticker);
             *///?}
             //? if <26.2 {
         /*bufferSource.endBatch();
@@ -209,7 +206,7 @@ public final class CaptureManager {
             //? if >=26.2 {
             mc.levelExtractor.extract(ticker, cam, pt);
             //?} else {
-            /*lr.extractLevel(ticker, cam, pt); // refill shared state for the main view (roll preserved)
+            /*lr.extractLevel(ticker, cam, pt);
             *///?}
             crs.viewRotationMatrix.set(mainView);
             crs.projectionMatrix.set(mainProj);

@@ -17,11 +17,10 @@ import com.mojang.renderpearl.api.textures.GpuTextureView;
 //?}
 
 public final class Framebuffer {
-
     private final GlFramebuffer gl;
     private final boolean screenTracking;
-    private final float scale; // only meaningful when screenTracking
-    private final int fixedWidth; // only meaningful when !screenTracking
+    private final float scale;
+    private final int fixedWidth;
     private final int fixedHeight;
     private RegisteredColorTexture registered;
     private boolean disposed;

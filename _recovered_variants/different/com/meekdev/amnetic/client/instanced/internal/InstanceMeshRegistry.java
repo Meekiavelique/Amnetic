@@ -22,7 +22,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public final class InstanceMeshRegistry {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(InstanceMeshRegistry.class);
     public static final InstanceMeshRegistry INSTANCE = new InstanceMeshRegistry();
 
@@ -33,7 +32,6 @@ public final class InstanceMeshRegistry {
             new EnumMap<>(InstancePhase.class);
 
     private InstanceMeshRegistry() {
-        // dev hot reload for per-mesh instanced shaders
         ShaderHotReload.onReload(() -> {
             for (InstanceMeshEntry<?> entry : entries) entry.invalidateShader();
         });
@@ -207,9 +205,6 @@ public final class InstanceMeshRegistry {
         }
     }
 
-    // redraws whatever every shadow-casting mesh already rendered this frame, reprojected through the light's
-    // view-proj. must run after renderAll for the geometry phases so each entry's instance buffer reflects
-    // the current frame
     public void renderShadow(Matrix4f lightViewProj) {
         for (InstanceMeshEntry<?> entry : entries) {
             if (!entry.castsShadow()) continue;

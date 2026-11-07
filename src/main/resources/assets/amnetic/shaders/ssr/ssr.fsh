@@ -11,7 +11,7 @@ uniform int HasGBuffer;
 
 uniform mat4 ViewProj;
 uniform mat4 InvViewProj;
-uniform mat4 View; // world (camera-relative) to view, rotation only
+uniform mat4 View;
 uniform int ZeroToOne;
 
 uniform float Intensity;
@@ -21,7 +21,7 @@ uniform float MaxDistance;
 uniform float Thickness;
 uniform float EdgeFade;
 uniform float Reflectivity;
-uniform float Frame; // per-frame seed so the ray jitter varies and temporal accumulation can denoise it
+uniform float Frame;
 
 #include "amnetic:shaders/common/screen.glsl"
 
@@ -33,7 +33,6 @@ float sceneZ(vec2 uv) {
     return linZ(reconstruct(uv, texture(DepthSampler, uv).r));
 }
 
-// analytic sky used as the off-screen reflection fallback. R is camera-relative world space, .y is up
 vec3 skyEnv(vec3 d) {
     float up = clamp(d.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 zenith = vec3(0.30, 0.50, 0.92);
@@ -57,14 +56,10 @@ void main() {
         N = normalize(gn.xyz);
         vec4 gm = texture(GMaterialSampler, vUV);
         float rough = gm.r;
-        // same f0 as the deferred pass, b holds the material id and isn't a reflectance
         float f0 = mix(0.04, 1.0, gm.g);
         baseRefl = f0;
         roughFactor = 1.0 - rough;
     } else {
-        // no per-pixel roughness here, vanilla terrain/entities don't write the g-buffer material
-        // target. treating that as a perfect mirror gave every silhouette a full-strength sky-tinted
-        // fresnel rim at grazing angles, so assume a conservative matte roughness instead
         N = betterNormal(vUV, P);
         baseRefl = Reflectivity;
         roughFactor = 0.2;
@@ -77,9 +72,6 @@ void main() {
 
     float jitter = fract(sin(dot(gl_FragCoord.xy + Frame * 5.1234, vec2(12.9898, 78.233))) * 43758.5453);
 
-    // geometric distance-adaptive stepping: short steps near the origin where precision matters,
-    // growing toward MaxDistance so few iterations still reach far. the binary search below
-    // recovers the exact crossing, so coarse steps cost no accuracy
     float growth = 1.0 + 3.0 / float(MaxSteps);
     float curStep = (MaxDistance / float(MaxSteps)) * 0.5 * (0.5 + 0.5 * jitter);
 
@@ -104,14 +96,14 @@ void main() {
         if (any(lessThan(suv, vec2(0.0))) || any(greaterThan(suv, vec2(1.0)))) break;
 
         float sd = texture(DepthSampler, suv).r;
-        if (IS_SKY(sd)) continue; // marched over sky, keep going
+        if (IS_SKY(sd)) continue;
 
         float dRay = linZ(cur);
         float dScene = linZ(reconstruct(suv, sd));
-        if (dRay > dScene) { // ray crossed behind a surface in linear depth
-            vec3 a = prev; // last point in front
-            vec3 b = cur; // first point behind
-            for (int r = 0; r < 8; r++) { // binary refine the crossing
+        if (dRay > dScene) {
+            vec3 a = prev;
+            vec3 b = cur;
+            for (int r = 0; r < 8; r++) {
                 vec3 mid = (a + b) * 0.5;
                 vec4 mc = ViewProj * vec4(mid, 1.0);
                 vec2 muv = (mc.xy / mc.w) * 0.5 + 0.5;
@@ -121,7 +113,7 @@ void main() {
             hitUV = (hc.xy / hc.w) * 0.5 + 0.5;
             hitPoint = reconstruct(hitUV, texture(DepthSampler, hitUV).r);
             float gap = linZ(b) - linZ(hitPoint);
-            if (gap < Thickness) hit = 1.0; // reject overshoot into empty space behind thin geo
+            if (gap < Thickness) hit = 1.0;
             break;
         }
     }
@@ -129,9 +121,6 @@ void main() {
     float fres = baseRefl + (1.0 - baseRefl) * pow(1.0 - max(dot(-V, N), 0.0), 5.0);
     vec3 sky = skyEnv(R);
 
-    // blend the screen-space hit toward the sky fallback near the screen edge / max distance so
-    // reflections of off-screen geometry don't hard-cut (the "I see the rest when I jump" artifact).
-    // on a clean miss just reflect the sky. cheap stand-in for a reflection probe
     vec3 hitColor;
     if (hit > 0.5) {
         vec3 ssrColor = texture(ColorSampler, hitUV).rgb;

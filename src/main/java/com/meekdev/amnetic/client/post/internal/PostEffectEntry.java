@@ -16,7 +16,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 
 public final class PostEffectEntry {
-
     private static final Logger LOGGER = LoggerFactory.getLogger("Amnetic/PostEffect");
 
     private final Identifier id;
@@ -81,8 +80,6 @@ public final class PostEffectEntry {
 
     public void setFadeIn(int ticks) {
         this.fadeInTicks = ticks;
-        // intensity starts at 1 so unfaded effects work, but a fade-in configured while
-        // inactive should ramp from black on first activation instead of popping in
         if (ticks > 0 && !active && !wasConditionMet) intensity = 0f;
     }
 
@@ -210,7 +207,6 @@ public final class PostEffectEntry {
         }
     }
 
-    // links the programs of this effect ahead of time, true while some are left
     public boolean warm() {
         if (pipelineFailed) return false;
         PostPipeline p = resolvePipeline();

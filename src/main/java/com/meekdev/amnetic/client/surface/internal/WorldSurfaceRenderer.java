@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class WorldSurfaceRenderer {
-
     public static final WorldSurfaceRenderer INSTANCE = new WorldSurfaceRenderer();
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
 
@@ -165,8 +164,6 @@ public final class WorldSurfaceRenderer {
         if (s.filterValue() != null) s.filterValue().accept(fb);
     }
 
-    // surfaces marked view, placed relative to the eye with the world axes, drawn into the main target
-    // with projView taking those eye relative points to the screen. called by the first person pass
     public void renderView(Matrix4fc projView) {
         viewProj.set(projView);
         viewDrawnAt = System.nanoTime();
@@ -299,8 +296,6 @@ public final class WorldSurfaceRenderer {
         return s.directValue() && s.curveValue() == 0 && s.filterValue() == null;
     }
 
-    // the widgets go through the ui batch with a matrix that takes canvas pixels onto the plane, so
-    // the distance field text and the rounded edges are resolved on screen rather than in a texture
     private void drawDirect(WorldSurface s, Vec3 eye, Matrix4fc viewProjection, Vector3f right, Vector3f up, Vector3f n) {
         float w = s.canvasW(), h = s.canvasH();
         float wM = s.widthM(), hM = s.heightM();
@@ -308,7 +303,6 @@ public final class WorldSurfaceRenderer {
         float ox = (float) (s.xPos() - eye.x) - right.x * wM * 0.5f + up.x * hM * 0.5f;
         float oy = (float) (s.yPos() - eye.y) - right.y * wM * 0.5f + up.y * hM * 0.5f;
         float oz = (float) (s.zPos() - eye.z) - right.z * wM * 0.5f + up.z * hM * 0.5f;
-        // column major: x runs along right, y runs down the plane, z is unused
         Matrix4f plane = new Matrix4f(
                 right.x * sx, right.y * sx, right.z * sx, 0,
                 -up.x * sy, -up.y * sy, -up.z * sy, 0,
@@ -325,7 +319,6 @@ public final class WorldSurfaceRenderer {
         } else {
             GlStateManager._enableDepthTest(); GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(VanillaCompat.depthNearerOrEqual());
-            // a surface lying on a face would otherwise fight the face for the same depth
             GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
             GL11.glPolygonOffset(-1f, -2f);
         }
@@ -360,8 +353,6 @@ public final class WorldSurfaceRenderer {
         float bestT = Float.MAX_VALUE;
         float bestU = 0, bestV = 0;
 
-        // a view surface sits in front of everything, so the cursor ray in its own space wins when it hits.
-        // with the mouse grabbed it is a hud and must not eat clicks, so it is not aimed at
         boolean free = !mc.mouseHandler.isMouseGrabbed();
         Vec3 viewLook = free && System.nanoTime() - viewDrawnAt < VIEW_STALE ? viewAim(mc, camera) : null;
         boolean viewHit = false;

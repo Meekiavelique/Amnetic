@@ -3,11 +3,7 @@ package com.meekdev.amnetic.client.decal;
 import java.nio.ByteBuffer;
 import org.lwjgl.system.MemoryUtil;
 
-// a floor decal whose look comes from a field you write on the cpu, one texel per small patch of ground
-// each texel holds the floor height, liquid thickness, wetness, dried stain, age and flow, the shader turns that into
-// a liquid layer with soft edges, beer lambert tint, wet reflections and dried residue. blood, oil, mud, puddles
 public final class FilmDecal {
-
     final double originX;
     final double originZ;
     final double minY;
@@ -20,13 +16,10 @@ public final class FilmDecal {
     float opacity = 1f;
     boolean removed;
 
-    // rgba8: thickness (sqrt encoded), wetness, stain, flow
     ByteBuffer fieldA;
-    // rgba8: floor height in the box, age, sky light, block light
     ByteBuffer fieldB;
     int dirtyMin = Integer.MAX_VALUE;
     int dirtyMax = -1;
-    // gl side, owned by the renderer
     int texA;
     int texB;
     int nonEmpty;
@@ -47,7 +40,6 @@ public final class FilmDecal {
         markAll();
     }
 
-    // floorY in world blocks, thickness in world units, the rest 0..1. age blends absorption toward the aged colour
     public FilmDecal texel(int x, int z, float floorY, float thickness, float wetness, float stain, float age, float flow) {
         if (removed || fieldA == null || x < 0 || z < 0 || x >= resX || z >= resZ) return this;
         int i = (z * resX + x) * 4;
@@ -56,7 +48,6 @@ public final class FilmDecal {
         fieldA.put(i + 1, unorm(wetness));
         fieldA.put(i + 2, unorm(stain));
         fieldA.put(i + 3, unorm(flow));
-        // 0 marks an unset texel, a real floor never encodes to it
         fieldB.put(i, (byte) Math.max(1, unorm((float) ((floorY - minY) / sizeY)) & 255));
         fieldB.put(i + 1, unorm(age));
         boolean empty = (fieldA.get(i) | fieldA.get(i + 2)) == 0;
@@ -65,7 +56,6 @@ public final class FilmDecal {
         return this;
     }
 
-    // light reaching this texel, 0..1, the wet reflection uses it so pools in a dark room stay dark
     public FilmDecal light(int x, int z, float sky, float block) {
         if (removed || fieldA == null || x < 0 || z < 0 || x >= resX || z >= resZ) return this;
         int i = (z * resX + x) * 4;
@@ -92,7 +82,6 @@ public final class FilmDecal {
         return this;
     }
 
-    // the encoding of thickness depends on look.maxThickness, rewrite texels after changing it
     public FilmDecal look(FilmLook look) { this.look = look; return this; }
     public FilmDecal opacity(float v) { this.opacity = Math.max(0f, Math.min(1f, v)); return this; }
 
@@ -108,7 +97,6 @@ public final class FilmDecal {
     public float sizeY() { return sizeY; }
     public float sizeZ() { return sizeZ; }
 
-    // gl resources are freed on the render thread the next frame
     public void remove() {
         removed = true;
     }

@@ -12,18 +12,15 @@ uniform vec4 TileViewDepth;
 uniform isamplerBuffer TileLights;
 uniform int ScatteringClip;
 uniform vec4 ScatteringRect;
-// the view model pass, drawn at full light, ViewLightUV is the lightmap cell it really stands in
 uniform int ViewLight;
 uniform vec2 ViewLightUV;
 
-// forward scattering glow toward the light source
 float hgPhase(float cosT, float g) {
     float g2 = g * g;
     float denom = max(1.0 + g2 - 2.0 * g * cosT, 1e-4);
     return (1.0 - g2) / (4.0 * 3.14159265 * denom * sqrt(denom));
 }
 
-// smoother than hash noise, plays nicer with temporal accumulation
 const float BAYER4[16] = float[16](
 0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 float bayerDither() {
@@ -32,8 +29,6 @@ float bayerDither() {
     return (BAYER4[y * 4 + x] + 0.5) / 16.0;
 }
 
-// far bound for rays that hit no geometry. per-light sphere clipping decides the real march
-// interval, so this only has to be past every light's reach
 const float SKY_RAY_DISTANCE = 8192.0;
 
 bool clipSpotCone(vec3 origin, vec3 ray, vec3 axis, float cosine, inout float nearT, inout float farT) {
@@ -72,8 +67,6 @@ float spotRayVisibility(vec4 projected, vec2 tileOffset) {
     return ndc.z * 0.5 + 0.5 - bias <= stored ? 1.0 : 0.0;
 }
 
-// volumetric light shafts, only marches inside each light's sphere so steps aren't wasted
-// light needs shadow casting on for the beam to be blocked by geometry
 vec3 volumetric(vec3 fragPos) {
     float segLen = length(fragPos);
     if (segLen < 1e-3 || VolumetricSteps <= 0 || VolumetricStrength <= 0.0 || VolumetricDensity <= 0.0) return vec3(0.0);
@@ -83,10 +76,9 @@ vec3 volumetric(vec3 fragPos) {
     vec3 result = vec3(0.0);
     for (int i = 0; i < LightCount; i++) {
         int type = int(texelFetch(LightTexels, i * 8 + 2).w + 0.5);
-        float gstr = texelFetch(LightTexels, i * 8 + 6).z; // per-light strength (0 = no shaft)
+        float gstr = texelFetch(LightTexels, i * 8 + 6).z;
         if (gstr <= 0.0) continue;
 
-        // per-light volumetric params (lane 7)
         int baseSteps = min(VolumetricSteps, int(texelFetch(LightTexels, i * 8 + 7).x + 0.5));
         float density = texelFetch(LightTexels, i * 8 + 7).y * VolumetricDensity;
         float aniso = min(VolumetricAniso, texelFetch(LightTexels, i * 8 + 7).z);
@@ -96,7 +88,6 @@ vec3 volumetric(vec3 fragPos) {
         vec3 pos = texelFetch(LightTexels, i * 8 + 0).xyz;
         float range = texelFetch(LightTexels, i * 8 + 0).w;
 
-        // clip the ray to the light's sphere so we only march where it matters
         vec3 oc = -pos;
         float b = dot(oc, rayDir);
         float c = dot(oc, oc) - range * range;
@@ -110,7 +101,6 @@ vec3 volumetric(vec3 fragPos) {
         if (type == 1 && !clipSpotCone(-pos, rayDir, spotDir, cosOut, tN, tF)) continue;
         if (tF <= tN) continue;
 
-        // per-light step LOD: a light far from the camera (relative to its size) gets fewer steps
         int steps = baseSteps;
         float stepLen = (tF - tN) / float(steps);
         int curve = int(texelFetch(LightTexels, i * 8 + 3).z + 0.5);
@@ -118,8 +108,6 @@ vec3 volumetric(vec3 fragPos) {
         int sref = int(texelFetch(LightTexels, i * 8 + 5).w);
         vec3 lcol = texelFetch(LightTexels, i * 8 + 1).rgb * texelFetch(LightTexels, i * 8 + 1).w;
 
-        // front-to-back with beer-lambert extinction so the integral saturates instead of blowing
-        // up into a giant blob when the camera sits inside the light's sphere
         vec3 acc = vec3(0.0);
         float transmittance = 1.0;
         float stepT = exp(-density * stepLen);
@@ -146,7 +134,6 @@ vec3 volumetric(vec3 fragPos) {
             if (a <= 0.0) continue;
             if (spotShadow) a *= spotRayVisibility(shadowRay * sampleT + shadowOrigin, shadowTile);
             else if (lShadows) a *= shadowVisibilityCheap(sref, p, pos, range);
-            // energy-conserving single scatter: integral of inscatter * transmittance over the step
             if(a>0.0) {
                 float phase = hgPhase(dot(rayDir, L), aniso);
                 acc += transmittance * lcol * a * phase * (1.0 - stepT);
@@ -166,8 +153,6 @@ vec3 volumetric(vec3 fragPos) {
 void main() {
     float depth = texture(DepthSampler, vUV).r;
 
-    // late volumetric-only pass over translucents, outputs god-rays additively
-    // alpha carries depth for bilateral upscale
     if (VolumetricOnly == 1) {
         if(ScatteringClip==1 && (vUV.x<ScatteringRect.x || vUV.y<ScatteringRect.y
                 || vUV.x>ScatteringRect.z || vUV.y>ScatteringRect.w)) {
@@ -219,16 +204,12 @@ void main() {
     } else {
         N = betterNormal(vUV, fragPos);
     }
-    // specular AA: widen roughness by the pixel-footprint normal variance so distant and
-    // curved surfaces stop sparkling instead of aliasing the highlight
     vec3 nDx = dFdx(N), nDy = dFdy(N);
     float nVar = 0.25 * (dot(nDx, nDx) + dot(nDy, nDy));
     rough = clamp(sqrt(rough * rough + min(2.0 * nVar, 0.18)), 0.0, 1.0);
 
-    vec3 V = normalize(-fragPos); // camera at origin in view space
+    vec3 V = normalize(-fragPos);
     vec3 albedo = texture(AlbedoSampler, vUV).rgb;
-    // a forward pass can publish its material colour; local lights shade that instead of the lit
-    // frame, so a lamp can still light a surface the daylight left at black
     vec4 published = texture(GAlbedoSampler, vUV);
     vec3 material = HasGBuffer == 1 && published.a > 0.5 ? published.rgb : lightMaterial(albedo);
     vec3 scene = albedo;
@@ -263,8 +244,6 @@ void main() {
     }
     for (int entry = 0; entry < tileCount; entry++) {
         int i=TileLighting==1?texelFetch(TileLights,tileBase+1+entry).r:entry;
-        // when light volumes are on they shade every non-directional light, so the fullscreen
-        // pass only still needs the directional sun (which darkens and cannot be additive)
         if (SkipLocalLights == 1 && int(texelFetch(LightTexels, i * 8 + 2).w + 0.5) != 2) continue;
         radiance += lightContribution(i, fragPos, N, V, rough, f0, specular, sunShadow);
     }
@@ -272,7 +251,6 @@ void main() {
     // scene is already day-lit, darken where the sun is occluded, then local lights and specular on top
     vec4 shade = HasGBuffer == 1 ? texture(GShadeSampler, vUV) : vec4(0.0);
     float sunMul = clamp(1.0 - sunShadow * (shade.b > 0.5 ? shade.g : 1.0), 0.0, 1.0);
-    // with light volumes on the local lights were skipped above and the volumes add them after
     vec3 local = surfaceRadiance(material, radiance, specular, metallic);
     vec3 outColor = ShaderPackComposite == 1 ? albedo * sunMul + compositeLight(albedo, local)
             : resolveSurface(scene, sunMul, material, local);
@@ -300,4 +278,3 @@ void main() {
     FragColor = vec4(outColor, 1.0);
 #endif
 }
-

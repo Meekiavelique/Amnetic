@@ -4,7 +4,7 @@ in vec2 vUV;
 out vec4 FragColor;
 
 uniform sampler2D ColorSampler;
-uniform float Sharpness; // 0..1 developer knob
+uniform float Sharpness;
 
 void main() {
     ivec2 sz = textureSize(ColorSampler, 0);
