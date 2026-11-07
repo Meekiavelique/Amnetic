@@ -34,14 +34,21 @@ public final class Decals {
     public static void filmEnvironment(float sunX, float sunY, float sunZ, float sunR, float sunG, float sunB,
                                        float skyR, float skyG, float skyB, float blockR, float blockG, float blockB) {
         float l = (float) Math.sqrt(sunX * sunX + sunY * sunY + sunZ * sunZ);
-        if (l < 1e-6f) { sunX = 0f; sunY = 1f; sunZ = 0f; l = 1f; }
+        if (l < 1e-6f) {
+            sunX = 0f;
+            sunY = 1f;
+            sunZ = 0f;
+            l = 1f;
+        }
         float[] e = {sunX / l, sunY / l, sunZ / l, sunR, sunG, sunB, skyR, skyG, skyB, blockR, blockG, blockB};
         System.arraycopy(e, 0, ENVIRONMENT, 0, e.length);
     }
 
     public static float[] filmEnvironment() { return ENVIRONMENT; }
 
-    public static void clearFilms() { for (FilmDecal f : FILMS) f.remove(); }
+    public static void clearFilms() {
+        for (FilmDecal f : FILMS) f.remove();
+    }
 
     public static void touch() {
         FilmPass.INSTANCE.hashCode();
@@ -51,7 +58,9 @@ public final class Decals {
     public static void renderFilms() { FilmPass.INSTANCE.render(FILMS); }
 
     public static boolean hasRelightable() {
-        for (Decal d : ACTIVE) if (!d.isRemoved() && d.writesGBuffer()) return true;
+        for (Decal d : ACTIVE) {
+            if (!d.isRemoved() && d.writesGBuffer()) return true;
+        }
         return false;
     }
 
@@ -59,5 +68,8 @@ public final class Decals {
 
     public static void render() { DecalRenderer.INSTANCE.render(ACTIVE); }
 
-    public static void dispose() { DecalRenderer.INSTANCE.dispose(); FilmPass.INSTANCE.dispose(); }
+    public static void dispose() {
+        DecalRenderer.INSTANCE.dispose();
+        FilmPass.INSTANCE.dispose();
+    }
 }

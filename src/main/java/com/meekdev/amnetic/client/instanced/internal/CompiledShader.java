@@ -90,7 +90,7 @@ final class CompiledShader implements AutoCloseable {
         link = null;
         if (done.failed()) {
             failed = true;
-            LOG.error("instance shader {}/{} does not build, its meshes stay hidden: {}", vshId, fshId, done.problem());
+            LOG.error("instance shader {}/{} does not build: {}", vshId, fshId, done.problem());
             return false;
         }
         linked(done.program());

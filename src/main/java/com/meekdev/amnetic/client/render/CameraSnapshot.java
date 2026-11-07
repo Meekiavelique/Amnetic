@@ -31,8 +31,11 @@ public final class CameraSnapshot {
     private static CameraSnapshot override;
 
     public static void handProjection(Matrix4f projection) {
-        var world=current();if(world==null)return;
-        var p=new Matrix4f(projection);var v=new Matrix4f(world.view);var vp=new Matrix4f(p).mul(v);
+        var world=current();
+        if(world==null)return;
+        var p=new Matrix4f(projection);
+        var v=new Matrix4f(world.view);
+        var vp=new Matrix4f(p).mul(v);
         override=new CameraSnapshot(world.eye,p,v,vp,new Matrix4f(vp).invert(),world.zeroToOne);
     }
     public static void endHand(){override=null;}

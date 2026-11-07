@@ -138,7 +138,8 @@ public abstract class RenderPearlGameRendererMixin {
 
     @org.spongepowered.asm.mixin.injection.ModifyArg(method="renderItemInHand",at=@At(value="INVOKE",target="Lcom/mojang/renderpearl/api/commands/CommandEncoder;createRenderPass(Ljava/util/function/Supplier;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Ljava/util/Optional;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Ljava/util/OptionalDouble;)Lcom/mojang/renderpearl/api/commands/RenderPass;"),index=3)
     private GpuTextureView amnetic$handDepth(GpuTextureView depth) {
-        var target=LayerRedirect.active();return target==null?depth:target.getDepthTextureView();
+        var target=LayerRedirect.active();
+        return target==null?depth:target.getDepthTextureView();
     }
 
     @Inject(method = "render", at = @At(value = "INVOKE",

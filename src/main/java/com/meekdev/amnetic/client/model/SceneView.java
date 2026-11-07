@@ -27,7 +27,9 @@ public final class SceneView {
     private float fov = (float) Math.toRadians(60.0);
     private float near = 0.1f;
     private float far = 600f;
-    private float clearR = 0.55f, clearG = 0.72f, clearB = 0.86f;
+    private float clearR = 0.55f;
+    private float clearG = 0.72f;
+    private float clearB = 0.86f;
     private float blockLight = 1f;
     private float skyLight = 1f;
     private boolean disposed;

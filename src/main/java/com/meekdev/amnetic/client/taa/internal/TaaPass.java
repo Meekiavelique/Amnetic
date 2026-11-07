@@ -46,8 +46,10 @@ public final class TaaPass extends ScreenPass {
     private boolean historyValid;
 
     //? if >=26.2 {
-    private NativeScreenProgram nativeResolve, nativeBlit;
-    private int nativeWidth, nativeHeight;
+    private NativeScreenProgram nativeResolve;
+    private NativeScreenProgram nativeBlit;
+    private int nativeWidth;
+    private int nativeHeight;
     private void renderNative(CameraSnapshot cam) {
         if (capture == null) {
             capture = Framebuffers.screen("TAA Capture", FramebufferSpec.builder().color(ColorFormat.RGBA8).depthTexture().build());
@@ -59,8 +61,11 @@ public final class TaaPass extends ScreenPass {
         nativeWidth = capture.width(); nativeHeight = capture.height();
         curViewProj.set(cam.viewProj);
         curInvViewProj.set(cam.invViewProj);
-        double dx=cam.eye.x-prevEyeX,dy=cam.eye.y-prevEyeY,dz=cam.eye.z-prevEyeZ;
-        var previous=usingA?historyA:historyB; var current=usingA?historyB:historyA;
+        double dx=cam.eye.x-prevEyeX;
+        double dy=cam.eye.y-prevEyeY;
+        double dz=cam.eye.z-prevEyeZ;
+        var previous=usingA?historyA:historyB;
+        var current=usingA?historyB:historyA;
         if(nativeResolve==null) nativeResolve=new NativeScreenProgram(Identifier.fromNamespaceAndPath("amnetic", "shaders/taa/native.fsh"),
                 new ColorTargetState(Optional.empty(),GpuFormat.RGBA16_FLOAT,15));
         nativeResolve.setTexture("ColorSampler",capture.colorTextureView(0));

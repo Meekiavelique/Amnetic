@@ -46,17 +46,24 @@ final class LightResolveRegression {
         return expand(value);
     }
     static String expand(String value)throws Exception {
-        var m=Pattern.compile("#include \"amnetic:([^\"]+)\"").matcher(value);var out=new StringBuilder();
+        var m=Pattern.compile("#include \"amnetic:([^\"]+)\"").matcher(value);
+        var out=new StringBuilder();
         while(m.find())m.appendReplacement(out,Matcher.quoteReplacement(source(m.group(1))));
         m.appendTail(out);return out.toString();
     }
     private static int shader(int type,String source) {
-        int s=glCreateShader(type);glShaderSource(s,source);glCompileShader(s);
+        int s=glCreateShader(type);
+        glShaderSource(s,source);
+        glCompileShader(s);
         require(glGetShaderi(s,GL_COMPILE_STATUS)!=0,glGetShaderInfoLog(s));return s;
     }
     static int program(String fragment) {
         int v=shader(GL_VERTEX_SHADER,"#version 410\nout vec2 vUV;void main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[gl_VertexID],0,1);vUV=p[gl_VertexID]*.5+.5;}");
-        int f=shader(GL_FRAGMENT_SHADER,fragment),p=glCreateProgram();glAttachShader(p,v);glAttachShader(p,f);glLinkProgram(p);
+        int f=shader(GL_FRAGMENT_SHADER,fragment);
+        int p=glCreateProgram();
+        glAttachShader(p,v);
+        glAttachShader(p,f);
+        glLinkProgram(p);
         require(glGetProgrami(p,GL_LINK_STATUS)!=0,glGetProgramInfoLog(p));glDeleteShader(v);glDeleteShader(f);return p;
     }
     static void verify()throws Exception {
@@ -85,18 +92,30 @@ final class LightResolveRegression {
                     vec3 material=vec3(levels[int(floor(gl_FragCoord.x))]);
                     result=vec4(resolveSurface(vec3(0),1.0,material,surfaceRadiance(material,vec3(Energy),vec3(0),0)),1);}
                 """);
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays(),buffer=glGenBuffers();int[] textures=new int[3];glGenTextures(textures);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int buffer=glGenBuffers();
+        int[] textures=new int[3];
+        glGenTextures(textures);
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,5,1,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,textures[0],0);glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBindVertexArray(vao);glViewport(0,0,5,1);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
-            glUseProgram(resolve);glUniform1f(glGetUniformLocation(resolve,"BaseStrength"),.02F);glDrawArrays(GL_TRIANGLES,0,3);float[] pixels=new float[20];glReadPixels(0,0,5,1,GL_RGBA,GL_FLOAT,pixels);
-            float expectedRatio=linear(.12F)/linear(.65F),previous=0;
+            glUseProgram(resolve);
+            glUniform1f(glGetUniformLocation(resolve,"BaseStrength"),.02F);
+            glDrawArrays(GL_TRIANGLES,0,3);
+            float[] pixels=new float[20];
+            glReadPixels(0,0,5,1,GL_RGBA,GL_FLOAT,pixels);
+            float expectedRatio=linear(.12F)/linear(.65F);
+            float previous=0;
             for(int i=0;i<5;i++) {
-                float r=pixels[i*4],g=pixels[i*4+1],b=pixels[i*4+2];
+                float r=pixels[i*4];
+                float g=pixels[i*4+1];
+                float b=pixels[i*4+2];
                 require(Float.isFinite(r) && r>=previous && r<=1.014F && b>=0,"Local light energy overflowed or became non-monotonic");
                 if(i>0) {
-                    float redEnergy=linear(r)-linear(.65F*.02F),greenEnergy=linear(g)-linear(.12F*.02F);
+                    float redEnergy=linear(r)-linear(.65F*.02F);
+                    float greenEnergy=linear(g)-linear(.12F*.02F);
                     require(Math.abs(greenEnergy/redEnergy-expectedRatio)<1e-4,"Neutral lights bleached linear material hue");
                 }
                 previous=r;
@@ -167,20 +186,26 @@ final class LightResolveRegression {
     }
     private static void verifyAoSamples()throws Exception {
         int[] programs={program(expand(Files.readString(Path.of("src/test/resources/ssao/ssao-reference.fsh")))),program(source("shaders/ssao/native/ssao.fsh"))};
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays();int[] textures=new int[3];glGenTextures(textures);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int[] textures=new int[3];
+        glGenTextures(textures);
         try {
-            int width=96,height=60;
+            int width=96;
+            int height=60;
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,width,height,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,textures[0],0);glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBindVertexArray(vao);glViewport(0,0,width,height);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
-            float maximum=0;int different=0;
+            float maximum=0;
+            int different=0;
             for(int scene=0;scene<40;scene++) {
                 boolean zero=scene%2==0;
                 var view=new Matrix4f().rotateX(scene*.13F).rotateY(scene*.21F).rotateZ(scene*.07F);
                 var projection=new Matrix4f().perspective((float)Math.toRadians(45+scene),width/(float)height,.05F,200,zero);
                 var vp=new Matrix4f(projection).mul(view);
                 var inv=new Matrix4f(vp).invert();
-                float[] depths=new float[width*height],normals=new float[width*height*4];
+                float[] depths=new float[width*height];
+                float[] normals=new float[width*height*4];
                 for(int y=0;y<height;y++)for(int x=0;x<width;x++) {
                     int at=x+y*width;
                     float z=-3F-(float)Math.sin(x*.17F)*.3F-(float)Math.cos(y*.11F)*.2F;
@@ -198,7 +223,10 @@ final class LightResolveRegression {
                 }
                 float[][] result={new float[width*height*4],new float[width*height*4]};
                 for(int i=0;i<2;i++) {
-                    int p=programs[i];glUseProgram(p);glUniform1i(glGetUniformLocation(p,"DepthSampler"),1);glUniform1i(glGetUniformLocation(p,"GNormalSampler"),2);
+                    int p=programs[i];
+                    glUseProgram(p);
+                    glUniform1i(glGetUniformLocation(p,"DepthSampler"),1);
+                    glUniform1i(glGetUniformLocation(p,"GNormalSampler"),2);
                     glUniform1i(glGetUniformLocation(p,"HasGBuffer"),scene%3==0?0:1);glUniform1i(glGetUniformLocation(p,"ZeroToOne"),zero?1:0);glUniform1i(glGetUniformLocation(p,"Frame"),scene%5==0?0:scene*17);
                     glUniformMatrix4fv(glGetUniformLocation(p,"ViewProj"),false,vp.get(new float[16]));glUniformMatrix4fv(glGetUniformLocation(p,"InvViewProj"),false,inv.get(new float[16]));glUniformMatrix4fv(glGetUniformLocation(p,"View"),false,view.get(new float[16]));
                     glUniform1f(glGetUniformLocation(p,"Radius"),.84F);glUniform1f(glGetUniformLocation(p,"Intensity"),.65F);glUniform1f(glGetUniformLocation(p,"Bias"),.025F);glUniform1f(glGetUniformLocation(p,"Power"),1.18F);
@@ -214,11 +242,17 @@ final class LightResolveRegression {
     }
     private static void verifyScatteringBounds()throws Exception {
         int p=program(source("shaders/light/deferred.fsh"));
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays(),buffer=glGenBuffers();int[] textures=new int[3];glGenTextures(textures);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int buffer=glGenBuffers();
+        int[] textures=new int[3];
+        glGenTextures(textures);
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,96,60,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,textures[0],0);glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);
-            glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,textures[1]);float[] depths=new float[96*60];
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D,textures[1]);
+            float[] depths=new float[96*60];
             for(int i=0;i<depths.length;i++)depths[i]=i%7==0?1:.985F;
             glTexImage2D(GL_TEXTURE_2D,0,GL_R32F,96,60,0,GL_RED,GL_FLOAT,depths);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
             glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_BUFFER,textures[2]);glBindBuffer(GL_TEXTURE_BUFFER,buffer);glTexBuffer(GL_TEXTURE_BUFFER,GL_RGBA32F,buffer);
@@ -228,19 +262,28 @@ final class LightResolveRegression {
             glUniform1i(glGetUniformLocation(p,"LightCount"),1);glUniform1i(glGetUniformLocation(p,"VolumetricOnly"),1);
             glUniform1i(glGetUniformLocation(p,"VolumetricSteps"),64);glUniform1f(glGetUniformLocation(p,"VolumetricStrength"),.65F);
             glUniform1f(glGetUniformLocation(p,"VolumetricDensity"),.06F);glUniform1f(glGetUniformLocation(p,"VolumetricAniso"),.54F);glUniform1f(glGetUniformLocation(p,"TemporalOffset"),-1);
-            float max=0,totalArea=0;int nonempty=0;var random=new Random(55710);
+            float max=0;
+            float totalArea=0;
+            int nonempty=0;
+            var random=new Random(55710);
             for(int scene=0;scene<36;scene++) {
                 var projection=new Matrix4f().perspective((float)Math.toRadians(45+scene),1.6F,.05F,200);
                 glUniformMatrix4fv(glGetUniformLocation(p,"InvViewProj"),false,new Matrix4f(projection).invert().get(new float[16]));
                 var axis=new Vector3f((scene%6-2.5F)*.12F,(scene/6-2.5F)*.1F,-1).normalize();
-                float x=.2F,y=-.1F,z=scene%9==0?.1F:-.5F,cos=(float)Math.cos(Math.toRadians(8+scene%15));
+                float x=.2F;
+                float y=-.1F;
+                float z=scene%9==0?.1F:-.5F;
+                float cos=(float)Math.cos(Math.toRadians(8+scene%15));
                 float[] light={x,y,z,36, 1,.8F,.6F,3.2F, axis.x,axis.y,axis.z,1, .998F,cos,0,1, 0,0,0,1, 1,0,0,-1, 0,0,.6F,0, 64,.21F,.15F,0};
                 glBindBuffer(GL_TEXTURE_BUFFER,buffer);glBufferData(GL_TEXTURE_BUFFER,light,GL_STREAM_DRAW);
-                float[] rect=new float[4];SpotlightBounds.project(projection,x,y,z,axis.x,axis.y,axis.z,36,cos,96,60,rect);
+                float[] rect=new float[4];
+                SpotlightBounds.project(projection,x,y,z,axis.x,axis.y,axis.z,36,cos,96,60,rect);
                 totalArea+=(rect[2]-rect[0])*(rect[3]-rect[1]);
-                var u=new Vector3f(0,1,0).cross(axis).normalize();var v=new Vector3f(axis).cross(u);
+                var u=new Vector3f(0,1,0).cross(axis).normalize();
+                var v=new Vector3f(axis).cross(u);
                 for(int sample=0;sample<1000;sample++) {
-                    float distance=.001F+random.nextFloat()*35.999F,angle=random.nextFloat()*(float)Math.PI*2;
+                    float distance=.001F+random.nextFloat()*35.999F;
+                    float angle=random.nextFloat()*(float)Math.PI*2;
                     float radius=distance*(float)Math.sqrt(1-cos*cos)/cos*random.nextFloat();
                     var point=new Vector4f(x+axis.x*distance+radius*(u.x*(float)Math.cos(angle)+v.x*(float)Math.sin(angle)),
                             y+axis.y*distance+radius*(u.y*(float)Math.cos(angle)+v.y*(float)Math.sin(angle)),
@@ -261,14 +304,20 @@ final class LightResolveRegression {
 
     private static void verifyAoBlurEquivalence()throws Exception {
         int[] programs={program(expand(Files.readString(Path.of("src/test/resources/ssao/blur-reference.fsh")))),program(source("shaders/ssao/native/blur.fsh"))};
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays();int[] textures=new int[4];glGenTextures(textures);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int[] textures=new int[4];
+        glGenTextures(textures);
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,32,32,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,textures[0],0);glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBindVertexArray(vao);glViewport(0,0,32,32);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
-            float maximum=0;int cases=0;
+            float maximum=0;
+            int cases=0;
             for(int scene=0;scene<6;scene++)for(int size:new int[]{16,31,32})for(int filter:new int[]{GL_NEAREST,GL_LINEAR}) {
-                float[] ao=new float[size*size],depth=new float[size*size],normals=new float[size*size*4];
+                float[] ao=new float[size*size];
+                float[] depth=new float[size*size];
+                float[] normals=new float[size*size*4];
                 for(int y=0;y<size;y++)for(int x=0;x<size;x++) {
                     int i=x+y*size;
                     ao[i]=switch(scene){case 0->1;case 1->0;case 2->x==size/2 && y==size/2?.2F:1;case 3->x<size/2?0:1;case 4->(x*17+y*11)%13/12F;default->.63F;};
@@ -283,7 +332,11 @@ final class LightResolveRegression {
                 }
                 float[][] result={new float[32*32*4],new float[32*32*4]};
                 for(int i=0;i<2;i++) {
-                    int p=programs[i];glUseProgram(p);glUniform1i(glGetUniformLocation(p,"AoSampler"),1);glUniform1i(glGetUniformLocation(p,"DepthSampler"),2);glUniform1i(glGetUniformLocation(p,"GNormalSampler"),3);
+                    int p=programs[i];
+                    glUseProgram(p);
+                    glUniform1i(glGetUniformLocation(p,"AoSampler"),1);
+                    glUniform1i(glGetUniformLocation(p,"DepthSampler"),2);
+                    glUniform1i(glGetUniformLocation(p,"GNormalSampler"),3);
                     glUniform1i(glGetUniformLocation(p,"HasGBuffer"),scene%2);glUniform1i(glGetUniformLocation(p,"ZeroToOne"),scene%2);
                     glUniformMatrix4fv(glGetUniformLocation(p,"InvViewProj"),false,new Matrix4f().get(new float[16]));
                     glDrawArrays(GL_TRIANGLES,0,3);glReadPixels(0,0,32,32,GL_RGBA,GL_FLOAT,result[i]);
@@ -299,11 +352,16 @@ final class LightResolveRegression {
     }
     private static void verifyScatterResolveEquivalence()throws Exception {
         int[] programs={program(Files.readString(Path.of("src/test/resources/flashlight/upscale-reference.fsh"))),program(source("shaders/volumetric/upscale.fsh"))};
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays();int[] textures=new int[3];glGenTextures(textures);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int[] textures=new int[3];
+        glGenTextures(textures);
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,32,32,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,textures[0],0);glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);
-            glActiveTexture(GL_TEXTURE2);glBindTexture(GL_TEXTURE_2D,textures[2]);float[] depth=new float[32*32];
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D,textures[2]);
+            float[] depth=new float[32*32];
             for(int i=0;i<depth.length;i++)depth[i]=i%32<16?.3F:.9F;
             glTexImage2D(GL_TEXTURE_2D,0,GL_R32F,32,32,0,GL_RED,GL_FLOAT,depth);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
             glBindVertexArray(vao);glViewport(0,0,32,32);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
@@ -311,7 +369,8 @@ final class LightResolveRegression {
             for(int scene=0;scene<4;scene++) {
                 float[] scatter=new float[8*8*4];
                 for(int y=0;y<8;y++)for(int x=0;x<8;x++) {
-                    int i=(x+y*8)*4;boolean lit=scene==3 || scene==1 && x==3 && y==3 || scene==2 && x>2 && x<6;
+                    int i=(x+y*8)*4;
+                    boolean lit=scene==3 || scene==1 && x==3 && y==3 || scene==2 && x>2 && x<6;
                     if(lit){scatter[i]=.08F;scatter[i+1]=.045F;scatter[i+2]=.02F;}
                     scatter[i+3]=x<4?.3F:.9F;
                 }
@@ -336,11 +395,17 @@ final class LightResolveRegression {
         realSpotShadows=false;
         String main="uniform vec3 Endpoint;out vec4 TestResult;void main(){TestResult=vec4(volumetric(Endpoint),1);}";
         int[] programs={program(reference.substring(0,reference.indexOf("void main()"))+main),program(optimized.substring(0,optimized.indexOf("void main()"))+main)};
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays(),buffer=glGenBuffers();int[] textures=new int[3];glGenTextures(textures);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int buffer=glGenBuffers();
+        int[] textures=new int[3];
+        glGenTextures(textures);
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,5,1,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,textures[0],0);glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);
-            glActiveTexture(GL_TEXTURE2);glBindTexture(GL_TEXTURE_2D,textures[2]);float[] atlas=new float[32*32];
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D,textures[2]);
+            float[] atlas=new float[32*32];
             for(int y=0;y<32;y++)for(int x=0;x<32;x++)atlas[x+y*32]=x<16?.985F:1F;
             glTexImage2D(GL_TEXTURE_2D,0,GL_R32F,32,32,0,GL_RED,GL_FLOAT,atlas);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
             glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_BUFFER,textures[1]);glBindBuffer(GL_TEXTURE_BUFFER,buffer);glBufferData(GL_TEXTURE_BUFFER,32*4L,GL_STATIC_DRAW);glTexBuffer(GL_TEXTURE_BUFFER,GL_RGBA32F,buffer);
@@ -362,7 +427,9 @@ final class LightResolveRegression {
                 glBindBuffer(GL_TEXTURE_BUFFER,buffer);glBufferData(GL_TEXTURE_BUFFER,light,GL_STATIC_DRAW);
                 float[][] result={new float[20],new float[20]};
                 for(int i=0;i<2;i++) {
-                    int p=programs[i];glUseProgram(p);glUniform1i(glGetUniformLocation(p,"ShadowActive"),test%2);
+                    int p=programs[i];
+                    glUseProgram(p);
+                    glUniform1i(glGetUniformLocation(p,"ShadowActive"),test%2);
                     glUniform3f(glGetUniformLocation(p,"Endpoint"),(test%10-4.5F)*.15F,0,-2-test*.7F);
                     glDrawArrays(GL_TRIANGLES,0,3);glReadPixels(0,0,5,1,GL_RGBA,GL_FLOAT,result[i]);
                 }
@@ -377,7 +444,10 @@ final class LightResolveRegression {
     private static void verifySpotFiltering()throws Exception {
         String shadow=Files.readString(Path.of("src/main/resources/assets/amnetic/shaders/common/shadowmap.glsl"));
         int p=program("#version 410\n"+shadow+"\nuniform float SampleOffset;out vec4 result;void main(){float v=amnetic_spotCompare(vec2(0),vec2(SampleOffset+(gl_FragCoord.x-.5)*.25,2),.5);result=vec4(v,v,v,1);}");
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays(),target=glGenTextures(),atlas=glGenTextures();
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int target=glGenTextures();
+        int atlas=glGenTextures();
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,target);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,5,1,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,target,0);glDrawBuffer(GL_COLOR_ATTACHMENT0);
@@ -389,7 +459,9 @@ final class LightResolveRegression {
             glBindVertexArray(vao);glViewport(0,0,5,1);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);
             for(int edge=0;edge<2;edge++) {
                 glUniform1f(glGetUniformLocation(p,"SampleOffset"),edge==0?1.5F:3.5F);
-                glDrawArrays(GL_TRIANGLES,0,3);float[] pixels=new float[20];glReadPixels(0,0,5,1,GL_RGBA,GL_FLOAT,pixels);
+                glDrawArrays(GL_TRIANGLES,0,3);
+                float[] pixels=new float[20];
+                glReadPixels(0,0,5,1,GL_RGBA,GL_FLOAT,pixels);
                 for(int i=0;i<5;i++)require(Math.abs(pixels[i*4]-(edge==0?i*.25F:1F))<1e-5,"Spot shadow transition is stepped or bleeds across its atlas tile: "+pixels[i*4]);
             }
             require(glGetError()==GL_NO_ERROR,"Spot shadow filtering GL error");
@@ -399,11 +471,16 @@ final class LightResolveRegression {
     private static void verifyPointBias()throws Exception {
         String shadow=Files.readString(Path.of("src/main/resources/assets/amnetic/shaders/common/shadowmap.glsl"));
         int p=program("#version 410\n"+shadow+"\nuniform int TestShadowRef;out vec4 result;void main(){result=vec4(shadowVisibility(TestShadowRef,vec3(0,0,-2),vec3(0,0,1),vec3(0),10.0),1);}");
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays(),target=glGenTextures(),cube=glGenTextures();
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int target=glGenTextures();
+        int cube=glGenTextures();
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,target);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,1,1,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
             glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,target,0);glDrawBuffer(GL_COLOR_ATTACHMENT0);
-            glActiveTexture(GL_TEXTURE1);int type=GL40.GL_TEXTURE_CUBE_MAP_ARRAY;glBindTexture(type,cube);
+            glActiveTexture(GL_TEXTURE1);
+            int type=GL40.GL_TEXTURE_CUBE_MAP_ARRAY;
+            glBindTexture(type,cube);
             float depth=(float)(((10.0+.05)/(10.0-.05)-(2*10*.05)/((10-.05)*1.99))*.5+.5);
             float[] faces={depth,depth,depth,depth,depth,depth};
             GL12.glTexImage3D(type,0,GL_R32F,1,1,6,0,GL_RED,GL_FLOAT,faces);
@@ -414,7 +491,9 @@ final class LightResolveRegression {
             glBindVertexArray(vao);glViewport(0,0,1,1);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);
             for(int i=0;i<2;i++) {
                 glUniform1f(glGetUniformLocation(p,"ShadowNormalBias"),i==0?0:.05F);
-                glDrawArrays(GL_TRIANGLES,0,3);float[] pixel=new float[4];glReadPixels(0,0,1,1,GL_RGBA,GL_FLOAT,pixel);
+                glDrawArrays(GL_TRIANGLES,0,3);
+                float[] pixel=new float[4];
+                glReadPixels(0,0,1,1,GL_RGBA,GL_FLOAT,pixel);
                 require(Math.abs(pixel[0]-i)<1e-5,"Point shadow ignores surface normal offset: "+pixel[0]+", control="+i);
             }
             require(glGetError()==GL_NO_ERROR,"Point shadow bias GL error");

@@ -16,13 +16,19 @@ public final class ProgramLink {
     private static final int COMPLETION_STATUS = 0x91B1;
     private static final long BLOCKING_GAP = 16_000_000L;
 
-    private static final int QUEUED = 0, RUNNING = 1, DONE = 2, TAKEN_BACK = 3;
+    private static final int QUEUED = 0;
+    private static final int RUNNING = 1;
+    private static final int DONE = 2;
+    private static final int TAKEN_BACK = 3;
 
     private static Boolean parallel;
     private static long lastBlockingFinish;
     private static int started;
-    private static final AtomicInteger CACHED = new AtomicInteger(), FAILED = new AtomicInteger();
-    private static long waitedNanos, forcedNanos, checkNanos;
+    private static final AtomicInteger CACHED = new AtomicInteger();
+    private static final AtomicInteger FAILED = new AtomicInteger();
+    private static long waitedNanos;
+    private static long forcedNanos;
+    private static long checkNanos;
     private static final AtomicLong WORKER_NANOS = new AtomicLong();
 
     private final String name;
@@ -33,7 +39,10 @@ public final class ProgramLink {
     private int program;
     private int[] shaders;
     private String key;
-    private boolean done, failed, fromCache, taken;
+    private boolean done;
+    private boolean failed;
+    private boolean fromCache;
+    private boolean taken;
     private String problem;
     private int failedStage = -1;
 

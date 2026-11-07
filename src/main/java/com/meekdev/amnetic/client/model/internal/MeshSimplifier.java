@@ -120,7 +120,9 @@ public final class MeshSimplifier {
         private void build() {
             int[] counts = new int[positions];
             for (int t = 0; t < triangles; t++) {
-                int a = position[corner[t * 3]], b = position[corner[t * 3 + 1]], c = position[corner[t * 3 + 2]];
+                int a = position[corner[t * 3]];
+                int b = position[corner[t * 3 + 1]];
+                int c = position[corner[t * 3 + 2]];
                 alive[t] = a != b && b != c && c != a;
                 if (!alive[t]) continue;
                 living++;
@@ -160,7 +162,8 @@ public final class MeshSimplifier {
             for (int t = 0; t < triangles; t++) {
                 if (!alive[t]) continue;
                 for (int k = 0; k < 3; k++) {
-                    int a = position[corner[t * 3 + k]], b = position[corner[t * 3 + (k + 1) % 3]];
+                    int a = position[corner[t * 3 + k]];
+                    int b = position[corner[t * 3 + (k + 1) % 3]];
                     if (a < b) offer(queue, a, b);
                 }
             }
@@ -247,7 +250,8 @@ public final class MeshSimplifier {
             for (int i = 0; i < aroundCount[from]; i++) {
                 int t = around[from][i];
                 if (!alive[t]) continue;
-                int mine = -1, theirs = -1;
+                int mine = -1;
+                int theirs = -1;
                 for (int k = 0; k < 3; k++) {
                     int c = corner[t * 3 + k];
                     if (position[c] == from) mine = variant[c];
@@ -313,10 +317,18 @@ public final class MeshSimplifier {
         }
 
         private double[] normal(int t, int moved, int onto) {
-            int a = spot(corner[t * 3], moved, onto), b = spot(corner[t * 3 + 1], moved, onto), c = spot(corner[t * 3 + 2], moved, onto);
-            double ax = verts[a * STRIDE], ay = verts[a * STRIDE + 1], az = verts[a * STRIDE + 2];
-            double e1x = verts[b * STRIDE] - ax, e1y = verts[b * STRIDE + 1] - ay, e1z = verts[b * STRIDE + 2] - az;
-            double e2x = verts[c * STRIDE] - ax, e2y = verts[c * STRIDE + 1] - ay, e2z = verts[c * STRIDE + 2] - az;
+            int a = spot(corner[t * 3], moved, onto);
+            int b = spot(corner[t * 3 + 1], moved, onto);
+            int c = spot(corner[t * 3 + 2], moved, onto);
+            double ax = verts[a * STRIDE];
+            double ay = verts[a * STRIDE + 1];
+            double az = verts[a * STRIDE + 2];
+            double e1x = verts[b * STRIDE] - ax;
+            double e1y = verts[b * STRIDE + 1] - ay;
+            double e1z = verts[b * STRIDE + 2] - az;
+            double e2x = verts[c * STRIDE] - ax;
+            double e2y = verts[c * STRIDE + 1] - ay;
+            double e2z = verts[c * STRIDE + 2] - az;
             return new double[] {e1y * e2z - e1z * e2y, e1z * e2x - e1x * e2z, e1x * e2y - e1y * e2x};
         }
 
@@ -335,7 +347,9 @@ public final class MeshSimplifier {
             double ex = verts[next * STRIDE] - verts[v * STRIDE];
             double ey = verts[next * STRIDE + 1] - verts[v * STRIDE + 1];
             double ez = verts[next * STRIDE + 2] - verts[v * STRIDE + 2];
-            double px = ey * n[2] - ez * n[1], py = ez * n[0] - ex * n[2], pz = ex * n[1] - ey * n[0];
+            double px = ey * n[2] - ez * n[1];
+            double py = ez * n[0] - ex * n[2];
+            double pz = ex * n[1] - ey * n[0];
             double[] q = quadricOf(px, py, pz, verts[v * STRIDE], verts[v * STRIDE + 1], verts[v * STRIDE + 2]);
             addTo(quadric[position[v]], q, SEAM_WEIGHT);
             addTo(quadric[position[next]], q, SEAM_WEIGHT);
@@ -353,7 +367,9 @@ public final class MeshSimplifier {
 
         private double error(double[] q, int p) {
             int v = standIn[p];
-            double x = verts[v * STRIDE], y = verts[v * STRIDE + 1], z = verts[v * STRIDE + 2];
+            double x = verts[v * STRIDE];
+            double y = verts[v * STRIDE + 1];
+            double z = verts[v * STRIDE + 2];
             return q[0] * x * x + 2 * q[1] * x * y + 2 * q[2] * x * z + 2 * q[3] * x
                     + q[4] * y * y + 2 * q[5] * y * z + 2 * q[6] * y
                     + q[7] * z * z + 2 * q[8] * z + q[9];

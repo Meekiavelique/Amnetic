@@ -18,7 +18,8 @@ public final class TaaJitter {
 
     private final Matrix4f scratch = new Matrix4f();
     private int frame;
-    private float jitterX, jitterY;
+    private float jitterX;
+    private float jitterY;
     private boolean resolved;
 
     private TaaJitter() {}

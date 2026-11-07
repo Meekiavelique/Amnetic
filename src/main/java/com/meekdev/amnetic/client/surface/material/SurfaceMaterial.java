@@ -18,6 +18,9 @@ import org.slf4j.LoggerFactory;
 public final class SurfaceMaterial {
 
     private static final Logger LOG = LoggerFactory.getLogger("Amnetic/Surface");
+    private static final Identifier HEAD = shader("material_head.glsl");
+    private static final Identifier MAIN = shader("material_main.glsl");
+    private static final Identifier MISSING = shader("material_missing.fsh");
 
     public enum Blend { MIX, ADD, PREMUL }
 
@@ -42,13 +45,20 @@ public final class SurfaceMaterial {
                 Identifier.fromNamespaceAndPath("amnetic", "shaders/surface/ui.vsh"), virtual);
     }
 
+    private static Identifier shader(String file) {
+        return Identifier.fromNamespaceAndPath("amnetic", "shaders/surface/" + file);
+    }
+
     public static SurfaceMaterial load(Identifier sourceId) {
         return new SurfaceMaterial(sourceId);
     }
 
     public Blend blend() { return blend; }
     public boolean broken() { return broken; }
-    public List<Uniform> uniforms() { parseIfNeeded(); return uniforms; }
+    public List<Uniform> uniforms() {
+        parseIfNeeded();
+        return uniforms;
+    }
 
     public SurfaceMaterial set(String name, float... v) {
         values.put(name, v.clone());
@@ -202,7 +212,7 @@ public final class SurfaceMaterial {
         try {
             src = readSource();
         } catch (Exception e) {
-            return "#version 330 core\nout vec4 FragColor;\nvoid main(){FragColor=vec4(1.0,0.0,1.0,1.0);}\n";
+            return ShaderProgram.readRaw(MISSING);
         }
 
         StringBuilder user = new StringBuilder();
@@ -217,58 +227,6 @@ public final class SurfaceMaterial {
             user.append(line).append('\n');
         }
 
-        return """
-                #version 330 core
-                in vec2 vUv;
-                in vec4 vColor;
-                in vec2 vPos;
-                flat in vec4 vParams;
-                flat in vec2 vExtra;
-                flat in vec4 vClip;
-                uniform sampler2D Tex;
-                uniform float Time;
-                uniform float Hover;
-                uniform float Pressed;
-                uniform float Focus;
-                uniform vec2 ScreenSize;
-                out vec4 FragColor;
-
-                #define PI 3.14159265359
-                vec2 UV;
-                float TIME;
-                float HOVER;
-                float PRESSED;
-                float FOCUS;
-                vec2 RECT_SIZE;
-                vec2 SCREEN_UV;
-                vec4 COLOR;
-                vec4 TEXTURE_at(vec2 uv) { return texture(Tex, uv); }
-
-                float amnetic_roundedBox(vec2 p, vec2 halfSize, float radius) {
-                    vec2 q = abs(p) - halfSize + radius;
-                    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
-                }
-                """
-                + user
-                + """
-
-                void main() {
-                    if (vClip.z > 0.0 && (vPos.x < vClip.x || vPos.y < vClip.y || vPos.x > vClip.z || vPos.y > vClip.w)) discard;
-                    UV = vUv / max(vParams.zw * 2.0, vec2(1e-4)) + 0.5;
-                    TIME = Time;
-                    HOVER = Hover;
-                    PRESSED = Pressed;
-                    FOCUS = Focus;
-                    RECT_SIZE = vParams.zw * 2.0;
-                    SCREEN_UV = gl_FragCoord.xy / ScreenSize;
-                    COLOR = vColor;
-                    fragment();
-                    float d = amnetic_roundedBox(vUv, vParams.zw, vParams.y);
-                    float aa = max(fwidth(d), 1e-4);
-                    float cov = 1.0 - smoothstep(-aa, aa, d);
-                    if (cov <= 0.0) discard;
-                    FragColor = vec4(COLOR.rgb, COLOR.a * cov);
-                }
-                """;
+        return ShaderProgram.readRaw(HEAD) + user + ShaderProgram.readRaw(MAIN);
     }
 }

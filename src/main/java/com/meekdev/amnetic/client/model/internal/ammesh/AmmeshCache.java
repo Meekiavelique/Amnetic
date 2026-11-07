@@ -93,7 +93,7 @@ public final class AmmeshCache {
                 TextureCache.store(textures, id, image, srgb);
                 return id;
             } catch (IOException | RuntimeException e) {
-                LOG.warn("Amnetic: could not process an image of {}, it stays inside the model", source, e);
+                LOG.warn("Amnetic: could not process an image of {}", source, e);
                 return null;
             }
         });

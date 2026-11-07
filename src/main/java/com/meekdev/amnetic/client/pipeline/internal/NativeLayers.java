@@ -24,7 +24,8 @@ import java.util.Optional;
 final class NativeLayers implements AutoCloseable {
     private final EnumMap<RenderLayer,CaptureTarget> targets=new EnumMap<>(RenderLayer.class);
     private final EnumMap<RenderLayer,Boolean> active=new EnumMap<>(RenderLayer.class);
-    private Framebuffer workA,workB;
+    private Framebuffer workA;
+    private Framebuffer workB;
     private NativeScreenProgram composite;
     boolean begin(RenderLayer layer) {
         if(CaptureManager.INSTANCE.isCapturing() || layer!=RenderLayer.HAND && Pipeline.layerPasses(layer).stream().noneMatch(p->p.enabled()&&p.supportsNative()))return false;
@@ -48,7 +49,8 @@ final class NativeLayers implements AutoCloseable {
         if(kind==RenderLayer.HAND) {
             NativeWorldMaterials.world=false;
             try {
-                var camera=CameraSnapshot.current();boolean local=false;
+                var camera=CameraSnapshot.current();
+                boolean local=false;
                 if(camera!=null)for(var light:LightRegistry.INSTANCE.all()) {
                     if(light.isEnabled()&&light.type().id()!=2&&light.intensity()>0
                             && camera.eye.distanceToSqr(light.x(),light.y(),light.z())<Math.pow(light.range()+2.5,2)){local=true;break;}
@@ -60,16 +62,19 @@ final class NativeLayers implements AutoCloseable {
             } finally {CameraSnapshot.endHand();}
         }
         LayerRedirect.set(null);
-        var target=targets.get(kind).target();var main=Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        var target=targets.get(kind).target();
+        var main=Minecraft.getInstance().gameRenderer.mainRenderTarget();
         if(workA==null) {
             var spec=FramebufferSpec.builder().color(ColorFormat.RGBA8).build();
             workA=Framebuffers.screen("Native layer work A",spec);workB=Framebuffers.screen("Native layer work B",spec);
         }
-        var input=target.getColorTextureView();boolean a=true;
+        var input=target.getColorTextureView();
+        boolean a=true;
         var context=new FrameContext(CameraSnapshot.current(),null,0);
         for(var pass:Pipeline.layerPasses(kind)) {
             if(!pass.enabled()||!pass.supportsNative())continue;
-            var output=a?workA:workB;output.colorTextureView(0);
+            var output=a?workA:workB;
+            output.colorTextureView(0);
             pass.renderNative(context,new Layer(kind,input,output.renderPassDescriptor(),target.width,target.height));
             input=output.colorTextureView(0);a=!a;
         }

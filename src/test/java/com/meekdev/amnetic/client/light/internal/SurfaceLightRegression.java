@@ -21,7 +21,9 @@ final class SurfaceLightRegression {
                     vec3 p=vec3((vUV*2-1)*8,-8);
                     vec3 n=normalize(vec3(sin(gl_FragCoord.x*.3),cos(gl_FragCoord.y*.2),1));
                     float rough=float(int(gl_FragCoord.x)%5)*.25;
-                    vec3 specular=vec3(0),diffuse=vec3(0);float sun=0;
+                    vec3 specular=vec3(0);
+                    vec3 diffuse=vec3(0);
+                    float sun=0;
                     for(int i=0;i<6;i++)diffuse+=lightContribution(i,p,n,normalize(-p),rough,.04,specular,sun);
                     result=vec4(diffuse+specular,sun);
                 }
@@ -30,8 +32,11 @@ final class SurfaceLightRegression {
                 LightResolveRegression.program("#version 410\n"+LightResolveRegression.expand(Files.readString(Path.of("src/test/resources/lighting/lighting-reference.glsl")))+main),
                 LightResolveRegression.program("#version 410\n"+LightResolveRegression.source("shaders/light/lighting.glsl")+main)
         };
-        int fbo=glGenFramebuffers(),vao=glGenVertexArrays(),buffer=glGenBuffers();
-        int[] textures=new int[3];glGenTextures(textures);
+        int fbo=glGenFramebuffers();
+        int vao=glGenVertexArrays();
+        int buffer=glGenBuffers();
+        int[] textures=new int[3];
+        glGenTextures(textures);
         try {
             glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,textures[0]);
             glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,96,60,0,GL_RGBA,GL_FLOAT,(ByteBuffer)null);
@@ -39,7 +44,8 @@ final class SurfaceLightRegression {
             glDrawBuffer(GL_COLOR_ATTACHMENT0);glReadBuffer(GL_COLOR_ATTACHMENT0);glBindVertexArray(vao);glViewport(0,0,96,60);
             glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
             glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,textures[1]);
-            float[] depth=new float[96*60];Arrays.fill(depth,.985F);
+            float[] depth=new float[96*60];
+            Arrays.fill(depth,.985F);
             glTexImage2D(GL_TEXTURE_2D,0,GL_R32F,96,60,0,GL_RED,GL_FLOAT,depth);
             glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
             var projection=new Matrix4f().perspective(1.2F,1.6F,.05F,200);
@@ -47,7 +53,11 @@ final class SurfaceLightRegression {
             for(int scene=0;scene<48;scene++) {
                 float[] lights=new float[6*32];
                 for(int type=0;type<6;type++) {
-                    int at=type*32;lights[at]=(type-2)*2F;lights[at+1]=(scene%5-2)*2;lights[at+2]=-2;lights[at+3]=16;
+                    int at=type*32;
+                    lights[at]=(type-2)*2F;
+                    lights[at+1]=(scene%5-2)*2;
+                    lights[at+2]=-2;
+                    lights[at+3]=16;
                     lights[at+4]=.7F;lights[at+5]=.3F;lights[at+6]=1;lights[at+7]=1.3F;
                     lights[at+8]=.2F;lights[at+9]=-.3F;lights[at+10]=-1;lights[at+11]=type;
                     lights[at+12]=.97F;lights[at+13]=.7F;lights[at+14]=scene%4;lights[at+15]=2.3F;
@@ -58,7 +68,9 @@ final class SurfaceLightRegression {
                 glBufferData(GL_TEXTURE_BUFFER,lights,GL_STREAM_DRAW);glTexBuffer(GL_TEXTURE_BUFFER,GL_RGBA32F,buffer);
                 float[][] output={new float[96*60*4],new float[96*60*4]};
                 for(int mode=0;mode<2;mode++) {
-                    int p=programs[mode];glUseProgram(p);glUniform1i(glGetUniformLocation(p,"LightTexels"),11);
+                    int p=programs[mode];
+                    glUseProgram(p);
+                    glUniform1i(glGetUniformLocation(p,"LightTexels"),11);
                     glUniform1i(glGetUniformLocation(p,"DepthSampler"),1);glUniform1i(glGetUniformLocation(p,"TestOcclusion"),scene%3==0?1:0);
                     glUniform1i(glGetUniformLocation(p,"ContactSteps"),scene%2==0?4:0);
                     glUniform1f(glGetUniformLocation(p,"ContactDistance"),.5F);glUniform1f(glGetUniformLocation(p,"ContactThickness"),.2F);
@@ -67,7 +79,8 @@ final class SurfaceLightRegression {
                     glDrawArrays(GL_TRIANGLES,0,3);glReadPixels(0,0,96,60,GL_RGBA,GL_FLOAT,output[mode]);
                 }
                 for(int i=0;i<output[0].length;i++) {
-                    float error=Math.abs(output[0][i]-output[1][i]);maximum=Math.max(maximum,error);
+                    float error=Math.abs(output[0][i]-output[1][i]);
+                    maximum=Math.max(maximum,error);
                     if(!Float.isFinite(error) || error>1e-6F)throw new AssertionError("Surface light changed: "+error+", scene="+scene);
                 }
             }
