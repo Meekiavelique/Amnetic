@@ -15,11 +15,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import org.joml.Matrix4fc;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
-import org.lwjgl.system.MemoryStack;
 
 public final class Geometry {
     private static final Identifier VSH = Identifier.fromNamespaceAndPath("amnetic", "shaders/util/flat.vsh");
@@ -29,6 +29,8 @@ public final class Geometry {
     private static int program;
     private static int mvpLoc;
     private static int colorLoc;
+    // render thread only, lwjgl 3.4 stack buffers ended up on the heap per part
+    private static final FloatBuffer MVP = BufferUtils.createFloatBuffer(16);
 
     static {
         ShaderHotReload.onReload(Geometry::invalidateProgram);
@@ -49,11 +51,8 @@ public final class Geometry {
         Uploaded gpu = CACHE.computeIfAbsent(mesh, Geometry::upload);
 
         GlStateManager._glUseProgram(program);
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            FloatBuffer buf = stack.mallocFloat(16);
-            modelViewProj.get(buf);
-            GL20.glUniformMatrix4fv(mvpLoc, false, buf);
-        }
+        modelViewProj.get(MVP);
+        GL20.glUniformMatrix4fv(mvpLoc, false, MVP);
         GL20.glUniform4f(colorLoc, r, g, b, a);
 
         GlStateManager._glBindVertexArray(gpu.vao);
