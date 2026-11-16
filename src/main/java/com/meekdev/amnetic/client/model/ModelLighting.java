@@ -11,6 +11,8 @@ public final class ModelLighting {
     private float envIntensity = 1.0f;
     private float exposure = 1.0f;
     private boolean tonemap = true;
+    private final float[] fogTint = new float[4];
+    private final float[] fogRange = new float[4];
 
     private ModelLighting() {}
 
@@ -22,6 +24,12 @@ public final class ModelLighting {
     public ModelLighting envIntensity(float v) { envIntensity = Math.max(0f, v); return this; }
     public ModelLighting exposure(float v) { exposure = Math.max(0.01f, v); return this; }
     public ModelLighting tonemap(boolean v) { tonemap = v; return this; }
+    // the host's distance fog, a strength of 0 leaves models unfogged
+    public ModelLighting fog(float r, float g, float b, float strength, float nearStart, float nearEnd, float farStart, float farEnd) {
+        fogTint[0] = r; fogTint[1] = g; fogTint[2] = b; fogTint[3] = strength;
+        fogRange[0] = nearStart; fogRange[1] = nearEnd; fogRange[2] = farStart; fogRange[3] = farEnd;
+        return this;
+    }
 
     public boolean sunSet() { return sunSet; }
     public float sunX() { return sunX; }
@@ -35,4 +43,6 @@ public final class ModelLighting {
     public float envIntensity() { return envIntensity; }
     public float exposure() { return exposure; }
     public boolean tonemap() { return tonemap; }
+    public float[] fogTint() { return fogTint; }
+    public float[] fogRange() { return fogRange; }
 }

@@ -54,6 +54,8 @@ final class ModelShader implements AutoCloseable {
     private int envIntensityLoc;
     private int exposureLoc;
     private int tonemapLoc;
+    private int fogTintLoc;
+    private int fogRangeLoc;
     private int timeLoc;
     private int surfaceValuesLoc;
     private int uvTransformLoc;
@@ -133,6 +135,8 @@ final class ModelShader implements AutoCloseable {
         this.envIntensityLoc = uniform("EnvIntensity");
         this.exposureLoc = uniform("Exposure");
         this.tonemapLoc = uniform("Tonemap");
+        this.fogTintLoc = uniform("FogTint");
+        this.fogRangeLoc = uniform("FogRange");
         this.timeLoc = uniform("Time");
         this.surfaceValuesLoc = uniform("SurfaceValues");
         this.uvTransformLoc = uniform("UvTransform");
@@ -197,6 +201,8 @@ final class ModelShader implements AutoCloseable {
         if (envIntensityLoc != -1) GL20.glUniform1f(envIntensityLoc, l.envIntensity());
         if (exposureLoc != -1) GL20.glUniform1f(exposureLoc, l.exposure());
         if (tonemapLoc != -1) GL20.glUniform1i(tonemapLoc, l.tonemap() ? 1 : 0);
+        if (fogTintLoc != -1) GL20.glUniform4fv(fogTintLoc, l.fogTint());
+        if (fogRangeLoc != -1) GL20.glUniform4fv(fogRangeLoc, l.fogRange());
     }
 
     void uploadEnv(boolean hasCube, float maxLod) {

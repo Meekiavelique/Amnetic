@@ -67,6 +67,7 @@ uniform float Time;
 
 #include "amnetic:shaders/material/custom_surface_ladder.glsl"
 #include "amnetic:shaders/common/look.glsl"
+#include "amnetic:shaders/common/fog.glsl"
 
 vec3 skyEnv(vec3 d) {
     float up = clamp(d.y * 0.5 + 0.5, 0.0, 1.0);
@@ -191,6 +192,7 @@ void main() {
 
     if (Unlit == 1) {
         FragColor = vec4(pow(max(albedo.rgb + emissive, 0.0), vec3(1.0 / 2.2)), albedo.a);
+        FragColor.rgb = worldFog(FragColor.rgb, vWorldPos);
         GAlbedo = vec4(0.0, 0.0, 0.0, 1.0);
         GMaterial = vec4(1.0, 0.0, materialIdNorm, lightmapEncoded);
         GEmissive = vec4(0.0);
@@ -206,6 +208,7 @@ void main() {
         vec3 light = texture(LightMap, vec2(block * (15.0 / 16.0) + 0.5 / 16.0, sky * (15.0 / 16.0) + 0.5 / 16.0)).rgb;
         vec3 lamp = texture(LightMap, vec2(block * (15.0 / 16.0) + 0.5 / 16.0, 0.5 / 16.0)).rgb;
         FragColor = vec4(pow(albedo.rgb, vec3(1.0 / 2.2)) * face * light, albedo.a);
+        FragColor.rgb = worldFog(FragColor.rgb, vWorldPos);
         GMaterial = vec4(1.0, 0.0, materialIdNorm, lightmapEncoded);
         GEmissive = vec4(0.0);
         GShade = vec4(lookLuma(max(light - lamp, 0.0)) / max(lookLuma(light), 1e-4), 1.0, 1.0, 1.0);
@@ -227,8 +230,10 @@ void main() {
         vec3 glass = shine + color * frost + albedo.rgb * 0.08 * lookLuma(daylight + torch) * Exposure * LOOK_EXPOSURE;
         float a = clamp((1.0 - Transmission) + frost * 0.85 + lookLuma(shine) * 0.6, 0.05, 1.0);
         FragColor = vec4(Tonemap == 1 ? lookDisplay(glass) : pow(max(glass, 0.0), vec3(1.0 / 2.2)), a);
+        FragColor.rgb = worldFog(FragColor.rgb, vWorldPos);
         return;
     }
 
     FragColor = vec4(Tonemap == 1 ? lookDisplay(color) : pow(max(color, 0.0), vec3(1.0 / 2.2)), albedo.a);
+    FragColor.rgb = worldFog(FragColor.rgb, vWorldPos);
 }
