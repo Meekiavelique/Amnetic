@@ -11,40 +11,37 @@
 </p>
 
 
-A rendering library for Minecraft with dynamic lights, materials, particles, post-processing and model rendering.
+A rendering library for Minecraft: dynamic lights, materials, particles, post-processing and models.
 
-## Compatibility
+## Versions
 
-| Minecraft | Fabric | Forge | NeoForge | Quilt |
-| --- | --- | --- | --- | --- |
-| 1.20.1 | Yes | Yes | No | Fabric build |
-| 1.21.1 | Yes | Yes | No | Fabric build |
-| 1.21.11 | Yes | Yes | No | Fabric build |
-| 26.1.2 | Yes | Yes | Yes | Fabric build |
-| 26.2 | Yes | Yes | Yes | Fabric build |
-| 26.3 | Yes | Yes | Yes | Separate Quilt build |
+| Minecraft | Java | Fabric | Forge | NeoForge | Quilt |
+| --- | --- | --- | --- | --- | --- |
+| 1.20.1 | 17 | ✓ | ✓ | | Fabric jar |
+| 1.21.1 | 21 | ✓ | ✓ | | Fabric jar |
+| 1.21.11 | 21 | ✓ | ✓ | | Fabric jar |
+| 26.1.2 | 25 | ✓ | ✓ | ✓ | Fabric jar |
+| 26.2 | 25 | ✓ | ✓ | ✓ | Fabric jar |
+| 26.3 | 25 | ✓ | ✓ | ✓ | Quilt jar |
 
-Fabric and Quilt require Fabric API. NeoForge 26.1.2 requires Forgified Fabric API; NeoForge 26.2 and 26.3 do not require it or Connector. Fabric 26.3 requires Fabric Loader 0.20.1 or newer. Use the separate Quilt artifact on 26.3.
+- Fabric and Quilt need Fabric API. Fabric 26.3 needs Fabric Loader 0.20.1+.
+- NeoForge 26.1.2 needs Forgified Fabric API. NeoForge 26.2 and 26.3 need nothing extra.
 
-Use Java 17 for 1.20.1, Java 21 for 1.21.x, and Java 25 for 26.x. Older Quilt versions use Fabric compatibility; they have not all been tested individually.
+## Renderers
 
-| Renderer | Compatibility |
+| Renderer | Status |
 | --- | --- |
-| OpenGL | Supported. |
-| Vulkan | Native rendering on 26.2 and 26.3; in-world lighting tested on all four loaders on 26.3. Earlier versions use OpenGL. |
-| Sodium | 0.9.2 tested on 26.3 with Fabric and NeoForge on OpenGL/Vulkan, and Quilt on Vulkan. |
-| Iris + Sodium | Tested on Fabric 26.1.2 and Fabric/Quilt 26.3 with OpenGL. On 26.3, Iris 1.11.7 and Complementary Reimagined r5.9.3 were tested. Iris Vulkan crashes, and the NeoForge shader-pack failure also occurs without Amnetic. |
-| OptiFine | Unverified across the supported versions, including Forge and NeoForge. No confirmed 26.3 combination. |
+| OpenGL | Supported |
+| Vulkan | Native on 26.2 and 26.3, older versions fall back to OpenGL |
+| Sodium | 0.9.2 tested on 26.3 |
+| Iris | Tested on 26.1.2 and 26.3 with OpenGL. Iris on Vulkan crashes |
+| OptiFine | Untested |
 
-Other renderer/version combinations are unverified. Loader support does not mean every shader pack or renderer combination has been tested.
+## Using it in your mod
 
-## Add Amnetic to your mod
+Grab the jar matching your Minecraft version and loader (not the sources or dev jar), drop it in `libs/`, then:
 
-Choose the production JAR for the same Minecraft version and loader as your mod. Do not use a sources, dev, slim or unshaded JAR. Players can install it in their `mods` folder alongside your mod.
-
-For development, put that JAR in your project's `libs` directory. These examples use Groovy Gradle; replace `amnetic.jar` with its filename.
-
-**Fabric / Quilt with remapping Loom (1.20.1–1.21.11):**
+**Fabric / Quilt, 1.20.1 to 1.21.11**
 
 ```groovy
 dependencies {
@@ -52,7 +49,7 @@ dependencies {
 }
 ```
 
-**Fabric / Quilt with non-remapping Loom (26.x), or NeoForge with ModDevGradle:**
+**Fabric / Quilt / Forge 26.x, NeoForge**
 
 ```groovy
 dependencies {
@@ -60,7 +57,7 @@ dependencies {
 }
 ```
 
-**Forge with ForgeGradle (1.20.1–1.21.11):** put the JAR in `libs` as `amnetic-VERSION.jar` and use:
+**Forge, 1.20.1 to 1.21.11** (name the jar `amnetic-VERSION.jar`)
 
 ```groovy
 repositories {
@@ -72,34 +69,20 @@ dependencies {
 }
 ```
 
-For Forge 26.x, use `implementation files("libs/amnetic.jar")` without deobfuscation.
+Then add `amnetic` as a required dependency in your mod metadata. Players install Amnetic in their `mods` folder next to your mod.
 
-Declare `amnetic` as a required dependency in your loader's mod metadata, with the version range your mod supports. Fabric uses `depends`, Quilt uses `quilt_loader.depends`, and Forge/NeoForge use their TOML dependency entries.
+Fabric builds are also published to `https://maven.meekhasto.rest` as `com.meekdev:amnetic:VERSION`.
 
-Published Fabric builds can also be resolved from `https://maven.meekhasto.rest` as `com.meekdev:amnetic:VERSION`. Use an existing published version matching your Minecraft target; a build in this repository is not necessarily published there.
-
-### Embedding
-
-To package the dependency inside a Fabric or Quilt mod, add this alongside the dependency above:
-
-```groovy
-dependencies {
-    include files("libs/amnetic.jar")
-}
-```
-
-Forge and NeoForge use their loader's Jar-in-Jar packaging: [ForgeGradle](https://docs.minecraftforge.net/en/fg-5.x/dependencies/jarinjar/) or [ModDevGradle](https://github.com/neoforged/ModDevGradle#jar-in-jar). Keep Amnetic as a complete nested mod JAR, including its metadata, resources and bundled dependencies.
-
-Embedding has not been verified across these targets. Amnetic currently warns when loaded as a nested Fabric mod and treats bundling as unsupported; a separate installation remains the supported option.
+Bundling Amnetic inside your mod (Jar-in-Jar) is not supported. Ship it as a separate dependency.
 
 ## Documentation
 
-See the [wiki](https://github.com/Meekiavelique/Amnetic/wiki) for the API and examples, and [Native shaders](wiki/Native-Shaders.md) for shader integration.
+API and examples are on the [wiki](https://github.com/Meekiavelique/Amnetic/wiki). For shader integration see [Native shaders](wiki/Native-Shaders.md).
 
 ## Credits
 
-- **[bb4j](https://github.com/Danrus1100/bb4j)** by [Danrus1100](https://github.com/Danrus1100) - the Blockbench `.bbmodel` parser Amnetic uses to load Blockbench models. Bundled in `libs/bb4j.jar`.
-- **[Veil](https://github.com/FoundryMC/Veil)** by [FoundryMC](https://github.com/FoundryMC) - a big source of inspiration for the shape of this library, particularly the deferred rendering and framebuffer work.
+- **[bb4j](https://github.com/Danrus1100/bb4j)** by [Danrus1100](https://github.com/Danrus1100), the Blockbench model parser, bundled in `libs/bb4j.jar`.
+- **[Veil](https://github.com/FoundryMC/Veil)** by [FoundryMC](https://github.com/FoundryMC), a big inspiration for the deferred rendering and framebuffer side.
 
 ## License
 
